@@ -1,0 +1,265 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-watchlist-green: var(--watchlist-green);
+  --color-watchlist-green-foreground: var(--watchlist-green-foreground);
+  --color-watchlist-blue: var(--watchlist-blue);
+  --color-watchlist-blue-foreground: var(--watchlist-blue-foreground);
+  --color-watchlist-orange: var(--watchlist-orange);
+  --color-watchlist-orange-foreground: var(--watchlist-orange-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * This application is dark-only by product design (see docs/product-spec.md,
+ * "Design Direction"). The `.dark` class is applied unconditionally on <html>
+ * (src/app/layout.tsx) rather than toggled, so :root and .dark share one
+ * palette. Values are Letterboxd-inspired charcoal, not pure black/gray.
+ */
+:root,
+.dark {
+  --background: oklch(0.19 0.006 260);
+  --foreground: oklch(0.94 0.003 260);
+  --card: oklch(0.235 0.006 260);
+  --card-foreground: oklch(0.94 0.003 260);
+  --popover: oklch(0.235 0.006 260);
+  --popover-foreground: oklch(0.94 0.003 260);
+  --primary: oklch(0.72 0.13 232);
+  --primary-foreground: oklch(0.15 0.02 260);
+  --secondary: oklch(0.29 0.008 260);
+  --secondary-foreground: oklch(0.94 0.003 260);
+  --muted: oklch(0.27 0.007 260);
+  --muted-foreground: oklch(0.66 0.014 260);
+  --accent: oklch(0.32 0.01 260);
+  --accent-foreground: oklch(0.94 0.003 260);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.72 0.13 232 / 50%);
+  --chart-1: oklch(0.75 0.16 150);
+  --chart-2: oklch(0.72 0.13 232);
+  --chart-3: oklch(0.75 0.15 60);
+  --chart-4: oklch(0.66 0.014 260);
+  --chart-5: oklch(0.5 0.01 260);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.175 0.006 260);
+  --sidebar-foreground: oklch(0.94 0.003 260);
+  --sidebar-primary: oklch(0.72 0.13 232);
+  --sidebar-primary-foreground: oklch(0.15 0.02 260);
+  --sidebar-accent: oklch(0.27 0.007 260);
+  --sidebar-accent-foreground: oklch(0.94 0.003 260);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.72 0.13 232 / 50%);
+
+  /* Letterboxd-inspired accent trio, used sparingly and semantically:
+     green = watched/success, blue = primary interactive, orange = challenge/highlight. */
+  --watchlist-green: oklch(0.75 0.16 150);
+  --watchlist-green-foreground: oklch(0.15 0.03 150);
+  --watchlist-blue: oklch(0.72 0.13 232);
+  --watchlist-blue-foreground: oklch(0.15 0.02 232);
+  --watchlist-orange: oklch(0.75 0.15 60);
+  --watchlist-orange-foreground: oklch(0.15 0.03 60);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/*
+ * Typography — shared page-level heading/subtitle sizing (see
+ * docs/product-spec.md's UI-polish pass: "Headings should be comfortably
+ * readable. Body copy should not be tiny on a 1440p/4K screen."). `clamp()`
+ * so a heading scales up on wide viewports without ever shrinking below a
+ * comfortable floor on narrow ones — one place to tune page-title scale
+ * app-wide instead of a hardcoded `text-xl` repeated on every page.
+ */
+@layer utilities {
+  .page-heading {
+    color: var(--foreground);
+    font-weight: 600;
+    font-size: clamp(1.25rem, 1.05rem + 0.9vw, 1.875rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .page-subtitle {
+    color: var(--muted-foreground);
+    font-size: clamp(0.875rem, 0.82rem + 0.25vw, 1rem);
+    line-height: 1.5;
+  }
+}
+
+/*
+ * Primary navigation micro-animations (see docs/product-spec.md's
+ * UI-polish pass, "NAVIGATION MICRO-ANIMATIONS"). Every rule here is
+ * `transform`-only (cheap, compositor-only — never triggers layout) and
+ * lives entirely inside `prefers-reduced-motion: no-preference`, so a user
+ * who has asked for reduced motion gets the ordinary colour/underline
+ * active-state styling in `nav-links.tsx` and NONE of this — motion is
+ * additive polish, never the only way to tell what's active or hovered.
+ * Triggered by `group-hover`/`group-focus-visible` on the enclosing link
+ * (`nav-links.tsx`), so keyboard focus gets the exact same feedback as a
+ * mouse hover.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .nav-icon-logo {
+    transition:
+      transform 200ms ease-out,
+      filter 200ms ease-out;
+  }
+  .group:hover .nav-icon-logo,
+  .group:focus-visible .nav-icon-logo {
+    transform: translateY(-1px) rotate(-4deg);
+    filter: drop-shadow(
+      0 0 6px color-mix(in oklch, var(--watchlist-green) 55%, transparent)
+    );
+  }
+
+  .group:hover .nav-icon-watchlist-row-1,
+  .group:focus-visible .nav-icon-watchlist-row-1 {
+    animation: nav-row-settle 320ms ease-out;
+  }
+  .group:hover .nav-icon-watchlist-row-2,
+  .group:focus-visible .nav-icon-watchlist-row-2 {
+    animation: nav-row-settle 320ms 60ms ease-out backwards;
+  }
+  @keyframes nav-row-settle {
+    0% {
+      transform: translateX(-2.5px);
+      opacity: 0.5;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .nav-icon-clapperboard-arm {
+    /* The arm's own geometry meets the body box's top-left corner exactly
+       at (3, 11) — see nav-icons.tsx's DraftsNavIcon — so that's the real
+       hinge point, not a guessed one. */
+    transform-origin: 3px 11px;
+  }
+  .group:hover .nav-icon-clapperboard-arm,
+  .group:focus-visible .nav-icon-clapperboard-arm {
+    animation: nav-clap 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes nav-clap {
+    0% {
+      transform: rotate(0deg);
+    }
+    30% {
+      transform: rotate(-20deg);
+    }
+    55% {
+      transform: rotate(3deg);
+    }
+    75% {
+      transform: rotate(-2deg);
+    }
+    100% {
+      transform: rotate(0deg);
+    }
+  }
+
+  .nav-icon-history-hand {
+    transform-origin: 12px 12px;
+  }
+  .group:hover .nav-icon-history-hand,
+  .group:focus-visible .nav-icon-history-hand {
+    animation: nav-rewind 500ms ease-in-out;
+  }
+  @keyframes nav-rewind {
+    0% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(-50deg);
+    }
+    100% {
+      transform: rotate(0deg);
+    }
+  }
+
+  .nav-icon-stats-bar {
+    transform-box: fill-box;
+    transform-origin: bottom;
+  }
+  .group:hover .nav-icon-stats-bar-1,
+  .group:focus-visible .nav-icon-stats-bar-1 {
+    animation: nav-bar-recalc 420ms ease-in-out;
+  }
+  .group:hover .nav-icon-stats-bar-2,
+  .group:focus-visible .nav-icon-stats-bar-2 {
+    animation: nav-bar-recalc 420ms 70ms ease-in-out backwards;
+  }
+  .group:hover .nav-icon-stats-bar-3,
+  .group:focus-visible .nav-icon-stats-bar-3 {
+    animation: nav-bar-recalc 420ms 140ms ease-in-out backwards;
+  }
+  @keyframes nav-bar-recalc {
+    0% {
+      transform: scaleY(1);
+    }
+    40% {
+      transform: scaleY(0.4);
+    }
+    70% {
+      transform: scaleY(1.15);
+    }
+    100% {
+      transform: scaleY(1);
+    }
+  }
+}
