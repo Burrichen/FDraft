@@ -21,8 +21,23 @@ fn load_project_env() {
   let _ = dotenvy::from_path(project_root.join(".env"));
 }
 
+/// A production release install has no project checkout next to it for
+/// `load_project_env()` to find — `.env.local` only ever exists on a dev
+/// machine or the CI runner that builds the release. `option_env!` reads
+/// `TMDB_API_KEY` at COMPILE time instead, baking it directly into the
+/// release binary when the release workflow sets it as a build-time env
+/// var (from the `TMDB_API_KEY` GitHub secret — see the release workflow
+/// and README). A local `cargo build`/`tauri dev` run, with no such
+/// variable set at compile time, gets `None` here and falls through to the
+/// existing runtime `.env.local`/`.env` read below exactly as before — this
+/// is additive, not a replacement, for the dev workflow.
 #[tauri::command]
 fn get_tmdb_api_key() -> Option<String> {
+  if let Some(key) = option_env!("TMDB_API_KEY") {
+    if !key.is_empty() {
+      return Some(key.to_string());
+    }
+  }
   std::env::var("TMDB_API_KEY")
     .ok()
     .filter(|key| !key.is_empty())
@@ -34,6 +49,9 @@ pub fn run() {
 
   tauri::Builder::default()
     .plugin(tauri_plugin_http::init())
+    .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
     .invoke_handler(tauri::generate_handler![get_tmdb_api_key])
     .setup(|app| {
       if cfg!(debug_assertions) {

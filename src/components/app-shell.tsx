@@ -11,6 +11,8 @@ import {
   useProfileContext,
 } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
+import { UpdateDialog } from "@/components/updates/update-dialog";
+import { UpdateProvider } from "@/components/updates/update-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
@@ -113,8 +115,15 @@ export function AppShell({
   databaseName?: string;
 }) {
   return (
-    <ProfileProvider databaseName={databaseName}>
-      <AppShellContent>{children}</AppShellContent>
-    </ProfileProvider>
+    // Mounted above `ProfileProvider`, NOT keyed by profile — updates are
+    // installation-level (see docs/product-spec.md, "UPDATE SETTING"), so
+    // switching profiles must never remount this and trigger a second
+    // check within the same session.
+    <UpdateProvider>
+      <ProfileProvider databaseName={databaseName}>
+        <AppShellContent>{children}</AppShellContent>
+      </ProfileProvider>
+      <UpdateDialog />
+    </UpdateProvider>
   );
 }

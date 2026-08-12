@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import {
   FilmMetadataAmbiguousError,
@@ -8,8 +8,11 @@ import {
   type FilmMetadataProvider,
 } from "@/domain/import/film-metadata-provider";
 import { createTmdbProvider } from "@/domain/import/providers/tmdb-provider";
+import { isDesktopRuntime } from "@/infrastructure/tauri/desktop-runtime";
 import type { RemoteMetadataLookupResult } from "./remote-metadata-client";
 import type { RemoteMetadataSearchResult } from "./search-metadata-client";
+
+export { isDesktopRuntime };
 
 /**
  * The desktop half of "Application -> Metadata Service ->
@@ -32,8 +35,10 @@ import type { RemoteMetadataSearchResult } from "./search-metadata-client";
  *    keeping it out of the compiled JS bundle, at least.
  *
  * `remote-metadata-client.ts`/`search-metadata-client.ts` are the only
- * callers — this is the one place that's allowed to know a Tauri runtime
- * exists at all.
+ * callers — the metadata feature's own network boundary is the only thing
+ * in this file that knows a Tauri runtime exists (`isDesktopRuntime()`
+ * itself lives in `src/infrastructure/tauri/desktop-runtime.ts` and is
+ * re-exported here for those two callers' existing imports).
  */
 
 let cachedProvider: Promise<FilmMetadataProvider> | null = null;
@@ -47,11 +52,6 @@ async function getProvider(): Promise<FilmMetadataProvider> {
     );
   }
   return cachedProvider;
-}
-
-/** True only inside the Tauri desktop shell — never true for the web build, dev or production. */
-export function isDesktopRuntime(): boolean {
-  return isTauri();
 }
 
 export async function fetchFilmMetadataViaTauri(

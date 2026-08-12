@@ -60,6 +60,7 @@ async function seedFullProfile(
     listAppearances: null,
     externalIds: { imdb_id: "tt4468740" },
     raw: { anything: "goes" },
+    matchMethod: "automatic",
     lastEnrichedAt: "2026-01-02T00:00:00.000Z",
     createdAt: "2026-01-02T00:00:00.000Z",
     updatedAt: "2026-01-02T00:00:00.000Z",
@@ -324,8 +325,6 @@ describe("LocalBackupRestoreRepository", () => {
       expect(allFilmsWithSlug?.id).toBe(existingFilmId);
     });
 
-<<<<<<< Updated upstream
-=======
     it("normalizes an invalid/corrupted timezone rather than restoring it verbatim — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
       db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db);
@@ -409,7 +408,6 @@ describe("LocalBackupRestoreRepository", () => {
       expect(entries).toHaveLength(1);
     });
 
->>>>>>> Stashed changes
     it("leaves every other local profile's data completely untouched", async () => {
       db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db);

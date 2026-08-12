@@ -5,3 +5,8 @@ playwright-report
 test-results
 pnpm-lock.yaml
 src/lib/supabase/types.generated.ts
+# Rust build artifacts / Tauri-generated schemas — not source (nested
+# src-tauri/.gitignore covers this for git, but Prettier doesn't follow
+# nested .gitignore files).
+src-tauri/target
+src-tauri/gen

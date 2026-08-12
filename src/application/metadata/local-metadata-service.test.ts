@@ -16,7 +16,10 @@ const PROFILE_ID = "alex";
 async function seedFilmWithEntry(
   repos: Repositories,
   filmId: string,
-  overrides: { metadataAgeIso?: string } = {},
+  overrides: {
+    metadataAgeIso?: string;
+    matchMethod?: "automatic" | "manual";
+  } = {},
 ) {
   await repos.films.create({
     id: filmId,
@@ -63,6 +66,7 @@ async function seedFilmWithEntry(
       listAppearances: null,
       externalIds: null,
       raw: null,
+      matchMethod: overrides.matchMethod ?? "automatic",
       lastEnrichedAt: overrides.metadataAgeIso,
       createdAt: overrides.metadataAgeIso,
       updatedAt: overrides.metadataAgeIso,
@@ -463,8 +467,6 @@ describe("refreshOldMetadata", () => {
     expect(fetchMetadata).toHaveBeenCalledTimes(1);
     expect(outcome.attempted).toBe(1);
   });
-<<<<<<< Updated upstream
-=======
 
   it("never targets a manually-matched film, no matter how old its metadata looks — see docs/product-spec.md, 'MANUAL OVERRIDE SAFETY'", async () => {
     db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
@@ -664,5 +666,4 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
     const metadata = await repos.films.getMetadataForFilm("film-auto");
     expect(metadata[0].matchMethod).toBe("automatic");
   });
->>>>>>> Stashed changes
 });

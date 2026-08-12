@@ -40,6 +40,23 @@ export interface FilmMetadataResult {
 }
 
 /**
+ * One provider search result worth showing a human to choose from — see
+ * docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION", "PROVIDER
+ * MATCH SUGGESTIONS". `result` is the SAME shape `lookup()` would have
+ * returned had this candidate been the confident automatic pick — ready
+ * to persist directly the moment the user clicks "Use This Film", with
+ * no second round-trip to the provider needed.
+ */
+export interface FilmMetadataCandidateDetail {
+  providerId: string;
+  externalId: string;
+  title: string;
+  releaseYear: number | null;
+  confidence: number;
+  result: FilmMetadataResult;
+}
+
+/**
  * Adapter boundary between the import pipeline and any external film
  * metadata source. Concrete providers (TMDB, OMDb, a future licensed
  * Letterboxd API, ...) implement this; the import pipeline and challenge
@@ -64,6 +81,18 @@ export interface FilmMetadataProvider {
   readonly supportedCapabilities: readonly DataCapability[];
   /** Resolves one film's metadata, or null if the provider has no match. Must not throw for "not found" — only for genuine transport/provider failures (see `FilmMetadataProviderError`) or a genuinely ambiguous result (see `FilmMetadataAmbiguousError`). */
   lookup(input: FilmMetadataLookupInput): Promise<FilmMetadataResult | null>;
+  /**
+   * Returns a small, sensibly-ranked list of candidates for a free-text
+   * title/year query — for the Unresolved Metadata screen's "Possible
+   * matches" and manual search (see docs/product-spec.md, "UNRESOLVED
+   * METADATA RESOLUTION"), never for automatic matching (that's `lookup`).
+   * Optional: a provider that can't reasonably support this (e.g. a
+   * future provider with no search endpoint) simply omits it.
+   */
+  search?(
+    query: string,
+    releaseYear: number | null,
+  ): Promise<FilmMetadataCandidateDetail[]>;
 }
 
 /** A lean, provider-agnostic summary of one candidate a provider considered but couldn't confidently pick between — see `FilmMetadataAmbiguousError`. */

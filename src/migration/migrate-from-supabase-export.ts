@@ -98,6 +98,9 @@ export async function migrateFromSupabaseExport(
       listAppearances: metadata.list_appearances,
       externalIds: metadata.external_ids,
       raw: metadata.raw,
+      // The Supabase-era data model predates this field entirely — every
+      // one of these was, in fact, an automatic match.
+      matchMethod: "automatic",
       lastEnrichedAt: metadata.last_enriched_at,
       createdAt: metadata.created_at,
       updatedAt: metadata.updated_at,

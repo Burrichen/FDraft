@@ -1,4 +1,5 @@
 import type { BackupV1 } from "@/domain/backup/backup-schema";
+import { resolveMatchMethod } from "@/domain/metadata/match-method";
 import { resolveDefaultPage } from "@/domain/profiles/default-page";
 import type { LocalProfile } from "@/domain/profiles/profile";
 import { resolveProfileTimezone } from "@/domain/profiles/timezone";
@@ -16,6 +17,7 @@ import type {
   FilmMetadataRecord,
   FilmRecord,
   SelectionWeightAdjustmentRecord,
+  UnresolvedMetadataRecord,
   UserRatingRecord,
   WatchedHistoryRecord,
   WatchlistEntryRecord,
@@ -56,6 +58,7 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
       this.db.draftPostmortemResponses,
       this.db.selectionWeightAdjustments,
       this.db.settings,
+      this.db.unresolvedMetadata,
     ];
   }
 
@@ -125,6 +128,19 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
       if (!newFilmId) continue;
       await this.upsertMetadataIfMissing({
         ...metadata,
+        id: idGenerator.generate(),
+        filmId: newFilmId,
+        matchMethod: resolveMatchMethod(metadata.matchMethod),
+      });
+    }
+
+    // Optional — see `backupV1Schema`'s own doc comment: a backup exported
+    // before this existed simply has nothing to restore here.
+    for (const unresolved of backup.unresolvedMetadata ?? []) {
+      const newFilmId = filmIdMap.get(unresolved.filmId);
+      if (!newFilmId) continue;
+      await this.upsertUnresolvedMetadataIfMissing({
+        ...unresolved,
         id: idGenerator.generate(),
         filmId: newFilmId,
       });
@@ -357,8 +373,6 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
     }
     await this.db.filmMetadata.add(metadata);
   }
-<<<<<<< Updated upstream
-=======
 
   /**
    * Same "existing shared catalog state always wins" rule as
@@ -389,5 +403,4 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
     }
     await this.db.unresolvedMetadata.add(record);
   }
->>>>>>> Stashed changes
 }

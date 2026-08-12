@@ -2,12 +2,14 @@ import type { DataCapability } from "@/domain/shared/data-capability";
 import {
   FilmMetadataAmbiguousError,
   FilmMetadataProviderError,
+  type FilmMetadataCandidateDetail,
   type FilmMetadataLookupInput,
   type FilmMetadataProvider,
   type FilmMetadataResult,
 } from "@/domain/import/film-metadata-provider";
 import {
   pickBestMatch,
+  rankCandidates,
   type FilmMetadataSearchCandidate,
 } from "@/domain/import/film-metadata-matching";
 import { logMetadata } from "@/domain/import/metadata-debug-log";
@@ -237,9 +239,7 @@ export function createTmdbProvider({
     return (await response.json()) as TmdbMovieDetails;
   }
 
-<<<<<<< Updated upstream
-=======
-  /** Shared by `lookup()` (automatic match) and `search()` (manual candidates) — identical mapping either way, since a manually-chosen candidate should persist exactly what an automatic match on the same film would have. */
+  /** Shared by `lookup()` (automatic match) and `search()` (manual candidates) — identical mapping either way, since a manually-chosen candidate should persist exactly what an automatic match on the same film would have. Every numeric/array field goes through `asFiniteNumber`/`asArray` here — see those functions' doc comments. */
   function mapDetailsToResult(details: TmdbMovieDetails): FilmMetadataResult {
     const directors = asArray<TmdbCrewMember>(details.credits?.crew)
       .filter((member) => member.job === "Director")
@@ -289,10 +289,63 @@ export function createTmdbProvider({
     };
   }
 
->>>>>>> Stashed changes
   return {
     id: "tmdb",
     supportedCapabilities: TMDB_SUPPORTED_CAPABILITIES,
+    async search(
+      query: string,
+      releaseYear: number | null,
+    ): Promise<FilmMetadataCandidateDetail[]> {
+      if (!query || query.trim().length === 0) {
+        throw new FilmMetadataProviderError(
+          "A film title is required to search TMDB",
+          "invalid-import-data",
+        );
+      }
+
+      const searchResults = await searchMovie({ title: query, releaseYear });
+      const candidates: FilmMetadataSearchCandidate<number>[] =
+        searchResults.map((result) => ({
+          id: result.id,
+          title: result.title,
+          originalTitle: result.original_title,
+          releaseYear: parseReleaseYear(result.release_date),
+          popularity: result.popularity ?? null,
+        }));
+
+      const matchInput = { title: query, releaseYear };
+      const ranked = rankCandidates(candidates, matchInput);
+      logMetadata({
+        film: query,
+        importYear: releaseYear,
+        query,
+        providerCandidates: candidates.length,
+        status: ranked.length > 0 ? "matched" : "not-found",
+        reason: ranked.length > 0 ? undefined : "no-sensible-candidates",
+      });
+      if (ranked.length === 0) {
+        return [];
+      }
+
+      // Bounded (at most 5, via `rankCandidates`' default limit) and
+      // sequential rather than Promise.all — this is a manual,
+      // human-initiated action, not the bulk queue, so there's no
+      // throughput pressure, and sequential calls are simpler to reason
+      // about under TMDB's per-second rate limit than a burst of 5 at once.
+      const details: FilmMetadataCandidateDetail[] = [];
+      for (const scored of ranked) {
+        const movie = await fetchDetails(scored.candidate.id);
+        details.push({
+          providerId: "tmdb",
+          externalId: String(scored.candidate.id),
+          title: scored.candidate.title,
+          releaseYear: scored.candidate.releaseYear,
+          confidence: scored.confidence,
+          result: mapDetailsToResult(movie),
+        });
+      }
+      return details;
+    },
     async lookup(input): Promise<FilmMetadataResult | null> {
       if (!input.title || input.title.trim().length === 0) {
         throw new FilmMetadataProviderError(
@@ -352,9 +405,6 @@ export function createTmdbProvider({
 
       const { candidate, confidence } = matchResult;
       const details = await fetchDetails(candidate.id);
-      const directors = (details.credits?.crew ?? [])
-        .filter((member) => member.job === "Director")
-        .map((member) => member.name);
 
       logMetadata({
         film: input.title,
@@ -366,41 +416,7 @@ export function createTmdbProvider({
         status: "matched",
       });
 
-      return {
-        posterUrl: details.poster_path
-          ? `${TMDB_IMAGE_BASE}${details.poster_path}`
-          : null,
-        runtimeMinutes: details.runtime ?? null,
-        genres: emptyToNull(details.genres.map((genre) => genre.name)),
-        directors: emptyToNull(directors),
-        countries: emptyToNull(
-          details.production_countries.map((country) => country.name),
-        ),
-        languages: emptyToNull(
-          details.spoken_languages.map((language) => language.english_name),
-        ),
-        collectionId: details.belongs_to_collection
-          ? String(details.belongs_to_collection.id)
-          : null,
-        collectionName: details.belongs_to_collection?.name ?? null,
-        // TMDB's collection endpoint doesn't expose a canonical release-order
-        // index on the movie details response itself.
-        collectionOrder: null,
-        averageRating:
-          details.vote_average > 0
-            ? Math.round((details.vote_average / 2) * 100) / 100
-            : null,
-        popularity: details.popularity,
-        // Letterboxd-specific community metrics TMDB does not have — never invented.
-        watchCount: null,
-        fansCount: null,
-        listAppearances: null,
-        externalIds: {
-          tmdb: String(details.id),
-          ...(details.imdb_id ? { imdb: details.imdb_id } : {}),
-        },
-        raw: details,
-      };
+      return mapDetailsToResult(details);
     },
   };
 }

@@ -62,8 +62,6 @@ export const SCHEMA_MIGRATIONS: SchemaVersion[] = [
       settings: "[profileId+key], profileId",
     },
   },
-<<<<<<< Updated upstream
-=======
   {
     // Adds `unresolvedMetadata` — see docs/product-spec.md, "UNRESOLVED
     // METADATA RESOLUTION" (Prompt 10, Part 4). A brand-new, empty store:
@@ -171,7 +169,6 @@ export const SCHEMA_MIGRATIONS: SchemaVersion[] = [
       unresolvedMetadata: "id, &filmId, status",
     },
   },
->>>>>>> Stashed changes
 ];
 
 export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.at(-1)!.version;

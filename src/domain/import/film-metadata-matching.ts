@@ -197,3 +197,32 @@ export function pickBestMatch<TId>(
     confidence: best.confidence,
   };
 }
+
+/** Below this, a candidate is noise, not merely "unconfirmed" — see `rankCandidates`. Deliberately much lower than `MATCH_CONFIDENCE_THRESHOLD`: this is a floor for "worth showing a human," not "worth auto-selecting." */
+export const MIN_SENSIBLE_CANDIDATE_CONFIDENCE = 0.2;
+
+/**
+ * For the manual-resolution UI (see docs/product-spec.md, "UNRESOLVED
+ * METADATA RESOLUTION", "PROVIDER MATCH SUGGESTIONS" /
+ * "CANDIDATE RANKING") — unlike `pickBestMatch`, this never collapses to
+ * a single matched/ambiguous/not-found verdict. It always returns the
+ * best `limit` candidates worth showing a human to choose from, using the
+ * exact same scoring engine (title/year confidence, never popularity
+ * alone), filtered to a sensible floor so an obviously-unrelated film
+ * never pads out the list just to reach `limit` results.
+ */
+export function rankCandidates<TId>(
+  candidates: FilmMetadataSearchCandidate<TId>[],
+  input: { title: string; releaseYear: number | null },
+  limit = 5,
+): ScoredFilmMetadataCandidate<TId>[] {
+  return candidates
+    .map((candidate) => scoreCandidate(candidate, input))
+    .sort(
+      (a, b) =>
+        b.confidence - a.confidence ||
+        (b.candidate.popularity ?? 0) - (a.candidate.popularity ?? 0),
+    )
+    .filter((s) => s.confidence >= MIN_SENSIBLE_CANDIDATE_CONFIDENCE)
+    .slice(0, limit);
+}

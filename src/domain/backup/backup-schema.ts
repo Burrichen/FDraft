@@ -193,7 +193,25 @@ export const backupFilmMetadataSchema = z.object({
   listAppearances: z.number().int().nonnegative().nullable(),
   externalIds: jsonObjectSchema.nullable(),
   raw: jsonObjectSchema.nullable(),
+  // Optional — a backup exported before this field existed has no such
+  // key at all, and must still validate; `resolveMatchMethod()` (see
+  // `src/domain/metadata/match-method.ts`) is what actually falls back to
+  // "automatic" for a missing or invalid value wherever this is READ, not
+  // this schema.
+  matchMethod: z.enum(["automatic", "manual"]).optional(),
   lastEnrichedAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+
+export const backupUnresolvedMetadataSchema = z.object({
+  id: idSchema,
+  filmId: idSchema,
+  provider: z.string().trim().min(1).max(100),
+  status: z.enum(["unresolved", "failed"]),
+  reason: z.string().trim().min(1).max(100),
+  message: z.string().trim().min(1).max(500),
+  lastAttemptedAt: isoDateTimeSchema,
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -381,6 +399,11 @@ export const backupV1Schema = z.object({
     backupSelectionWeightAdjustmentSchema,
   ),
   settings: boundedArray(backupSettingsEntrySchema),
+  // Optional — a backup exported before "UNRESOLVED METADATA RESOLUTION"
+  // existed has no such key at all, and must still validate; every
+  // reader treats a missing key the same as an empty list (there was
+  // nothing unresolved to restore from that older export).
+  unresolvedMetadata: boundedArray(backupUnresolvedMetadataSchema).optional(),
 });
 export type BackupV1 = z.infer<typeof backupV1Schema>;
 

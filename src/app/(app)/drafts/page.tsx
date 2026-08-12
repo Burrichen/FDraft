@@ -100,31 +100,6 @@ export default function DraftsPage() {
           await repositories.history.listPostmortemResponsesForDraft(draft.id)
         ).map((response) => response.draftItemId),
       );
-<<<<<<< Updated upstream
-      const challengeDefinition = item.challengeId
-        ? challengeRegistry.getById(item.challengeId)
-        : undefined;
-      return {
-        itemId: item.id,
-        entryId: item.watchlistEntryId,
-        title: film?.title ?? "Untitled",
-        releaseYear: film?.releaseYear ?? null,
-        letterboxdUri: film?.letterboxdUri ?? null,
-        posterUrl: metadata.posterUrl,
-        averageRating: metadata.averageRating,
-        genres: metadata.genres,
-        isCompleted: item.isCompleted,
-        challenge: challengeDefinition
-          ? {
-              name: challengeDefinition.name,
-              description: challengeDefinition.description,
-              displayValue: item.challengeDisplayValue,
-            }
-          : null,
-      };
-    });
-=======
->>>>>>> Stashed changes
 
       const filmCards: DraftFilmCardView[] = items.map((item, index) => {
         const film = films[index];

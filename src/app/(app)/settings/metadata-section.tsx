@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -11,6 +13,7 @@ import {
   type MetadataDownloadProgress,
   type MetadataStatusSummary,
 } from "@/application/metadata/local-metadata-service";
+import { countUnresolvedFilms } from "@/application/metadata/unresolved-films";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -89,18 +92,13 @@ function StatBlock({ label, value }: { label: string; value: number }) {
  * completion summary with a "Retry Unresolved" action when anything
  * didn't resolve.
  */
+interface MetadataSectionData {
+  summary: MetadataStatusSummary;
+  needsReview: number;
+}
+
 export function MetadataSection() {
   const { activeProfile, repositories } = useProfileContext();
-<<<<<<< Updated upstream
-  const {
-    data: summary,
-    isLoading,
-    reload,
-  } = useAsyncData<MetadataStatusSummary | null>(async () => {
-    if (!activeProfile) return null;
-    return getMetadataStatusSummary(repositories, activeProfile.id);
-  }, [activeProfile?.id, repositories]);
-=======
   const { data, isLoading, reloadSilently } =
     useAsyncData<MetadataSectionData | null>(async () => {
       if (!activeProfile) return null;
@@ -115,7 +113,6 @@ export function MetadataSection() {
     }, [activeProfile?.id, repositories]);
   const summary = data?.summary ?? null;
   const needsReview = data?.needsReview ?? 0;
->>>>>>> Stashed changes
 
   const [runningOperation, setRunningOperation] =
     useState<OperationKind | null>(null);
@@ -187,8 +184,6 @@ export function MetadataSection() {
                 value={summary.missingMetadata}
               />
               <StatBlock label="Old metadata" value={summary.oldMetadata} />
-<<<<<<< Updated upstream
-=======
               {needsReview > 0 ? (
                 <div>
                   <dt className="text-xs font-medium">
@@ -207,7 +202,6 @@ export function MetadataSection() {
               ) : (
                 <StatBlock label="Needs review" value={0} />
               )}
->>>>>>> Stashed changes
             </dl>
             {summary.missingMetadata > 0 &&
             typeof navigator !== "undefined" &&

@@ -151,6 +151,7 @@ describe("applySchema — migration mechanism (synthetic schema, independent of 
         "profiles",
         "selectionWeightAdjustments",
         "settings",
+        "unresolvedMetadata",
         "userRatings",
         "watchedHistory",
         "watchlistEntries",

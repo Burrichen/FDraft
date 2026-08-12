@@ -573,4 +573,88 @@ describe("createTmdbProvider", () => {
     expect(provider.supportedCapabilities).not.toContain("list_appearances");
     expect(provider.supportedCapabilities).toContain("runtime");
   });
+
+  describe("search (manual candidate search — see docs/product-spec.md, 'UNRESOLVED METADATA RESOLUTION')", () => {
+    it("returns full details for the top-ranked candidates, not just the search-result summary", async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            results: [
+              {
+                id: 27205,
+                title: "Inception",
+                original_title: "Inception",
+                release_date: "2010-07-16",
+                popularity: 80,
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(movieDetails()));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const candidates = await provider.search!("Inception", 2010);
+
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0]).toMatchObject({
+        providerId: "tmdb",
+        externalId: "27205",
+        title: "Inception",
+        releaseYear: 2010,
+      });
+      expect(candidates[0].result.runtimeMinutes).toBe(148);
+      expect(candidates[0].result.directors).toEqual(["Christopher Nolan"]);
+      expect(candidates[0].result.externalIds).toEqual({
+        tmdb: "27205",
+        imdb: "tt1375666",
+      });
+    });
+
+    it("caps at a small number of candidates rather than fetching details for every search result", async () => {
+      const manyResults = Array.from({ length: 20 }, (_, i) => ({
+        id: i,
+        title: "Common Title",
+        original_title: "Common Title",
+        release_date: "2000-01-01",
+        popularity: 1,
+      }));
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ results: manyResults }))
+        .mockResolvedValue(jsonResponse(movieDetails({ id: 0 })));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const candidates = await provider.search!("Common Title", 2000);
+
+      expect(candidates.length).toBeLessThanOrEqual(5);
+    });
+
+    it("returns an empty array (says so — no fake candidates) when the search finds nothing sensible", async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ results: [] }));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const candidates = await provider.search!(
+        "Nothing Like This Exists",
+        null,
+      );
+
+      expect(candidates).toEqual([]);
+    });
+
+    it("rejects a blank query as invalid import data rather than searching for it", async () => {
+      const fetchImpl = vi.fn();
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const error = await provider.search!("   ", null).catch((e) => e);
+
+      expect(error).toBeInstanceOf(FilmMetadataProviderError);
+      expect((error as FilmMetadataProviderError).status).toBe(
+        "invalid-import-data",
+      );
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+  });
 });

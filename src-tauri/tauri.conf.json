@@ -9,6 +9,14 @@
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm run build:desktop-frontend"
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwNTBGMEEzOUY1NjUxMkYKUldRdlVWYWZvL0JRSVBYaVZkZ3RTTHg3VzMwaEhCN1BUb2FVR1pGYVZha2NXSUw1TUJMK0ZKY0cK",
+      "endpoints": [
+        "https://github.com/Burrichen/FDraft/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "app": {
     "windows": [
       {
@@ -30,12 +38,22 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "Burrichen",
+    "copyright": "© 2026 Burrichen",
+    "category": "Entertainment",
+    "shortDescription": "A local-first Letterboxd watchlist and Monthly Watchlist Draft companion.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }
