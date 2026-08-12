@@ -464,4 +464,236 @@ describe("createTmdbProvider", () => {
     expect(provider.supportedCapabilities).not.toContain("list_appearances");
     expect(provider.supportedCapabilities).toContain("runtime");
   });
+
+  describe("search (manual candidate search — see docs/product-spec.md, 'UNRESOLVED METADATA RESOLUTION')", () => {
+    it("returns full details for the top-ranked candidates, not just the search-result summary", async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            results: [
+              {
+                id: 27205,
+                title: "Inception",
+                original_title: "Inception",
+                release_date: "2010-07-16",
+                popularity: 80,
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(movieDetails()));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const candidates = await provider.search!("Inception", 2010);
+
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0]).toMatchObject({
+        providerId: "tmdb",
+        externalId: "27205",
+        title: "Inception",
+        releaseYear: 2010,
+      });
+      expect(candidates[0].result.runtimeMinutes).toBe(148);
+      expect(candidates[0].result.directors).toEqual(["Christopher Nolan"]);
+      expect(candidates[0].result.externalIds).toEqual({
+        tmdb: "27205",
+        imdb: "tt1375666",
+      });
+    });
+
+    it("caps at a small number of candidates rather than fetching details for every search result", async () => {
+      const manyResults = Array.from({ length: 20 }, (_, i) => ({
+        id: i,
+        title: "Common Title",
+        original_title: "Common Title",
+        release_date: "2000-01-01",
+        popularity: 1,
+      }));
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ results: manyResults }))
+        .mockResolvedValue(jsonResponse(movieDetails({ id: 0 })));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const candidates = await provider.search!("Common Title", 2000);
+
+      expect(candidates.length).toBeLessThanOrEqual(5);
+    });
+
+    it("returns an empty array (says so — no fake candidates) when the search finds nothing sensible", async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ results: [] }));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const candidates = await provider.search!(
+        "Nothing Like This Exists",
+        null,
+      );
+
+      expect(candidates).toEqual([]);
+    });
+
+    it("rejects a blank query as invalid import data rather than searching for it", async () => {
+      const fetchImpl = vi.fn();
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      const error = await provider.search!("   ", null).catch((e) => e);
+
+      expect(error).toBeInstanceOf(FilmMetadataProviderError);
+      expect((error as FilmMetadataProviderError).status).toBe(
+        "invalid-import-data",
+      );
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("structured dev-mode logging (see docs/product-spec.md, 'METADATA MATCHER AUDIT', 'METADATA DEBUGGING')", () => {
+    it("logs a structured, specific reason — never a generic 'no match' — when nothing is found", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ results: [] }));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      await provider.lookup({ title: "Nothing Like This", releaseYear: 2020 });
+
+      const logged = consoleSpy.mock.calls.map((call) => call[0] as string);
+      expect(logged.some((line) => line.includes("[MetadataResolution]"))).toBe(
+        true,
+      );
+      expect(logged.some((line) => line.includes("reason=no_candidates"))).toBe(
+        true,
+      );
+      expect(logged.some((line) => /reason=no match/i.test(line))).toBe(false);
+      consoleSpy.mockRestore();
+    });
+
+    it("logs reason=year_conflict when a strong title match has a confidently wrong year", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const fetchImpl = vi.fn().mockResolvedValueOnce(
+        jsonResponse({
+          results: [
+            { id: 1, title: "It", release_date: "1990-11-18", popularity: 20 },
+          ],
+        }),
+      );
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      await provider.lookup({ title: "It", releaseYear: 2017 });
+
+      const logged = consoleSpy.mock.calls.map((call) => call[0] as string);
+      expect(logged.some((line) => line.includes("reason=year_conflict"))).toBe(
+        true,
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it("logs the full candidate trail (not just the winner) with title/year/score for each", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const fetchImpl = vi.fn().mockResolvedValueOnce(
+        jsonResponse({
+          results: [
+            {
+              id: 1,
+              title: "Doubt",
+              release_date: "2008-12-12",
+              popularity: 10,
+            },
+            {
+              id: 2,
+              title: "Doubt",
+              release_date: "2008-12-12",
+              popularity: 10,
+            },
+          ],
+        }),
+      );
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      await provider
+        .lookup({ title: "Doubt", releaseYear: 2008 })
+        .catch(() => {});
+
+      const logged = consoleSpy.mock.calls.map((call) => call[0] as string);
+      const resolutionLog = logged.find((line) =>
+        line.includes("[MetadataResolution]"),
+      )!;
+      expect(resolutionLog).toContain("candidateCount=2");
+      expect(resolutionLog).toContain("candidate[0]:");
+      expect(resolutionLog).toContain("candidate[1]:");
+      expect(resolutionLog).toContain(
+        "reason=multiple_high_confidence_candidates",
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it("logs reason=missing_import_title for a blank title, rather than treating it like every other failure", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const provider = createTmdbProvider({
+        apiKey: "test-key",
+        fetchImpl: vi.fn(),
+      });
+
+      await provider
+        .lookup({ title: "   ", releaseYear: 2010 })
+        .catch(() => {});
+
+      const logged = consoleSpy.mock.calls.map((call) => call[0] as string);
+      expect(
+        logged.some((line) => line.includes("reason=missing_import_title")),
+      ).toBe(true);
+      consoleSpy.mockRestore();
+    });
+
+    it("logs a matched decision with the winning candidate's provider id", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            results: [
+              {
+                id: 27205,
+                title: "Inception",
+                release_date: "2010-07-16",
+                popularity: 80,
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(movieDetails()));
+      const provider = createTmdbProvider({ apiKey: "test-key", fetchImpl });
+
+      await provider.lookup({ title: "Inception", releaseYear: 2010 });
+
+      const logged = consoleSpy.mock.calls.map((call) => call[0] as string);
+      const resolutionLog = logged.find((line) =>
+        line.includes("[MetadataResolution]"),
+      )!;
+      expect(resolutionLog).toContain("decision=matched");
+      expect(resolutionLog).toContain("providerId=27205");
+      consoleSpy.mockRestore();
+    });
+
+    it("never logs anything resembling the api key", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ results: [] }));
+      const provider = createTmdbProvider({
+        apiKey: "super-secret-key-value",
+        fetchImpl,
+      });
+
+      await provider.lookup({ title: "Anything", releaseYear: 2020 });
+
+      const logged = consoleSpy.mock.calls.map((call) => call[0] as string);
+      expect(
+        logged.some((line) => line.includes("super-secret-key-value")),
+      ).toBe(false);
+      consoleSpy.mockRestore();
+    });
+  });
 });

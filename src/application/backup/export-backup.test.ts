@@ -56,6 +56,7 @@ async function seedFullProfile(repos: Repositories) {
     listAppearances: null,
     externalIds: { imdb_id: "tt4468740" },
     raw: { anything: "goes" },
+    matchMethod: "automatic",
     lastEnrichedAt: "2026-01-02T00:00:00.000Z",
     createdAt: "2026-01-02T00:00:00.000Z",
     updatedAt: "2026-01-02T00:00:00.000Z",
@@ -227,6 +228,33 @@ describe("buildProfileBackup", () => {
       key: "customKey",
       value: { nested: [1, 2, 3] },
     });
+  });
+
+  it("includes unresolvedMetadata for films the profile's own data references, and each FilmMetadataRecord carries matchMethod", async () => {
+    db = new FDraftLocalDatabase(`export-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFullProfile(repos);
+    await repos.unresolvedMetadata.upsert({
+      id: "unresolved-1",
+      filmId: "film-1",
+      provider: "tmdb",
+      status: "unresolved",
+      reason: "ambiguous",
+      message: "Could not confidently choose between multiple results.",
+      lastAttemptedAt: "2026-08-01T00:00:00.000Z",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+
+    const backup = await buildProfileBackup(repos, PROFILE_ID);
+
+    expect(backup.unresolvedMetadata).toHaveLength(1);
+    expect(backup.unresolvedMetadata?.[0]).toMatchObject({
+      filmId: "film-1",
+      status: "unresolved",
+      reason: "ambiguous",
+    });
+    expect(backup.filmMetadata[0].matchMethod).toBe("automatic");
   });
 
   it("only exports films the profile's own data actually references — never the wider shared catalog", async () => {

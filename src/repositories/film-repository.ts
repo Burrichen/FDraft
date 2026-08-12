@@ -25,4 +25,9 @@ export interface FilmRepository {
     filmIds: string[],
   ): Promise<Map<string, FilmMetadataRecord[]>>;
   upsertMetadata(metadata: FilmMetadataRecord): Promise<void>;
+  /** For the manual-match "provider_identifier_conflict" safety check (see docs/product-spec.md, "METADATA MATCHER AUDIT") — is this exact provider film already attached to a DIFFERENT local film? */
+  findMetadataByExternalId(
+    provider: string,
+    externalId: string,
+  ): Promise<FilmMetadataRecord | null>;
 }

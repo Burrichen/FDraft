@@ -30,9 +30,9 @@ export function DistributionBars({
               {entry.count}
             </span>
           </div>
-          <div className="bg-secondary h-1.5 w-full overflow-hidden rounded-full">
+          <div className="bg-secondary border-border/60 h-2 w-full overflow-hidden rounded-full border">
             <div
-              className="bg-watchlist-blue h-full rounded-full"
+              className="bg-watchlist-blue h-full rounded-full transition-[width] duration-500 ease-out"
               style={{ width: `${Math.max((entry.count / max) * 100, 4)}%` }}
             />
           </div>

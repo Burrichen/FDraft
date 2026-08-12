@@ -100,7 +100,7 @@ export function NewDraftForm({
   return (
     <form action={formAction} className="space-y-8">
       <section className="space-y-3">
-        <h2 className="text-foreground text-lg font-semibold">
+        <h2 className="text-foreground text-lg font-bold">
           Choose a difficulty
         </h2>
         <DifficultyPicker
@@ -112,7 +112,7 @@ export function NewDraftForm({
 
       {difficulty && !freeform && split ? (
         <section className="space-y-3">
-          <h2 className="text-foreground text-lg font-semibold">
+          <h2 className="text-foreground text-lg font-bold">
             How do you want the list to be made?
           </h2>
           <LinkedSliders
@@ -125,7 +125,7 @@ export function NewDraftForm({
 
       {difficulty && freeform ? (
         <section className="space-y-2">
-          <h2 className="text-foreground text-lg font-semibold">Freeform</h2>
+          <h2 className="text-foreground text-lg font-bold">Freeform</h2>
           <p className="text-muted-foreground text-sm">
             We&apos;ll generate your first{" "}
             {Math.min(FREEFORM_BATCH_SIZE, activeWatchlistCount)} films now. You
@@ -137,9 +137,7 @@ export function NewDraftForm({
 
       {difficulty && !freeform && challengeCount > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-foreground text-lg font-semibold">
-            Challenge films
-          </h2>
+          <h2 className="text-foreground text-lg font-bold">Challenge films</h2>
           <ChallengeModeToggle
             value={challengeMode}
             onChange={setChallengeMode}
@@ -160,7 +158,7 @@ export function NewDraftForm({
 
       {difficulty ? (
         <section className="space-y-3">
-          <h2 className="text-foreground text-lg font-semibold">Deadline</h2>
+          <h2 className="text-foreground text-lg font-bold">Deadline</h2>
           <TimeModeToggle value={timeMode} onChange={setTimeMode} />
         </section>
       ) : null}

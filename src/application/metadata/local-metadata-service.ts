@@ -1,7 +1,13 @@
+import { resolveMatchMethod } from "@/domain/metadata/match-method";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { SystemClock, type Clock } from "@/domain/time/clock";
 import type { FilmRepository } from "@/repositories/film-repository";
-import type { FilmMetadataRecord, FilmRecord } from "@/repositories/records";
+import type {
+  FilmMetadataRecord,
+  FilmRecord,
+  UnresolvedMetadataRecord,
+} from "@/repositories/records";
+import type { UnresolvedMetadataRepository } from "@/repositories/unresolved-metadata-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 import {
   fetchFilmMetadataViaApi,
@@ -64,6 +70,17 @@ async function classifyActiveWatchlistFilms(
       continue;
     }
     cachedCount++;
+    // A user's deliberate manual match (see docs/product-spec.md,
+    // "UNRESOLVED METADATA RESOLUTION", "MANUAL OVERRIDE SAFETY") must
+    // never be silently overwritten by a routine refresh, no matter how
+    // stale its `lastEnrichedAt` looks — excluded from `old` entirely
+    // rather than refreshed-and-reverted.
+    const isManuallyMatched = records.some(
+      (record) => resolveMatchMethod(record.matchMethod) === "manual",
+    );
+    if (isManuallyMatched) {
+      continue;
+    }
     const newestEnrichedAt = Math.max(
       ...records.map((r) => new Date(r.lastEnrichedAt).getTime()),
     );
@@ -181,8 +198,46 @@ function emptyOutcome(): MetadataDownloadOutcome {
   };
 }
 
+/** Human-readable, per-reason explanation shown on the Unresolved Metadata screen (see docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION"). */
+const UNRESOLVED_REASON_MESSAGES: Record<string, string> = {
+  ambiguous: "Could not confidently choose between multiple results.",
+  "not-found": "No confident match was found for this title.",
+  "rate-limited": "The metadata provider rate-limited this request.",
+  "provider-error": "The metadata provider returned an unexpected error.",
+  "invalid-import-data":
+    "This film's imported data could not be sent to the metadata provider.",
+  "network-error": "Could not reach the metadata provider.",
+};
+
+function buildUnresolvedRecord(
+  film: FilmRecord,
+  providerId: string,
+  status: UnresolvedMetadataRecord["status"],
+  reason: string,
+  now: string,
+  idGenerator: IdGenerator,
+): UnresolvedMetadataRecord {
+  return {
+    // `LocalUnresolvedMetadataRepository.upsert` preserves an existing
+    // row's real id when one already exists for this [filmId+provider]
+    // pair — this one is only ever actually used the first time.
+    id: idGenerator.generate(),
+    filmId: film.id,
+    provider: providerId,
+    status,
+    reason,
+    message: UNRESOLVED_REASON_MESSAGES[reason] ?? "This film needs review.",
+    lastAttemptedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 async function downloadForFilms(
-  repos: { films: FilmRepository },
+  repos: {
+    films: FilmRepository;
+    unresolvedMetadata: UnresolvedMetadataRepository;
+  },
   targets: FilmRecord[],
   deps: {
     fetchMetadata: (input: {
@@ -254,28 +309,73 @@ async function downloadForFilms(
               raw:
                 (outcome.result.raw as Record<string, unknown> | undefined) ??
                 null,
+              // A confident automatic match — see docs/product-spec.md,
+              // "UPCOMING FILMS IN RESOLUTION": identity confidence and
+              // metadata completeness are separate concepts, so a
+              // correctly-identified upcoming film with no rating/runtime
+              // yet still lands here as `matched`, never `unresolved`.
+              matchMethod: "automatic",
               lastEnrichedAt: now,
               createdAt: now,
               updatedAt: now,
             };
             await repos.films.upsertMetadata(record);
+            // No longer unresolved/failed, if it ever was — e.g. a retry
+            // that finally succeeded.
+            await repos.unresolvedMetadata.deleteByFilmId(
+              film.id,
+              outcome.providerId,
+            );
             matched++;
             completed++;
             break;
           }
           case "not-found": {
+            const now = deps.clock.now().toISOString();
+            await repos.unresolvedMetadata.upsert(
+              buildUnresolvedRecord(
+                film,
+                outcome.providerId,
+                "unresolved",
+                "not-found",
+                now,
+                deps.idGenerator,
+              ),
+            );
             notFound++;
             completed++;
             retryableFilmIds.push(film.id);
             break;
           }
           case "ambiguous": {
+            const now = deps.clock.now().toISOString();
+            await repos.unresolvedMetadata.upsert(
+              buildUnresolvedRecord(
+                film,
+                outcome.providerId,
+                "unresolved",
+                "ambiguous",
+                now,
+                deps.idGenerator,
+              ),
+            );
             ambiguous++;
             completed++;
             retryableFilmIds.push(film.id);
             break;
           }
           case "rate-limited": {
+            const now = deps.clock.now().toISOString();
+            await repos.unresolvedMetadata.upsert(
+              buildUnresolvedRecord(
+                film,
+                outcome.providerId,
+                "failed",
+                "rate-limited",
+                now,
+                deps.idGenerator,
+              ),
+            );
             rateLimited++;
             failed++;
             completed++;
@@ -284,6 +384,17 @@ async function downloadForFilms(
           }
           case "provider-error":
           case "invalid-import-data": {
+            const now = deps.clock.now().toISOString();
+            await repos.unresolvedMetadata.upsert(
+              buildUnresolvedRecord(
+                film,
+                "providerId" in outcome ? outcome.providerId : "unknown",
+                "failed",
+                outcome.status,
+                now,
+                deps.idGenerator,
+              ),
+            );
             failed++;
             completed++;
             retryableFilmIds.push(film.id);
@@ -297,6 +408,17 @@ async function downloadForFilms(
         if (cause instanceof MetadataNetworkError) {
           networkFailures++;
         }
+        const now = deps.clock.now().toISOString();
+        await repos.unresolvedMetadata.upsert(
+          buildUnresolvedRecord(
+            film,
+            "unknown",
+            "failed",
+            "network-error",
+            now,
+            deps.idGenerator,
+          ),
+        );
       }
       deps.onProgress?.({
         completed,
@@ -342,7 +464,11 @@ interface DownloadDeps {
 
 /** "Download Missing Metadata" — targets films with zero cached metadata. Never blocks on, or is blocked by, the watchlist import itself. */
 export async function downloadMissingMetadata(
-  repos: { watchlist: WatchlistRepository; films: FilmRepository },
+  repos: {
+    watchlist: WatchlistRepository;
+    films: FilmRepository;
+    unresolvedMetadata: UnresolvedMetadataRepository;
+  },
   profileId: string,
   deps: DownloadDeps = {},
 ): Promise<MetadataDownloadOutcome> {
@@ -362,7 +488,11 @@ export async function downloadMissingMetadata(
 
 /** "Refresh Old Metadata" — targets films whose cached metadata is older than the threshold. Never fires automatically on startup (see docs/product-spec.md: "Do not aggressively refresh every film on application startup"). */
 export async function refreshOldMetadata(
-  repos: { watchlist: WatchlistRepository; films: FilmRepository },
+  repos: {
+    watchlist: WatchlistRepository;
+    films: FilmRepository;
+    unresolvedMetadata: UnresolvedMetadataRepository;
+  },
   profileId: string,
   deps: DownloadDeps = {},
 ): Promise<MetadataDownloadOutcome> {
@@ -382,7 +512,10 @@ export async function refreshOldMetadata(
 
 /** "Retry Unresolved" — re-attempts exactly the films a previous run couldn't resolve (see `MetadataDownloadOutcome.retryableFilmIds`), rather than re-scanning the whole watchlist. Films no longer in the local catalog (e.g. removed since) are silently skipped. */
 export async function retryMetadataForFilms(
-  repos: { films: FilmRepository },
+  repos: {
+    films: FilmRepository;
+    unresolvedMetadata: UnresolvedMetadataRepository;
+  },
   filmIds: string[],
   deps: {
     fetchMetadata?: typeof fetchFilmMetadataViaApi;

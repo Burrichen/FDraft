@@ -32,6 +32,19 @@ export type WatchlistRemovalReason =
   "watched" | "postmortem_not_interested" | "manual";
 export type WatchedHistorySource =
   "app_watchlist_action" | "import_diary" | "import_watched";
+/** See `src/domain/metadata/match-method.ts` — always read through `resolveMatchMethod()`, never trusted raw (a record from before this field existed has no such property at all). */
+export type MetadataMatchMethod = "automatic" | "manual";
+/**
+ * `"unresolved"`: the provider returned candidates, or a search could be
+ * performed, but nothing was confidently identified as the film — this is
+ * potentially user-fixable (see `UnresolvedMetadataRecord`).
+ * `"failed"`: a technical operation failed (provider outage, network
+ * error, malformed response, rate limiting, an unexpected provider
+ * error) — never means "the film could not be identified". See
+ * docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION", "IMPORTANT
+ * DISTINCTION".
+ */
+export type MetadataResolutionStatus = "unresolved" | "failed";
 
 export interface FilmRecord {
   id: string;
@@ -63,7 +76,31 @@ export interface FilmMetadataRecord {
   listAppearances: number | null;
   externalIds: Record<string, unknown> | null;
   raw: Record<string, unknown> | null;
+  /** "automatic" (the enrichment queue's own confidence-scored pick) or "manual" (a user's deliberate choice on the Unresolved Metadata screen) — see `src/domain/metadata/match-method.ts`. */
+  matchMethod: MetadataMatchMethod;
   lastEnrichedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One film the enrichment queue could not confidently resolve on its own
+ * — see docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION". Exists
+ * only while a film is in this state: a successful match (automatic or
+ * manual) deletes the row for that `[filmId+provider]` pair. Catalog-wide
+ * like `FilmMetadataRecord`, not profile-scoped — the same film is the
+ * same film regardless of which profile's watchlist surfaced it.
+ */
+export interface UnresolvedMetadataRecord {
+  id: string;
+  filmId: string;
+  provider: string;
+  status: MetadataResolutionStatus;
+  /** Machine-readable short code — the exact outcome that produced this row (e.g. "ambiguous", "not-found", "rate-limited", "provider-error", "invalid-import-data", "network-error"). */
+  reason: string;
+  /** Human-readable explanation for the resolution screen, e.g. "Could not confidently choose between multiple results." */
+  message: string;
+  lastAttemptedAt: string;
   createdAt: string;
   updatedAt: string;
 }

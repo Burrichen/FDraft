@@ -112,6 +112,7 @@ export default function DraftsPage() {
         entryId: item.watchlistEntryId,
         title: film?.title ?? "Untitled",
         releaseYear: film?.releaseYear ?? null,
+        runtimeMinutes: metadata.runtimeMinutes,
         letterboxdUri: film?.letterboxdUri ?? null,
         posterUrl: metadata.posterUrl,
         averageRating: metadata.averageRating,
@@ -175,7 +176,7 @@ export default function DraftsPage() {
         ) : null}
         <div>
           <h1 className="page-heading">Active draft</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="page-subtitle">
             A temporary watchlist challenge for a defined period.
           </p>
         </div>
@@ -227,7 +228,7 @@ export default function DraftsPage() {
           <h1 className="page-heading">
             {DIFFICULTIES[draft.difficulty].label} draft — expired
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="page-subtitle">
             {watchedFilms.length}/{items.length} films completed · deadline was{" "}
             {deadlineLabel}
           </p>
@@ -235,7 +236,7 @@ export default function DraftsPage() {
 
         {postmortemFilms.length > 0 ? (
           <section className="space-y-3">
-            <h2 className="text-foreground text-lg font-semibold">
+            <h2 className="text-foreground text-lg font-bold">
               Why didn&apos;t you watch these?
             </h2>
             <ul className="space-y-3">
@@ -303,7 +304,7 @@ export default function DraftsPage() {
           <h1 className="page-heading">
             {DIFFICULTIES[draft.difficulty].label} draft
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="page-subtitle">
             {unresolvedChallengeCount > 0
               ? `${unresolvedChallengeCount} challenge slot${unresolvedChallengeCount === 1 ? "" : "s"} unfilled · `
               : ""}

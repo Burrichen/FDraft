@@ -58,6 +58,17 @@ export interface ScoredFilmMetadataCandidate<TId = string> {
   confidence: number;
 }
 
+/**
+ * Structured, specific reasons a film can become unresolved — see
+ * docs/product-spec.md, "METADATA MATCHER AUDIT". Deliberately never
+ * collapsed to a single generic "no match": each maps to one real,
+ * distinguishable branch of the scoring logic below, so dev logs and
+ * (indirectly) the Unresolved Metadata screen can say something more
+ * useful than "no match" ever could.
+ */
+export type MetadataUnresolvedReason =
+  "no_candidates" | "title_confidence_too_low" | "year_conflict";
+
 export type FilmMetadataMatchResult<TId = string> =
   | {
       status: "matched";
@@ -65,7 +76,7 @@ export type FilmMetadataMatchResult<TId = string> =
       confidence: number;
     }
   | { status: "ambiguous"; candidates: ScoredFilmMetadataCandidate<TId>[] }
-  | { status: "not-found" };
+  | { status: "not-found"; reason: MetadataUnresolvedReason };
 
 /** Below this combined confidence, a candidate is not considered a real match at all — see the module doc comment for how title/year combine into it. */
 export const MATCH_CONFIDENCE_THRESHOLD = 0.6;
@@ -155,33 +166,71 @@ export function scoreCandidate<TId>(
   };
 }
 
-/**
- * Ranks every candidate a provider's search returned and decides whether
- * one of them is confidently THE film, several are plausible enough that
- * guessing would be irresponsible, or none of them really are it. Never
- * picks "whichever came first" — see the module doc comment.
- */
-export function pickBestMatch<TId>(
+/** Best-first: highest confidence wins; popularity only breaks a near-exact tie, never outweighs title/year evidence itself (see `FilmMetadataSearchCandidate.popularity`'s own doc comment). */
+function scoreAndSort<TId>(
   candidates: FilmMetadataSearchCandidate<TId>[],
   input: { title: string; releaseYear: number | null },
-): FilmMetadataMatchResult<TId> {
-  if (candidates.length === 0) {
-    return { status: "not-found" };
-  }
-
-  const scored = candidates
+): ScoredFilmMetadataCandidate<TId>[] {
+  return candidates
     .map((candidate) => scoreCandidate(candidate, input))
     .sort(
       (a, b) =>
         b.confidence - a.confidence ||
         (b.candidate.popularity ?? 0) - (a.candidate.popularity ?? 0),
     );
+}
+
+/**
+ * Ranks every candidate a provider's search returned and decides whether
+ * one of them is confidently THE film, several are plausible enough that
+ * guessing would be irresponsible, or none of them really are it. Never
+ * picks "whichever came first" — see the module doc comment.
+ */
+/** Below this, a title match is weak enough on its own to explain rejection, regardless of year — see `resolveNotFoundReason`. */
+const WEAK_TITLE_SIMILARITY = 0.5;
+
+/**
+ * Distinguishes WHY nothing cleared the confidence threshold — see
+ * `MetadataUnresolvedReason`. `scored` is assumed non-empty (callers only
+ * reach here when `candidates.length > 0`).
+ */
+function resolveNotFoundReason<TId>(
+  scored: ScoredFilmMetadataCandidate<TId>[],
+  input: { title: string; releaseYear: number | null },
+): MetadataUnresolvedReason {
+  const best = scored[0];
+  const bothYearsKnown =
+    input.releaseYear !== null && best.candidate.releaseYear !== null;
+  if (
+    bothYearsKnown &&
+    best.yearConfidence === 0 &&
+    best.titleSimilarity >= WEAK_TITLE_SIMILARITY
+  ) {
+    // The title is a strong match, but the year is confidently wrong —
+    // e.g. "It" (1990) vs an import asking for "It" (2017).
+    return "year_conflict";
+  }
+  return "title_confidence_too_low";
+}
+
+export function pickBestMatch<TId>(
+  candidates: FilmMetadataSearchCandidate<TId>[],
+  input: { title: string; releaseYear: number | null },
+): FilmMetadataMatchResult<TId> {
+  if (candidates.length === 0) {
+    return { status: "not-found", reason: "no_candidates" };
+  }
+
+  const scored = scoreAndSort(candidates, input);
 
   const viable = scored.filter(
     (s) => s.confidence >= MATCH_CONFIDENCE_THRESHOLD,
   );
   if (viable.length === 0) {
-    return { status: "not-found" };
+    return {
+      status: "not-found",
+      reason: resolveNotFoundReason(scored, input),
+    };
   }
 
   const [best, runnerUp] = viable;
@@ -196,4 +245,27 @@ export function pickBestMatch<TId>(
     candidate: best.candidate,
     confidence: best.confidence,
   };
+}
+
+/** Below this, a candidate is noise, not merely "unconfirmed" — see `rankCandidates`. Deliberately much lower than `MATCH_CONFIDENCE_THRESHOLD`: this is a floor for "worth showing a human," not "worth auto-selecting." */
+export const MIN_SENSIBLE_CANDIDATE_CONFIDENCE = 0.2;
+
+/**
+ * For the manual-resolution UI (see docs/product-spec.md, "UNRESOLVED
+ * METADATA RESOLUTION", "PROVIDER MATCH SUGGESTIONS" /
+ * "CANDIDATE RANKING") — unlike `pickBestMatch`, this never collapses to
+ * a single matched/ambiguous/not-found verdict. It always returns the
+ * best `limit` candidates worth showing a human to choose from, using the
+ * exact same scoring engine (title/year confidence, never popularity
+ * alone), filtered to a sensible floor so an obviously-unrelated film
+ * never pads out the list just to reach `limit` results.
+ */
+export function rankCandidates<TId>(
+  candidates: FilmMetadataSearchCandidate<TId>[],
+  input: { title: string; releaseYear: number | null },
+  limit = 5,
+): ScoredFilmMetadataCandidate<TId>[] {
+  return scoreAndSort(candidates, input)
+    .filter((s) => s.confidence >= MIN_SENSIBLE_CANDIDATE_CONFIDENCE)
+    .slice(0, limit);
 }

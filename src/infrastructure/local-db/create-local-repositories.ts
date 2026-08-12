@@ -7,6 +7,7 @@ import { LocalFilmRepository } from "./film-repository";
 import { LocalHistoryRepository } from "./history-repository";
 import { LocalProfileRepository } from "./profile-repository";
 import { LocalSettingsRepository } from "./settings-repository";
+import { LocalUnresolvedMetadataRepository } from "./unresolved-metadata-repository";
 import { LocalWatchlistRepository } from "./watchlist-repository";
 
 /**
@@ -30,5 +31,6 @@ export function createLocalRepositories(
     settings: new LocalSettingsRepository(db),
     dataErasure: new LocalDataErasureRepository(db),
     backupRestore: new LocalBackupRestoreRepository(db),
+    unresolvedMetadata: new LocalUnresolvedMetadataRepository(db),
   };
 }
