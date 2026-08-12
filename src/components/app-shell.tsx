@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Header } from "@/components/layout/header";
@@ -9,6 +10,9 @@ import {
   ProfileProvider,
   useProfileContext,
 } from "@/components/profiles/profile-provider";
+import { Button } from "@/components/ui/button";
+import { UpdateDialog } from "@/components/updates/update-dialog";
+import { UpdateProvider } from "@/components/updates/update-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
@@ -24,7 +28,7 @@ import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/per
  *  - otherwise -> the real app, immediately, no extra screen in the way.
  */
 function AppShellContent({ children }: { children: ReactNode }) {
-  const { activeProfile, profiles } = useProfileContext();
+  const { activeProfile, profiles, initError, retryInit } = useProfileContext();
 
   // Only once a real profile is active — never on the bare first-run
   // screen (see docs/product-spec.md, "BROWSER STORAGE PERSISTENCE":
@@ -35,6 +39,38 @@ function AppShellContent({ children }: { children: ReactNode }) {
     if (!activeProfile) return;
     void new BrowserPersistentStorageRequester().requestOnce();
   }, [activeProfile]);
+
+  if (initError) {
+    // IndexedDB itself failed to open — Firefox private browsing, Safari
+    // with storage disabled, a corrupt database, a failed schema upgrade.
+    // Without this, `activeProfile` would stay `undefined` forever and the
+    // app would show "Loading…" permanently, right at its own entry point
+    // — see docs/product-spec.md, "COMPLETE PRODUCT AUDIT".
+    return (
+      <div className="flex min-h-full flex-1 items-center justify-center px-4">
+        <div className="border-border flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-16 text-center">
+          <AlertTriangle
+            aria-hidden="true"
+            className="text-destructive size-8"
+          />
+          <div className="space-y-1">
+            <p className="text-foreground text-sm font-medium">
+              Couldn&apos;t open local storage
+            </p>
+            <p className="text-muted-foreground max-w-sm text-sm">
+              FDraft stores everything on this device and couldn&apos;t access
+              that storage just now. Private browsing, disabled storage, or a
+              full disk can cause this — check your browser&apos;s settings and
+              try again.
+            </p>
+          </div>
+          <Button onClick={retryInit} variant="outline">
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (activeProfile === undefined) {
     // Resolving from IndexedDB — near-instant in practice, but a bare
@@ -79,8 +115,15 @@ export function AppShell({
   databaseName?: string;
 }) {
   return (
-    <ProfileProvider databaseName={databaseName}>
-      <AppShellContent>{children}</AppShellContent>
-    </ProfileProvider>
+    // Mounted above `ProfileProvider`, NOT keyed by profile — updates are
+    // installation-level (see docs/product-spec.md, "UPDATE SETTING"), so
+    // switching profiles must never remount this and trigger a second
+    // check within the same session.
+    <UpdateProvider>
+      <ProfileProvider databaseName={databaseName}>
+        <AppShellContent>{children}</AppShellContent>
+      </ProfileProvider>
+      <UpdateDialog />
+    </UpdateProvider>
   );
 }

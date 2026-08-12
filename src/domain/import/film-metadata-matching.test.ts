@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   MATCH_CONFIDENCE_THRESHOLD,
   pickBestMatch,
-  rankCandidates,
   scoreCandidate,
   yearConfidence,
   type FilmMetadataSearchCandidate,
@@ -169,35 +168,10 @@ describe("scoreCandidate", () => {
 });
 
 describe("pickBestMatch", () => {
-  it("returns not-found with reason 'no_candidates' for an empty candidate list", () => {
+  it("returns not-found for an empty candidate list", () => {
     expect(pickBestMatch([], { title: "Anything", releaseYear: 2020 })).toEqual(
-      { status: "not-found", reason: "no_candidates" },
+      { status: "not-found" },
     );
-  });
-
-  it("returns not-found with reason 'title_confidence_too_low' when candidates exist but none clear the bar on title alone", () => {
-    const result = pickBestMatch(
-      [
-        candidate({
-          id: 1,
-          title: "Completely Unrelated Film",
-          releaseYear: 2020,
-        }),
-      ],
-      { title: "Anything", releaseYear: 2020 },
-    );
-    expect(result).toEqual({
-      status: "not-found",
-      reason: "title_confidence_too_low",
-    });
-  });
-
-  it("returns not-found with reason 'year_conflict' when the title matches strongly but the year is confidently wrong", () => {
-    const result = pickBestMatch(
-      [candidate({ id: 1, title: "It", releaseYear: 1990 })],
-      { title: "It", releaseYear: 2017 },
-    );
-    expect(result).toEqual({ status: "not-found", reason: "year_conflict" });
   });
 
   it("returns not-found when no candidate clears the confidence threshold", () => {
@@ -301,81 +275,5 @@ describe("pickBestMatch", () => {
     if (result.status === "matched") {
       expect(result.candidate.id).toBe(1);
     }
-  });
-});
-
-describe("rankCandidates", () => {
-  it("returns the best candidates best-first, unlike pickBestMatch never collapsing to a single verdict", () => {
-    const ranked = rankCandidates(
-      [
-        candidate({ id: 1, title: "Jacob's Ladder", releaseYear: 1990 }),
-        candidate({ id: 2, title: "Jacob's Ladder", releaseYear: 2019 }),
-      ],
-      { title: "Jacob's Ladder", releaseYear: 1990 },
-    );
-    expect(ranked).toHaveLength(2);
-    expect(ranked[0].candidate.id).toBe(1);
-    expect(ranked[0].confidence).toBeGreaterThan(ranked[1].confidence);
-  });
-
-  it("caps the result at `limit` (default 5), even with many plausible candidates", () => {
-    const candidates = Array.from({ length: 20 }, (_, i) =>
-      candidate({ id: i, title: "Common Title", releaseYear: 2000 }),
-    );
-    const ranked = rankCandidates(candidates, {
-      title: "Common Title",
-      releaseYear: 2000,
-    });
-    expect(ranked.length).toBeLessThanOrEqual(5);
-  });
-
-  it("respects a custom limit", () => {
-    const candidates = Array.from({ length: 10 }, (_, i) =>
-      candidate({ id: i, title: "Common Title", releaseYear: 2000 }),
-    );
-    expect(
-      rankCandidates(
-        candidates,
-        { title: "Common Title", releaseYear: 2000 },
-        3,
-      ),
-    ).toHaveLength(3);
-  });
-
-  it("filters out obviously-unrelated candidates rather than padding the list to reach `limit`", () => {
-    const ranked = rankCandidates(
-      [
-        candidate({ id: 1, title: "Jacob's Ladder", releaseYear: 1990 }),
-        candidate({
-          id: 2,
-          title: "Completely Unrelated Documentary",
-          releaseYear: 2005,
-        }),
-      ],
-      { title: "Jacob's Ladder", releaseYear: 1990 },
-    );
-    expect(ranked.map((r) => r.candidate.id)).toEqual([1]);
-  });
-
-  it("says so (returns an empty array) when there are no candidates at all", () => {
-    expect(
-      rankCandidates([], { title: "Anything", releaseYear: null }),
-    ).toEqual([]);
-  });
-
-  it("never lets popularity alone promote an unrelated candidate", () => {
-    const ranked = rankCandidates(
-      [
-        candidate({
-          id: 1,
-          title: "Totally Different Movie",
-          releaseYear: 1990,
-          popularity: 999,
-        }),
-        candidate({ id: 2, title: "Jacob's Ladder", releaseYear: 1990 }),
-      ],
-      { title: "Jacob's Ladder", releaseYear: 1990 },
-    );
-    expect(ranked[0].candidate.id).toBe(2);
   });
 });

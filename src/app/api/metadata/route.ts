@@ -36,7 +36,7 @@ import {
  *   200 { status: "not-configured" }              (no TMDB_API_KEY set)
  *   400 { status: "invalid-import-data", message }
  *   429 { status: "rate-limited", providerId, retryAfterMs? }
- *   502 { status: "provider-error", providerId, message }
+ *   502 { status: "provider-error", providerId, message, httpStatus? }
  */
 export async function POST(request: NextRequest) {
   let input: FilmMetadataLookupInput;
@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
           status: "provider-error",
           providerId: provider.id,
           message: error.message,
+          httpStatus: error.httpStatus,
         },
         { status: 502 },
       );

@@ -1,5 +1,10 @@
 import type { MetadataRoute } from "next";
 
+// Required for static export (the desktop/Tauri build — see
+// docs/product-spec.md's Tauri integration notes); this manifest has no
+// per-request dynamic content at all.
+export const dynamic = "force-static";
+
 /**
  * Makes FDraft installable as a Progressive Web App (see
  * docs/product-spec.md, "PWA / OFFLINE APPLICATION SHELL" — Prompt 9.5D).

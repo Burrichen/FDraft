@@ -1,0 +1,77 @@
+name: Release desktop build
+
+# Fires on a version tag push (see README.md, "Release" — the documented
+# release procedure ends with `git push --tags`). Windows-only, matching
+# FDraft Version 1's distribution scope: no macOS/Linux packaging, no
+# Windows publisher/Authenticode signing (see docs/product-spec.md,
+# "SMARTSCREEN / WINDOWS SIGNING" — explicitly out of scope).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # A tag that doesn't match package.json's own version almost always
+      # means the developer forgot step 3 of the release procedure ("Update
+      # app version") before tagging — catching it here beats shipping a
+      # release whose installed binary silently disagrees with its own
+      # GitHub Release tag (and, more importantly, with the updater's
+      # version comparison, which is what an installed FDraft actually
+      # checks against).
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION — bump the version and commit before tagging."
+            exit 1
+          fi
+
+      # Same release-critical gate the developer runs locally (see
+      # docs/product-spec.md, "RELEASE QUALITY GATE") — the frontend/unit
+      # half; `tauri-action` below runs the actual production build.
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - run: pnpm run sync-desktop-version
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "FDraft ${{ github.ref_name }}"
+          releaseBody: |
+            See the assets below to download and install this version.
+
+            For a fresh install, download the `FDraft_*_Setup.exe` file.
+          releaseDraft: true
+          prerelease: false

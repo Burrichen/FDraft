@@ -10,14 +10,9 @@ import {
 import {
   pickBestMatch,
   rankCandidates,
-  scoreCandidate,
   type FilmMetadataSearchCandidate,
-  type ScoredFilmMetadataCandidate,
 } from "@/domain/import/film-metadata-matching";
-import {
-  logMetadataResolution,
-  type MetadataLogCandidate,
-} from "@/domain/import/metadata-debug-log";
+import { logMetadata } from "@/domain/import/metadata-debug-log";
 
 /**
  * A concrete, working FilmMetadataProvider backed by The Movie Database
@@ -53,6 +48,10 @@ const TMDB_API_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 const MAX_FETCH_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 500;
+/** No single TMDB request should be able to hang forever — a stuck download-queue worker (see docs/product-spec.md, "COMPLETE PRODUCT AUDIT") otherwise stalls the whole run with no cancel affordance until the page is reloaded. */
+const FETCH_TIMEOUT_MS = 15_000;
+/** Caps how long a `Retry-After` header (untrusted, server-controlled input) can make this provider sleep — without this, a header like `Retry-After: 86400` would block the download queue for real hours instead of the seconds TMDB's actual rate-limit windows use. */
+const MAX_RETRY_AFTER_MS = 30_000;
 
 export const TMDB_SUPPORTED_CAPABILITIES: readonly DataCapability[] = [
   "runtime",
@@ -108,6 +107,25 @@ function emptyToNull<T>(values: T[]): T[] | null {
   return values.length > 0 ? values : null;
 }
 
+/**
+ * `fetchDetails`'s `as TmdbMovieDetails` cast is a compile-time-only
+ * assertion — it doesn't validate the actual JSON TMDB sent back. A
+ * malformed response (e.g. `runtime: "142"` as a string) would otherwise
+ * flow straight into `FilmMetadataRecord.runtimeMinutes` unchanged, then
+ * silently corrupt Stats' numeric aggregates via string concatenation
+ * (`0 + "142"` → `"0142"`, not `142`) instead of ever surfacing as an
+ * error — see docs/product-spec.md, "COMPLETE PRODUCT AUDIT". Every
+ * numeric field pulled from a TMDB response goes through this first.
+ */
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** Same defensive purpose as `asFiniteNumber`, for the array fields — a malformed non-array response must fail this one field, not throw and abort the whole lookup. */
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 /** `"2017-04-26"` -> `2017`. `undefined`/empty (upcoming or unknown release) -> `null`, never invented. */
 function parseReleaseYear(releaseDate: string | undefined): number | null {
   if (!releaseDate) return null;
@@ -115,28 +133,12 @@ function parseReleaseYear(releaseDate: string | undefined): number | null {
   return Number.isInteger(year) && year > 0 ? year : null;
 }
 
-const MAX_LOGGED_CANDIDATES = 10;
-
-/** Scores and sorts candidates purely for the dev-mode log trail — see docs/product-spec.md, "METADATA DEBUGGING". Capped so a wildly popular title's search doesn't dump hundreds of lines to the console. */
-function toLogCandidates<TId>(
-  candidates: FilmMetadataSearchCandidate<TId>[],
-  input: { title: string; releaseYear: number | null },
-): MetadataLogCandidate[] {
-  const scored: ScoredFilmMetadataCandidate<TId>[] = candidates
-    .map((candidate) => scoreCandidate(candidate, input))
-    .sort((a, b) => b.confidence - a.confidence);
-  return scored.slice(0, MAX_LOGGED_CANDIDATES).map((s) => ({
-    title: s.candidate.title,
-    year: s.candidate.releaseYear,
-    score: Math.round(s.confidence * 100) / 100,
-  }));
-}
-
 function retryAfterMsFromHeader(response: Response): number | undefined {
   const header = response.headers.get("Retry-After");
   if (!header) return undefined;
   const seconds = Number(header);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
 }
 
 export function createTmdbProvider({
@@ -156,7 +158,22 @@ export function createTmdbProvider({
   async function fetchWithRetry(url: string): Promise<Response> {
     let lastResponse: Response | undefined;
     for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
-      const response = await fetchImpl(url);
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+      } catch {
+        lastResponse = undefined;
+        if (attempt === MAX_FETCH_ATTEMPTS) {
+          throw new FilmMetadataProviderError(
+            `TMDB request timed out after ${FETCH_TIMEOUT_MS}ms`,
+            "provider-error",
+          );
+        }
+        await sleepImpl(DEFAULT_RETRY_DELAY_MS * 2 ** (attempt - 1));
+        continue;
+      }
       if (response.ok) {
         return response;
       }
@@ -175,7 +192,8 @@ export function createTmdbProvider({
       await sleepImpl(delay);
     }
     // lastResponse is always assigned here: the loop only exits via
-    // `return` (success) or after assigning it on a non-ok response.
+    // `return` (success), by throwing directly on a final-attempt timeout,
+    // or after assigning it on a non-ok response.
     const response = lastResponse!;
     if (response.status === 429) {
       throw new FilmMetadataProviderError(
@@ -221,24 +239,31 @@ export function createTmdbProvider({
     return (await response.json()) as TmdbMovieDetails;
   }
 
-  /** Shared by `lookup()` (automatic match) and `search()` (manual candidates) — identical mapping either way, since a manually-chosen candidate should persist exactly what an automatic match on the same film would have. */
+  /** Shared by `lookup()` (automatic match) and `search()` (manual candidates) — identical mapping either way, since a manually-chosen candidate should persist exactly what an automatic match on the same film would have. Every numeric/array field goes through `asFiniteNumber`/`asArray` here — see those functions' doc comments. */
   function mapDetailsToResult(details: TmdbMovieDetails): FilmMetadataResult {
-    const directors = (details.credits?.crew ?? [])
+    const directors = asArray<TmdbCrewMember>(details.credits?.crew)
       .filter((member) => member.job === "Director")
       .map((member) => member.name);
+    const voteAverage = asFiniteNumber(details.vote_average);
 
     return {
       posterUrl: details.poster_path
         ? `${TMDB_IMAGE_BASE}${details.poster_path}`
         : null,
-      runtimeMinutes: details.runtime ?? null,
-      genres: emptyToNull(details.genres.map((genre) => genre.name)),
+      runtimeMinutes: asFiniteNumber(details.runtime),
+      genres: emptyToNull(
+        asArray<{ name: string }>(details.genres).map((genre) => genre.name),
+      ),
       directors: emptyToNull(directors),
       countries: emptyToNull(
-        details.production_countries.map((country) => country.name),
+        asArray<{ name: string }>(details.production_countries).map(
+          (country) => country.name,
+        ),
       ),
       languages: emptyToNull(
-        details.spoken_languages.map((language) => language.english_name),
+        asArray<{ english_name: string }>(details.spoken_languages).map(
+          (language) => language.english_name,
+        ),
       ),
       collectionId: details.belongs_to_collection
         ? String(details.belongs_to_collection.id)
@@ -248,10 +273,10 @@ export function createTmdbProvider({
       // index on the movie details response itself.
       collectionOrder: null,
       averageRating:
-        details.vote_average > 0
-          ? Math.round((details.vote_average / 2) * 100) / 100
+        voteAverage !== null && voteAverage > 0
+          ? Math.round((voteAverage / 2) * 100) / 100
           : null,
-      popularity: details.popularity,
+      popularity: asFiniteNumber(details.popularity),
       // Letterboxd-specific community metrics TMDB does not have — never invented.
       watchCount: null,
       fansCount: null,
@@ -272,11 +297,6 @@ export function createTmdbProvider({
       releaseYear: number | null,
     ): Promise<FilmMetadataCandidateDetail[]> {
       if (!query || query.trim().length === 0) {
-        logMetadataResolution({
-          importedTitle: query,
-          decision: "failed",
-          reason: "missing_import_title",
-        });
         throw new FilmMetadataProviderError(
           "A film title is required to search TMDB",
           "invalid-import-data",
@@ -294,22 +314,23 @@ export function createTmdbProvider({
         }));
 
       const matchInput = { title: query, releaseYear };
-      logMetadataResolution({
-        importedTitle: query,
-        importedYear: releaseYear,
-        candidates: toLogCandidates(candidates, matchInput),
-        decision: "manual-search",
-        providerId: "tmdb",
-      });
-
       const ranked = rankCandidates(candidates, matchInput);
+      logMetadata({
+        film: query,
+        importYear: releaseYear,
+        query,
+        providerCandidates: candidates.length,
+        status: ranked.length > 0 ? "matched" : "not-found",
+        reason: ranked.length > 0 ? undefined : "no-sensible-candidates",
+      });
       if (ranked.length === 0) {
         return [];
       }
 
-      // Bounded (at most 5) and sequential rather than Promise.all — this
-      // is a manual, human-initiated action, not the bulk queue, so there's
-      // no throughput pressure, and sequential calls are simpler to reason
+      // Bounded (at most 5, via `rankCandidates`' default limit) and
+      // sequential rather than Promise.all — this is a manual,
+      // human-initiated action, not the bulk queue, so there's no
+      // throughput pressure, and sequential calls are simpler to reason
       // about under TMDB's per-second rate limit than a burst of 5 at once.
       const details: FilmMetadataCandidateDetail[] = [];
       for (const scored of ranked) {
@@ -327,12 +348,6 @@ export function createTmdbProvider({
     },
     async lookup(input): Promise<FilmMetadataResult | null> {
       if (!input.title || input.title.trim().length === 0) {
-        logMetadataResolution({
-          importedTitle: input.title ?? "",
-          importedYear: input.releaseYear,
-          decision: "failed",
-          reason: "missing_import_title",
-        });
         throw new FilmMetadataProviderError(
           "A film title is required to search TMDB",
           "invalid-import-data",
@@ -354,28 +369,30 @@ export function createTmdbProvider({
         releaseYear: input.releaseYear ?? null,
       };
       const matchResult = pickBestMatch(candidates, matchInput);
-      const logCandidates = toLogCandidates(candidates, matchInput);
 
       if (matchResult.status === "not-found") {
-        logMetadataResolution({
-          importedTitle: input.title,
-          importedYear: input.releaseYear,
-          candidates: logCandidates,
-          decision: "unresolved",
-          providerId: "tmdb",
-          reason: matchResult.reason,
+        logMetadata({
+          film: input.title,
+          importYear: input.releaseYear,
+          query: input.title,
+          providerCandidates: candidates.length,
+          status: "not-found",
+          reason:
+            candidates.length === 0
+              ? "no-provider-candidates"
+              : "no-candidate-met-confidence-threshold",
         });
         return null;
       }
 
       if (matchResult.status === "ambiguous") {
-        logMetadataResolution({
-          importedTitle: input.title,
-          importedYear: input.releaseYear,
-          candidates: logCandidates,
-          decision: "unresolved",
-          providerId: "tmdb",
-          reason: "multiple_high_confidence_candidates",
+        logMetadata({
+          film: input.title,
+          importYear: input.releaseYear,
+          query: input.title,
+          providerCandidates: candidates.length,
+          status: "ambiguous",
+          reason: `${matchResult.candidates.length}-equally-plausible-candidates`,
         });
         throw new FilmMetadataAmbiguousError(
           matchResult.candidates.map((scored) => ({
@@ -386,15 +403,17 @@ export function createTmdbProvider({
         );
       }
 
-      const { candidate } = matchResult;
+      const { candidate, confidence } = matchResult;
       const details = await fetchDetails(candidate.id);
 
-      logMetadataResolution({
-        importedTitle: input.title,
-        importedYear: input.releaseYear,
-        candidates: logCandidates,
-        decision: "matched",
-        providerId: String(candidate.id),
+      logMetadata({
+        film: input.title,
+        importYear: input.releaseYear,
+        query: input.title,
+        providerCandidates: candidates.length,
+        selectedCandidate: `${candidate.title} (${candidate.releaseYear ?? "unknown year"})`,
+        confidence: Math.round(confidence * 100) / 100,
+        status: "matched",
       });
 
       return mapDetailsToResult(details);

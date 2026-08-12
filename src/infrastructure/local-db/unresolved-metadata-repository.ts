@@ -9,31 +9,25 @@ export class LocalUnresolvedMetadataRepository implements UnresolvedMetadataRepo
     return this.db.unresolvedMetadata.toArray();
   }
 
-  async getByFilmId(
-    filmId: string,
-    provider: string,
-  ): Promise<UnresolvedMetadataRecord | null> {
+  async getByFilmId(filmId: string): Promise<UnresolvedMetadataRecord | null> {
     const record = await this.db.unresolvedMetadata
-      .where("[filmId+provider]")
-      .equals([filmId, provider])
+      .where("filmId")
+      .equals(filmId)
       .first();
     return record ?? null;
   }
 
   async upsert(record: UnresolvedMetadataRecord): Promise<void> {
     const existing = await this.db.unresolvedMetadata
-      .where("[filmId+provider]")
-      .equals([record.filmId, record.provider])
+      .where("filmId")
+      .equals(record.filmId)
       .first();
     await this.db.unresolvedMetadata.put(
       existing ? { ...record, id: existing.id } : record,
     );
   }
 
-  async deleteByFilmId(filmId: string, provider: string): Promise<void> {
-    await this.db.unresolvedMetadata
-      .where("[filmId+provider]")
-      .equals([filmId, provider])
-      .delete();
+  async deleteByFilmId(filmId: string): Promise<void> {
+    await this.db.unresolvedMetadata.where("filmId").equals(filmId).delete();
   }
 }

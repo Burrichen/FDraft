@@ -10,6 +10,7 @@ import { DataBackupSection } from "./data-backup-section";
 import { DefaultPageSection } from "./default-page-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
+import { UpdatesSection } from "./updates-section";
 
 export function SettingsView() {
   const {
@@ -97,6 +98,8 @@ export function SettingsView() {
       <DefaultPageSection />
 
       <MetadataSection />
+
+      <UpdatesSection />
 
       <DataBackupSection />
     </div>

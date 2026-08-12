@@ -172,9 +172,7 @@ describe("manuallyMatchFilm", () => {
       lastEnrichedAt: "2026-02-01T00:00:00.000Z",
     });
 
-    expect(
-      await repos.unresolvedMetadata.getByFilmId("film-1", "tmdb"),
-    ).toBeNull();
+    expect(await repos.unresolvedMetadata.getByFilmId("film-1")).toBeNull();
   });
 
   it("never creates a duplicate watchlist film — only ever writes metadata keyed to the existing filmId", async () => {
@@ -239,9 +237,7 @@ describe("manuallyMatchFilm", () => {
     ).rejects.toThrow(ProviderIdentifierConflictError);
 
     // The conflict must block the write entirely — film-1 stays unresolved.
-    expect(
-      await repos.unresolvedMetadata.getByFilmId("film-1", "tmdb"),
-    ).not.toBeNull();
+    expect(await repos.unresolvedMetadata.getByFilmId("film-1")).not.toBeNull();
     expect(await repos.films.getMetadataForFilm("film-1")).toHaveLength(0);
   });
 

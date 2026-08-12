@@ -136,6 +136,23 @@ describe("draftConfigInputSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects an interactive challenge id in chosenChallengeIds — 'Choose My Challenge' can't offer one that can never finish, even via a tampered request (see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT')", () => {
+    const result = draftConfigInputSchema.safeParse({
+      difficulty: "easy",
+      timeMode: "calendar",
+      randomCount: 4,
+      challengeCount: 4,
+      challengeMode: "choose",
+      chosenChallengeIds: [
+        "short-king",
+        "battle-royale",
+        "crown-jewel",
+        "three-doors",
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("accepts an optional manualGenre alongside a chosen Genre Roulette pick", () => {
     const result = draftConfigInputSchema.safeParse({
       difficulty: "baby",

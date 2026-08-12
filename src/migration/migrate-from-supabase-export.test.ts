@@ -52,6 +52,29 @@ describe("migrateFromSupabaseExport", () => {
     });
   });
 
+  it("normalizes an invalid/corrupted timezone in the export, rather than crashing draft/watch-date logic on it later — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+    db = new FDraftLocalDatabase(`migrate-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+
+    const exportData = minimalExport({
+      profile: {
+        id: "user-123",
+        display_name: "Alex",
+        timezone: "Not/AZone",
+        created_at: "2025-01-01T00:00:00.000Z",
+      },
+    });
+    await migrateFromSupabaseExport(repos, exportData, {
+      currentSchemaVersion: 1,
+    });
+
+    const profile = await repos.profiles.getById("user-123");
+    expect(profile?.timezone).not.toBe("Not/AZone");
+    expect(profile?.timezone).toBe(
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+    );
+  });
+
   it("migrates films, watchlist entries, watched history, drafts, and postmortem responses with relationships intact", async () => {
     db = new FDraftLocalDatabase(`migrate-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);

@@ -1,4 +1,5 @@
 import { differenceInCalendarDays } from "date-fns";
+import { parseCalendarDate } from "@/domain/time/calendar-date";
 import { availableStat, unavailableStat, type Stat } from "./types";
 
 /**
@@ -133,7 +134,7 @@ export function calculateWatchlistStats({
 function averageAgeInDays(films: StatsFilmInput[], now: Date): number {
   const totalDays = films.reduce(
     (sum, film) =>
-      sum + differenceInCalendarDays(now, new Date(film.dateAdded)),
+      sum + differenceInCalendarDays(now, parseCalendarDate(film.dateAdded)),
     0,
   );
   return Math.round(totalDays / films.length);

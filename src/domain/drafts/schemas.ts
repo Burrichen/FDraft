@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { challengeRegistry } from "@/domain/challenges/catalogue";
 import { getFilmCount, isFreeform } from "./difficulty";
 import { isValidSplit } from "./split";
 
@@ -94,6 +95,24 @@ export const draftConfigInputSchema = z
           code: "custom",
           message: `chosenChallengeIds must have exactly ${config.challengeCount} entries (one per challenge slot)`,
           path: ["chosenChallengeIds"],
+        });
+      } else {
+        // "Choose My Challenge" only ever offers non-interactive challenges
+        // (see `list-local-challenge-availability.ts` — Battle Royale/Three
+        // Doors resolution isn't ported to the local engine yet), and
+        // "Decide For Me" already never auto-picks one either. Enforced
+        // again here, not just in that UI-layer filter, so a tampered
+        // request naming an interactive challenge id directly can't reach
+        // `attemptChosenChallenges` and fill a slot that can never finish
+        // — see docs/product-spec.md, "COMPLETE PRODUCT AUDIT".
+        config.chosenChallengeIds.forEach((id, index) => {
+          if (challengeRegistry.getById(id)?.interactive) {
+            ctx.addIssue({
+              code: "custom",
+              message: `chosenChallengeIds[${index}] ("${id}") is an interactive challenge, which "Choose My Challenge" cannot offer yet`,
+              path: ["chosenChallengeIds", index],
+            });
+          }
         });
       }
     }

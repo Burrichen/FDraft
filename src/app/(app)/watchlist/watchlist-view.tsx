@@ -8,6 +8,7 @@ import {
   setWatchlistSortPreference,
 } from "@/application/watchlist/watchlist-sort-preference";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
@@ -35,7 +36,7 @@ export function WatchlistView() {
   const { activeProfile, repositories } = useProfileContext();
   const watchUndo = useWatchUndo();
 
-  const { data, isLoading } = useAsyncData(async () => {
+  const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
     const activeEntries = await repositories.watchlist.listActiveEntries(
       activeProfile.id,
@@ -115,7 +116,13 @@ export function WatchlistView() {
     };
   }, [activeProfile?.id, repositories]);
 
-  if (!activeProfile || isLoading || !data) {
+  if (!activeProfile) {
+    return null;
+  }
+  if (error) {
+    return <AsyncDataError error={error} onRetry={reload} />;
+  }
+  if (isLoading || !data) {
     return null;
   }
 

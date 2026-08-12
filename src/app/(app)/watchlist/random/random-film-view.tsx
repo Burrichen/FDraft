@@ -1,6 +1,7 @@
 "use client";
 
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { createDefaultRng } from "@/domain/shared/rng";
 import { pickRandomFilm } from "@/domain/watchlist/random-pick";
@@ -13,7 +14,7 @@ import {
 export function RandomFilmView() {
   const { activeProfile, repositories } = useProfileContext();
 
-  const { data, isLoading } = useAsyncData(async () => {
+  const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
     const entries = await repositories.watchlist.listActiveEntries(
       activeProfile.id,
@@ -58,7 +59,13 @@ export function RandomFilmView() {
     return { candidates, initialPickId };
   }, [activeProfile?.id, repositories]);
 
-  if (!activeProfile || isLoading || !data) {
+  if (!activeProfile) {
+    return null;
+  }
+  if (error) {
+    return <AsyncDataError error={error} onRetry={reload} />;
+  }
+  if (isLoading || !data) {
     return null;
   }
 

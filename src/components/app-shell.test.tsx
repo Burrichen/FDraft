@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/app-shell";
+import { ProfileService } from "@/application/profiles/profile-service";
 
 /**
  * Proves the core claims of "REMOVE AUTHENTICATION" (see
@@ -14,6 +15,7 @@ describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("first launch: shows the first-run screen, never a login page", async () => {
@@ -48,6 +50,13 @@ describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
     await waitFor(() =>
       expect(screen.getByText("Watchlist content")).toBeInTheDocument(),
     );
+    // The header's home link always has a real accessible name — at
+    // narrow widths its icon is aria-hidden and its text label is hidden
+    // via CSS alone, which would otherwise leave it with none at all — see
+    // docs/product-spec.md, "COMPLETE PRODUCT AUDIT".
+    expect(
+      screen.getByRole("link", { name: "FDraft — home" }),
+    ).toBeInTheDocument();
     // The header now shows the profile, not an email/sign-out control.
     expect(
       screen.getByRole("button", { name: "Profile menu" }),
@@ -86,5 +95,33 @@ describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
     );
     expect(screen.queryByText("Welcome to FDraft")).not.toBeInTheDocument();
     expect(screen.queryByText("Who's watching?")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a real error state (with a working retry) instead of hanging on 'Loading…' forever when the initial IndexedDB read fails — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+    const resolveInitialProfile = vi
+      .spyOn(ProfileService.prototype, "resolveInitialProfile")
+      .mockRejectedValueOnce(new Error("IndexedDB open failed"));
+    const user = userEvent.setup();
+
+    render(
+      <AppShell databaseName={crypto.randomUUID()}>
+        <p>Watchlist content</p>
+      </AppShell>,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Couldn't open local storage"),
+      ).toBeInTheDocument(),
+    );
+    // Never gets stuck on the bare "Loading…" state once a real error is known.
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+
+    resolveInitialProfile.mockRestore();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Welcome to FDraft")).toBeInTheDocument(),
+    );
   });
 });

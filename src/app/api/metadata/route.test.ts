@@ -144,6 +144,28 @@ describe("POST /api/metadata", () => {
     const body = await response.json();
     expect(body.status).toBe("provider-error");
     expect(body.message).toContain("503");
+    expect(body.httpStatus).toBe(503);
+  });
+
+  it("passes the upstream HTTP status through on a 401 (invalid API key) so callers can give it a distinct, actionable message — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+    vi.mocked(getConfiguredFilmMetadataProvider).mockReturnValue(
+      fakeProvider(async () => {
+        throw new FilmMetadataProviderError(
+          "TMDB request failed with status 401",
+          "provider-error",
+          401,
+        );
+      }),
+    );
+
+    const response = await POST(
+      postRequest({ title: "Inception", releaseYear: 2010 }),
+    );
+
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.status).toBe("provider-error");
+    expect(body.httpStatus).toBe(401);
   });
 
   it("reports invalid-import-data with HTTP 400 when the request body has no title", async () => {

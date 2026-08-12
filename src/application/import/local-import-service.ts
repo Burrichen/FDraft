@@ -94,7 +94,10 @@ export async function importLocalWatchlistCsv(
   const now = clock.now().toISOString();
   const source = params.source ?? "csv";
 
-  const watchlistParse = parseWatchlistCsv(params.watchlistCsv);
+  const watchlistParse = parseWatchlistCsv(
+    params.watchlistCsv,
+    now.slice(0, 10),
+  );
   if (!watchlistParse.ok) {
     return { ok: false, error: watchlistParse.reason };
   }

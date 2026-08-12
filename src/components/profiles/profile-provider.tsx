@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -20,6 +21,19 @@ interface ProfileContextValue {
   /** `undefined` while still resolving on first mount, `null` once resolved with no active profile (picker/create-profile UI should show). */
   activeProfile: LocalProfile | null | undefined;
   profiles: LocalProfile[];
+  /**
+   * Set when the initial load from IndexedDB itself failed — e.g.
+   * `indexedDB.open()` rejecting (Firefox private browsing, Safari with
+   * storage disabled, a corrupt database, a failed schema upgrade). Without
+   * this, `activeProfile` would stay `undefined` forever and the app would
+   * show "Loading…" permanently, at exactly the platform configurations
+   * most likely to break a local-first app — see docs/product-spec.md,
+   * "COMPLETE PRODUCT AUDIT". `AppShellContent` renders a real error state
+   * (with `retryInit`) instead once this is set.
+   */
+  initError: Error | null;
+  /** Re-runs the initial load after `initError` — most causes are environmental (browser storage settings) rather than transient, but a fresh attempt costs nothing and occasionally does help (e.g. the user freed up disk space). */
+  retryInit: () => void;
   /** The one shared repository bag every application service call in the app should use — never construct a second one. */
   repositories: Repositories;
   createProfile: (
@@ -90,29 +104,44 @@ export function ProfileProvider({
   const [activeProfile, setActiveProfile] = useState<
     LocalProfile | null | undefined
   >(undefined);
+  const [initError, setInitError] = useState<Error | null>(null);
+  const [initAttempt, setInitAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [initial, list] = await Promise.all([
-        service.resolveInitialProfile(),
-        service.listProfiles(),
-      ]);
-      if (cancelled) return;
-      setActiveProfile(initial);
-      setProfiles(list);
+      setInitError(null);
+      try {
+        const [initial, list] = await Promise.all([
+          service.resolveInitialProfile(),
+          service.listProfiles(),
+        ]);
+        if (cancelled) return;
+        setActiveProfile(initial);
+        setProfiles(list);
+      } catch (cause) {
+        if (cancelled) return;
+        setInitError(cause instanceof Error ? cause : new Error(String(cause)));
+      }
     }
     void load();
     return () => {
       cancelled = true;
     };
-  }, [service]);
+  }, [service, initAttempt]);
+
+  const retryInit = useCallback(
+    () => setInitAttempt((attempt) => attempt + 1),
+    [],
+  );
 
   const value = useMemo<ProfileContextValue>(
     () => ({
       activeProfile,
       profiles,
       repositories,
+      initError,
+      retryInit,
       async createProfile(displayName, timezone) {
         const profile = await service.createProfile(displayName, timezone);
         setProfiles(await service.listProfiles());
@@ -153,7 +182,7 @@ export function ProfileProvider({
         }
       },
     }),
-    [service, repositories, activeProfile, profiles],
+    [service, repositories, activeProfile, profiles, initError, retryInit],
   );
 
   return (

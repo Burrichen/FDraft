@@ -4,6 +4,7 @@ import { Check, Circle, History } from "lucide-react";
 import { useState } from "react";
 import { listRecentlyWatchedFilms } from "@/application/history/recently-watched";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { HistoricalDraftSortControl } from "@/components/drafts/historical-draft-sort-control";
 import { RecentlyWatchedSection } from "@/components/drafts/recently-watched-section";
@@ -17,7 +18,7 @@ import {
   sortHistoricalDraftItems,
   type HistoricalDraftSortOption,
 } from "@/domain/drafts/history-sort";
-import { formatReadableDate } from "@/lib/utils";
+import { formatReadableCalendarDate, formatReadableDate } from "@/lib/utils";
 import { useAsyncData } from "@/hooks/use-async-data";
 import type {
   DraftItemRecord,
@@ -62,7 +63,7 @@ interface HistoricalDraftItemView {
 export default function DraftHistoryPage() {
   const { activeProfile, repositories } = useProfileContext();
 
-  const { data, isLoading } = useAsyncData(async () => {
+  const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
     const recentlyWatched = await listRecentlyWatchedFilms(
       repositories,
@@ -127,7 +128,13 @@ export default function DraftHistoryPage() {
     return { recentlyWatched, previousDrafts };
   }, [activeProfile?.id, repositories]);
 
-  if (!activeProfile || isLoading || !data) {
+  if (!activeProfile) {
+    return null;
+  }
+  if (error) {
+    return <AsyncDataError error={error} onRetry={reload} />;
+  }
+  if (isLoading || !data) {
     return null;
   }
 
@@ -323,7 +330,7 @@ function HistoricalDraftFilmGroup({
                     </span>
                     {isWatched && entry.watchedDate ? (
                       <span className="text-muted-foreground block text-xs">
-                        Watched {formatReadableDate(entry.watchedDate)}
+                        Watched {formatReadableCalendarDate(entry.watchedDate)}
                       </span>
                     ) : null}
                     {!isWatched && entry.postmortemResponse ? (
