@@ -60,6 +60,7 @@ async function seedFullProfile(
     listAppearances: null,
     externalIds: { imdb_id: "tt4468740" },
     raw: { anything: "goes" },
+    matchMethod: "automatic",
     lastEnrichedAt: "2026-01-02T00:00:00.000Z",
     createdAt: "2026-01-02T00:00:00.000Z",
     updatedAt: "2026-01-02T00:00:00.000Z",
@@ -322,6 +323,65 @@ describe("LocalBackupRestoreRepository", () => {
       const allFilmsWithSlug =
         await repos.films.findByLetterboxdSlug("shared-slug");
       expect(allFilmsWithSlug?.id).toBe(existingFilmId);
+    });
+
+    it("restores unresolvedMetadata, remapped to the correct local film id", async () => {
+      db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db);
+      await seedFullProfile(repos, "profile-a");
+      await repos.unresolvedMetadata.upsert({
+        id: "unresolved-1",
+        filmId: "film-profile-a",
+        provider: "tmdb",
+        status: "unresolved",
+        reason: "ambiguous",
+        message: "Could not confidently choose between multiple results.",
+        lastAttemptedAt: "2026-08-01T00:00:00.000Z",
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      });
+      const backup = await buildProfileBackup(repos, "profile-a", {
+        clock: CLOCK,
+      });
+
+      const result = await repos.backupRestore.importAsNewProfile(backup, {
+        idGenerator: sequentialIdGenerator("new"),
+        clock: CLOCK,
+        currentSchemaVersion: SCHEMA_VERSION,
+      });
+
+      const entries = await repos.watchlist.listAllEntries(result.profileId);
+      const restored = await repos.unresolvedMetadata.getByFilmId(
+        entries[0].filmId,
+        "tmdb",
+      );
+      expect(restored).toMatchObject({
+        status: "unresolved",
+        reason: "ambiguous",
+      });
+    });
+
+    it("a backup exported before UNRESOLVED METADATA RESOLUTION existed (no unresolvedMetadata key at all) still restores cleanly", async () => {
+      db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db);
+      await seedFullProfile(repos, "profile-a");
+      const backup = await buildProfileBackup(repos, "profile-a", {
+        clock: CLOCK,
+      });
+      const legacyBackup = { ...backup } as Partial<BackupV1>;
+      delete legacyBackup.unresolvedMetadata;
+
+      const result = await repos.backupRestore.importAsNewProfile(
+        legacyBackup as BackupV1,
+        {
+          idGenerator: sequentialIdGenerator("new"),
+          clock: CLOCK,
+          currentSchemaVersion: SCHEMA_VERSION,
+        },
+      );
+
+      const entries = await repos.watchlist.listAllEntries(result.profileId);
+      expect(entries).toHaveLength(1);
     });
 
     it("leaves every other local profile's data completely untouched", async () => {

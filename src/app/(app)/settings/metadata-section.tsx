@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -11,6 +13,7 @@ import {
   type MetadataDownloadProgress,
   type MetadataStatusSummary,
 } from "@/application/metadata/local-metadata-service";
+import { countUnresolvedFilms } from "@/application/metadata/unresolved-films";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,7 @@ import {
   ProgressIndicator,
 } from "@/components/ui/progress";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { cn } from "@/lib/utils";
 
 type OperationKind = "download" | "refresh" | "retry";
 
@@ -61,7 +65,10 @@ function describeOutcome(outcome: MetadataDownloadOutcome): {
       `${outcome.failed} failed${outcome.rateLimited > 0 ? " (rate limited)" : ""}`,
     );
   return {
-    tone: outcome.failed > 0 || unresolved > 0 ? "warning" : "success",
+    // Red/"error" is reserved for a real technical failure; an unresolved
+    // film on its own is a normal, user-fixable outcome, not an error —
+    // see docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION".
+    tone: outcome.failed > 0 ? "error" : unresolved > 0 ? "warning" : "success",
     message: parts.join(", ") + ".",
   };
 }
@@ -89,16 +96,27 @@ function StatBlock({ label, value }: { label: string; value: number }) {
  * completion summary with a "Retry Unresolved" action when anything
  * didn't resolve.
  */
+interface MetadataSectionData {
+  summary: MetadataStatusSummary;
+  needsReview: number;
+}
+
 export function MetadataSection() {
   const { activeProfile, repositories } = useProfileContext();
-  const {
-    data: summary,
-    isLoading,
-    reload,
-  } = useAsyncData<MetadataStatusSummary | null>(async () => {
-    if (!activeProfile) return null;
-    return getMetadataStatusSummary(repositories, activeProfile.id);
-  }, [activeProfile?.id, repositories]);
+  const { data, isLoading, reload } =
+    useAsyncData<MetadataSectionData | null>(async () => {
+      if (!activeProfile) return null;
+      const [summary, unresolvedCounts] = await Promise.all([
+        getMetadataStatusSummary(repositories, activeProfile.id),
+        countUnresolvedFilms(repositories),
+      ]);
+      return {
+        summary,
+        needsReview: unresolvedCounts.unresolved + unresolvedCounts.failed,
+      };
+    }, [activeProfile?.id, repositories]);
+  const summary = data?.summary ?? null;
+  const needsReview = data?.needsReview ?? 0;
 
   const [runningOperation, setRunningOperation] =
     useState<OperationKind | null>(null);
@@ -152,6 +170,9 @@ export function MetadataSection() {
   }
 
   const isBusy = runningOperation !== null;
+  const unresolvedCount = lastOutcome
+    ? lastOutcome.ambiguous + lastOutcome.notFound
+    : 0;
 
   return (
     <Card>
@@ -163,13 +184,29 @@ export function MetadataSection() {
           <p className="text-muted-foreground text-sm">Loading…</p>
         ) : (
           <>
-            <dl className="grid grid-cols-3 gap-4">
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <StatBlock label="Films cached" value={summary.filmsCached} />
               <StatBlock
                 label="Missing metadata"
                 value={summary.missingMetadata}
               />
               <StatBlock label="Old metadata" value={summary.oldMetadata} />
+              {needsReview > 0 ? (
+                <Link
+                  href="/settings/unresolved-metadata"
+                  className="group focus-visible:outline-ring rounded-md focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  <dt className="text-watchlist-orange group-hover:text-watchlist-orange/80 flex items-center gap-0.5 text-xs font-medium">
+                    Needs review
+                    <ChevronRight aria-hidden="true" className="size-3" />
+                  </dt>
+                  <dd className="text-foreground text-xl font-semibold tabular-nums">
+                    {needsReview.toLocaleString()}
+                  </dd>
+                </Link>
+              ) : (
+                <StatBlock label="Needs review" value={0} />
+              )}
             </dl>
             {summary.missingMetadata > 0 &&
             typeof navigator !== "undefined" &&
@@ -223,22 +260,23 @@ export function MetadataSection() {
             lastOutcome.attempted +
               (lastOutcome.providerNotConfigured ? 1 : 0) >
               0 ? (
+              // Red is reserved for actual errors (see docs/product-spec.md,
+              // "UNRESOLVED METADATA RESOLUTION" — "IMPROVED METADATA
+              // SUMMARY"): only a real Failed count makes this destructive.
+              // Unresolved films aren't an error — they're a normal,
+              // user-fixable outcome — so they never trigger the same
+              // alarming treatment on their own.
               <Alert
-                variant={
-                  lastOutcome.failed > 0 ||
-                  lastOutcome.ambiguous + lastOutcome.notFound > 0
-                    ? "destructive"
-                    : "default"
-                }
+                variant={lastOutcome.failed > 0 ? "destructive" : "default"}
               >
-                <AlertDescription className="space-y-2">
+                <AlertDescription className="space-y-3">
                   <p className="text-foreground font-medium">
                     Metadata update complete
                   </p>
                   <dl className="grid grid-cols-3 gap-2 text-sm">
                     <div>
                       <dt className="text-muted-foreground text-xs">Matched</dt>
-                      <dd className="tabular-nums">
+                      <dd className="text-foreground font-semibold tabular-nums">
                         {lastOutcome.matched.toLocaleString()}
                       </dd>
                     </div>
@@ -246,15 +284,35 @@ export function MetadataSection() {
                       <dt className="text-muted-foreground text-xs">
                         Unresolved
                       </dt>
-                      <dd className="tabular-nums">
-                        {(
-                          lastOutcome.ambiguous + lastOutcome.notFound
-                        ).toLocaleString()}
+                      <dd
+                        className={cn(
+                          "font-semibold tabular-nums",
+                          unresolvedCount > 0
+                            ? "text-watchlist-orange"
+                            : "text-foreground",
+                        )}
+                      >
+                        {unresolvedCount.toLocaleString()}
                       </dd>
+                      {unresolvedCount > 0 ? (
+                        <Link
+                          href="/settings/unresolved-metadata"
+                          className="text-watchlist-orange hover:text-watchlist-orange/80 focus-visible:outline-ring text-xs underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          Review
+                        </Link>
+                      ) : null}
                     </div>
                     <div>
                       <dt className="text-muted-foreground text-xs">Failed</dt>
-                      <dd className="tabular-nums">
+                      <dd
+                        className={cn(
+                          "font-semibold tabular-nums",
+                          lastOutcome.failed > 0
+                            ? "text-destructive"
+                            : "text-foreground",
+                        )}
+                      >
                         {lastOutcome.failed.toLocaleString()}
                       </dd>
                     </div>

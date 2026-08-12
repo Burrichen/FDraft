@@ -5,6 +5,7 @@ import type { FilmRepository } from "./film-repository";
 import type { HistoryRepository } from "./history-repository";
 import type { ProfileRepository } from "./profile-repository";
 import type { SettingsRepository } from "./settings-repository";
+import type { UnresolvedMetadataRepository } from "./unresolved-metadata-repository";
 import type { WatchlistRepository } from "./watchlist-repository";
 
 export type {
@@ -25,8 +26,11 @@ export type {
   FreeformRank,
   ImportSource,
   ImportStatus,
+  MetadataMatchMethod,
+  MetadataResolutionStatus,
   PostmortemResponseType,
   SelectionWeightAdjustmentRecord,
+  UnresolvedMetadataRecord,
   UserRatingRecord,
   WatchedHistoryRecord,
   WatchedHistorySource,
@@ -45,6 +49,7 @@ export type { FilmRepository } from "./film-repository";
 export type { HistoryRepository } from "./history-repository";
 export type { ProfileRepository } from "./profile-repository";
 export type { SettingsRepository } from "./settings-repository";
+export type { UnresolvedMetadataRepository } from "./unresolved-metadata-repository";
 export type { WatchlistRepository } from "./watchlist-repository";
 
 /**
@@ -63,4 +68,5 @@ export interface Repositories {
   settings: SettingsRepository;
   dataErasure: DataErasureRepository;
   backupRestore: BackupRestoreRepository;
+  unresolvedMetadata: UnresolvedMetadataRepository;
 }

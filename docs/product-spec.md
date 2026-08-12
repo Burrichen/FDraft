@@ -154,6 +154,81 @@ Accessibility matters:
 - tooltips must also work via keyboard/touch;
 - colour must never be the only indication of state.
 
+### General Visual Polish
+
+A periodic contrast/spacing pass is expected as screens accumulate — this
+is about polish, not a redesign. When touching a screen, prefer to keep it
+consistent with the nav's own visual language (see the header/nav-links
+components: an elevated `--card` surface with a border and shadow, a
+restrained green accent used only for active/primary state, never color
+alone) rather than introducing a new one.
+
+Concretely, watch for:
+
+- **Excessive muted grey.** Cards and surfaces should read as visibly
+  lifted off the page background, not a near-identical shade of it.
+- **Headings with no visual separation.** A page title should read as
+  clearly distinct from the metadata/body text beneath it — reusing the
+  nav's own green accent (rather than inventing a new one) keeps this
+  consistent with "the improved navigation style."
+- **Progress bars that are almost invisible.** Any bar-style indicator
+  (time/film progress, stat distributions) needs a visible track edge and
+  an obvious, restrained-accent fill — not just a fill color one shade off
+  from its own track.
+- **Metadata that blends together.** When several distinct facts share one
+  line (e.g. year, runtime, and rating), the single most useful one should
+  carry more contrast than the rest, rather than every token reading in
+  identical muted gray.
+
+Still avoid everything the base Design Direction rules out above —
+gradients, glassmorphism, neon, giant rounded cards, constant animation —
+a contrast/spacing pass should never introduce any of those to "fix"
+these problems.
+
+### Typography
+
+**Primary typeface: Manrope**, loaded via `next/font/google` (self-hosted
+at build time — see "OFFLINE FONT REQUIREMENT" below) and used throughout
+the entire interface — navigation, page headings, film titles, body copy,
+metadata, buttons, statistics, forms, and settings. One family, weight and
+size create the hierarchy, not multiple typefaces.
+
+Weight hierarchy (only the real weights actually loaded — 500, 600, 700 —
+are used; nothing is synthesized):
+
+| Role                                             | Weight |
+| ------------------------------------------------ | ------ |
+| Major heading (`.page-heading`)                  | 700    |
+| Section heading (`<h2>`s like "Previous Drafts") | 700    |
+| Film title                                       | 600    |
+| Navigation                                       | 600    |
+| Button                                           | 600    |
+| Body / metadata (default)                        | 500    |
+| Minor labels (badges, etc.)                      | 500    |
+
+Body copy defaults to 500 rather than Manrope's own 400 — at UI text
+sizes, Manrope's regular weight reads a little thin, and 500 is the
+nearest real loaded weight above it. Anything with its own weight utility
+(headings, buttons, nav, labels) overrides this default; it only raises
+the floor for otherwise-unstyled text.
+
+Primary/secondary contrast — see "General Visual Polish" above for the
+color-token side of this (rating vs. year/runtime, card lift, etc.); on
+the typography side, page subtitles are capped at a `60ch` measure so a
+short one-or-two-sentence subtitle never stretches into an unreadably
+long line on a wide desktop viewport.
+
+#### Offline Font Requirement
+
+`next/font/google` downloads the font files at BUILD time and serves them
+from the app's own origin — the browser never requests
+`fonts.googleapis.com`/`fonts.gstatic.com` (or any other font CDN) at
+runtime. This must hold under a hard network block, not just normal
+operation — verified by `e2e/offline-fonts.spec.ts`, which blocks both
+Google Fonts hosts outright and confirms the page still renders with
+Manrope actually applied (checked via `getComputedStyle`), not merely
+that the page didn't error.
+
 ---
 
 ## RECOMMENDED STACK
@@ -241,6 +316,161 @@ source/provider
 last_enriched_at
 
 Do not couple challenge logic directly to a particular metadata API.
+
+---
+
+## UNRESOLVED METADATA RESOLUTION
+
+### Important Distinction
+
+Three concepts, always kept separate — never merged, never displayed as
+one undifferentiated "failed" bucket:
+
+- **Matched**: metadata was confidently matched and stored.
+- **Unresolved**: the provider returned possible candidates, or a search
+  could be performed, but FDraft could not confidently determine the
+  correct film. This is potentially USER-FIXABLE.
+- **Failed**: a technical operation failed (provider outage, network
+  error, malformed response, rate limiting after retry exhaustion, an
+  unexpected provider error). Failed does NOT mean the film simply
+  couldn't be identified.
+
+### Unresolved Must Be Clickable
+
+The Settings page's Metadata card shows a persistent "Needs review" count
+— unlike the transient per-run "Matched/Unresolved/Failed" summary (which
+lives only in that run's own React state and evaporates on reload), this
+count is read from a DURABLE per-film record and survives navigation and
+reload. Clicking it opens a dedicated Unresolved Metadata screen — never
+hidden exclusively behind developer logs.
+
+### Unresolved Metadata Screen
+
+For each unresolved film, show: imported title, imported year, Letterboxd
+URL where available, Date Added if useful, and the reason FDraft couldn't
+confidently resolve it.
+
+### Provider Match Suggestions
+
+Search the configured provider and show a small number (3-5) of likely
+candidates — never hundreds of raw search results. Each suggestion
+includes whatever is available: poster, title, release year, director,
+runtime, provider ID.
+
+### Candidate Ranking
+
+Candidates are sensibly ordered using the existing title-normalization/
+matching infrastructure (`src/domain/import/film-metadata-matching.ts`) —
+the same engine that scores automatic matches, reused rather than
+reinvented: exact normalized title, exact/nearby year, popularity only as
+a tiebreak, never as the deciding factor. A candidate scoring below a
+sensible floor is excluded rather than padding the list to reach 3-5
+results — an obviously unrelated film is never suggested merely to fill
+the quota. If nothing sensible exists, the screen says so.
+
+### Manual Search
+
+The user can alter the search — a title field (defaulting to the imported
+title) and a year field (defaulting to the imported year), re-run against
+the same provider. Fixes cases where the Letterboxd title differs from
+the provider's, a transliteration or alternate title exists, the year
+metadata differs, or punctuation caused problems.
+
+### Manual Match
+
+Choosing "Use This Film": persists the provider mapping, downloads and
+attaches that film's metadata to the existing imported FDraft film,
+marks it Matched, updates its card immediately, and removes it from the
+Unresolved queue. Never creates a duplicate watchlist film — the exact
+same `FilmRecord` the unresolved entry already pointed at is reused; only
+a `FilmMetadataRecord` is written.
+
+### Remember Manual Matches
+
+The mapping is persisted on the film's own metadata record, keyed by the
+film's stable id — since the same Letterboxd film always resolves to the
+same local film id on any later re-import (see "LETTERBOXD IMPORT"'s
+slug-based dedup), a manual match is automatically reused the next time
+that film is encountered, with no separate mapping table needed.
+
+### Manual Override Safety
+
+Every `FilmMetadataRecord` carries `matchMethod: "automatic" | "manual"`.
+A routine "Refresh Old Metadata" pass NEVER selects a manually-matched
+film, no matter how old its `lastEnrichedAt` looks — a user's deliberate
+choice is never silently overwritten by automatic re-enrichment.
+
+### Skip / Leave Unresolved
+
+"Leave Unresolved" is always available and does nothing destructive — the
+user is never forced to pick a potentially incorrect film. An unresolved
+film remains perfectly valid inside FDraft; it may simply have reduced
+metadata.
+
+### Upcoming Films In Resolution
+
+Identity confidence and metadata completeness are separate concepts. A
+correctly-identified upcoming film with no rating, no reviews, or
+incomplete runtime is `MATCHED`, never `UNRESOLVED`, purely because those
+fields don't exist yet — enforced structurally, since a film only ever
+becomes "unresolved" via the `ambiguous`/`not-found` branches of the
+matching pipeline, never via how complete its matched result happens to
+be.
+
+### Improved Metadata Summary
+
+The completion card makes each meaningful status actionable rather than
+three flat numbers:
+
+- **Matched** reads in plain, neutral text — a good outcome, not
+  something that needs a color to announce itself.
+- **Unresolved** uses a warning/neutral treatment (the same restrained
+  orange used elsewhere for "needs attention, not broken") and, whenever
+  its count is above zero, a direct "Review" link straight into the
+  Unresolved Metadata screen — no need to hunt for it.
+- **Failed** is the ONLY count styled as an actual error (red/
+  `destructive`), and ONLY when it is actually above zero. At zero, it
+  reads exactly like Matched and Unresolved at zero — quiet, neutral,
+  never an alarming red "0".
+- The completion card's own outer alert styling follows the same rule:
+  destructive only when `Failed > 0`; an Unresolved-only outcome (however
+  large) never triggers the same visual alarm as a real technical
+  failure.
+
+### Metadata Matcher Audit
+
+A full trace of the pipeline (Letterboxd Import → Imported Film →
+Existing Mapping? → Metadata Provider Search → Candidate Scoring →
+Confidence Decision → Matched/Unresolved/Failed → Local Metadata Cache),
+confirming each step and refining the reason taxonomy so nothing ever
+resolves to a bare "no match":
+
+- **Existing Mapping?** is enforced structurally, not by a separate
+  check: a film with ANY existing `FilmMetadataRecord` (automatic or
+  manual) is never in the "missing" bucket a download run targets, and a
+  manually-matched film is additionally excluded from the "old" bucket
+  regardless of age (see "Manual Override Safety" above) — so the
+  pipeline never re-searches a film that already has a mapping worth
+  keeping.
+- **Structured reasons**, never a single generic "no match":
+  - `no_candidates` — the provider's search returned nothing at all.
+  - `title_confidence_too_low` — candidates existed, but none were
+    title-similar enough to be worth considering, independent of year.
+  - `year_conflict` — a strong title match exists, but its year is
+    confidently wrong (a _known_ year mismatch, not merely absent).
+  - `multiple_high_confidence_candidates` — the ambiguous case: two or
+    more candidates are too close to call.
+  - `missing_import_title` — the film has no title at all to search
+    with.
+  - `provider_identifier_conflict` — a manual match's chosen provider
+    film is already the confirmed match for a DIFFERENT local film;
+    refused rather than silently creating two local films pointing at
+    one provider identity.
+- **Dev-mode structured logging**, tagged `[MetadataResolution]`, logs
+  the imported title/year, every candidate actually considered
+  (title/year/score — not just the winner), and the final
+  decision/reason/provider id. Silent in production. Never logs an API
+  key or any other secret.
 
 ---
 
@@ -423,6 +653,33 @@ overflow (truncating is acceptable), the year/runtime/rating line must not
 force horizontal overflow, genre badges must wrap, and the watch-toggle
 control must remain reachable regardless of how much metadata a given
 card has.
+
+### Film Card Layout
+
+Watchlist and Draft film cards in the same grid row must always render at
+a CONSISTENT visual height, regardless of how much metadata an individual
+film has resolved. A film with only a title and year must look like a
+shorter-content version of the same card shape as a fully-enriched film
+— never a visually broken, prematurely-truncated card that makes the
+grid look uneven.
+
+Do not solve this with fake/placeholder metadata (`N/A · N/A · N/A`) or a
+literal poster placeholder box that differs in size from a real poster.
+The poster area keeps the exact same aspect ratio and dimensions whether
+or not a poster image is available (the existing muted icon placeholder
+already does this correctly).
+
+The fix is structural, not content-based: each card is a flex column
+filling the full height of its grid cell (`height: 100%`, relying on CSS
+Grid's own `align-items: stretch` default already giving every cell in a
+row the same height) — poster block fixed by aspect-ratio and pinned
+non-shrinking at the top, metadata block (title/year·runtime·rating/
+genres) given `flex: 1` so it naturally absorbs whatever leftover
+vertical space a shorter-content card leaves, rather than the visible
+bordered card stopping short of its grid cell's actual height. Long
+titles truncate to a single line (never variable-height wrapping) so
+they can never be the thing that makes one card taller than its row
+siblings.
 
 Provide an eye control in the top-right area of the card.
 
@@ -1559,6 +1816,7 @@ Cards need:
 - poster;
 - title;
 - year;
+- runtime if available;
 - average rating if available;
 - genres if available;
 - challenge badge if applicable;
@@ -3475,7 +3733,7 @@ const dynamic = "force-static"` — without it, a plain Route Handler
   Metadata"/"Refresh Old Metadata" buttons — confirmed by grep, not
   assumed, and independently re-confirmed by `e2e/metadata-reconnection.spec.ts`
   actually counting requests through a full draft-creation-and-completion
-  flow. Fonts (`next/font/google`'s `Geist`/`Geist_Mono`) are self-hosted
+  flow. Fonts (`next/font/google`'s `Manrope`/`Geist_Mono`) are self-hosted
   at build time — this was already true before this phase, but is now
   explicitly verified as compliant with "no CDN-only runtime assets" rather
   than assumed. No `next/image` usage anywhere (posters are plain `<img>`
@@ -4080,4 +4338,416 @@ test:e2e` are all clean.
   `DraftFilmCardView` has no `runtimeMinutes` field today and the prompt
   scoped this to the Watchlist/home page specifically; left as a
   candidate for a future, explicitly-requested pass rather than
-  speculatively extended here.
+  speculatively extended here. (Extended to draft film cards in Phase
+  9.5L below, once explicitly requested.)
+
+### Phase 9.5L — General visual polish, and runtime on draft film cards
+
+Two related pieces of follow-up work landed together: an explicit request
+to also show runtime on draft film cards (extending Phase 9.5K, which had
+deliberately left them out as unrequested scope), and a general
+contrast/spacing pass per "DESIGN DIRECTION", "General Visual Polish"
+above.
+
+- **Runtime on draft film cards.** `DraftFilmCardView`
+  (`src/components/drafts/draft-film-card.tsx`) gained the same
+  `runtimeMinutes: number | null` field the Watchlist card already had;
+  its one construction site (`src/app/(app)/drafts/page.tsx`'s
+  `filmCards` map) already calls `mergeLocalFilmMetadata(...)` for
+  `averageRating`/`genres`/`posterUrl`, so wiring `runtimeMinutes` through
+  was a one-line addition.
+- **New shared `FilmMetadataLine` component**
+  (`src/components/film-metadata-line.tsx`). Both `FilmCard` (Watchlist)
+  and `DraftFilmCard` (Drafts) rendered near-identical year/runtime/rating
+  rows — extracting one shared component avoided writing the same
+  "blends together" fix twice, and now guarantees the two card types stay
+  visually consistent with each other by construction. It renders year
+  and runtime in the existing muted tone (secondary context) but the
+  rating in full `text-foreground font-medium` contrast — the single most
+  glanceable fact on a film card shouldn't read in the same flat gray as
+  its year.
+- **Global token contrast pass** (`src/app/globals.css`): `--card`
+  lightness raised (L 0.235 → 0.25) so cards read as more clearly lifted
+  off the page background; `--border` alpha raised (9% → 14%, same for
+  `--sidebar-border`) for crisper card/header edges; `--secondary` raised
+  slightly (L 0.29 → 0.31) so genre badges and other secondary-surface
+  chips stand out a bit more against cards. All three are small deltas on
+  existing neutral tokens — no new hues, no gradients — deliberately
+  conservative so every existing screen benefits without any single one
+  looking redesigned.
+- **Heading visual separation**: `.page-heading` gained a small green
+  accent tick (a 3px rounded bar via `::before`, colored
+  `--watchlist-green`) reusing the exact accent the nav's own active-link
+  underline already uses (see `nav-links.tsx`) — deliberately the same
+  accent language rather than a new one, directly addressing "ensure the
+  UI feels consistent with the improved navigation style." `.page-subtitle`
+  got matching left padding so the two lines stay flush. Every page using
+  `.page-heading`/`.page-subtitle` picked this up automatically with no
+  per-page changes; the three places in `src/app/(app)/drafts/page.tsx`
+  that paired a heading with a raw `text-muted-foreground text-sm`
+  paragraph instead of `.page-subtitle` were switched to the shared class
+  for consistency.
+- **Progress-bar parity**: `src/components/stats/distribution-bars.tsx`
+  (the Stats page's genre/decade/director bars) had never received the
+  same fix `src/components/ui/progress.tsx` got in an earlier phase — it
+  was a separate hand-rolled bar, not built on the shared `Progress`
+  primitive. Brought to parity: track height `h-1.5` → `h-2`, a
+  `border-border/60 border` added (previously no border at all), and a
+  `transition-[width] duration-500 ease-out` on the fill (a one-shot
+  transition on data change, not continuous animation).
+- **Testing.** No new automated tests — this phase is presentation-only
+  (CSS tokens, class names, and a component extraction with unchanged
+  props/behaviour); the existing unit and E2E suites already exercise
+  every screen touched and continued to pass unchanged, which is the
+  correct signal here. Verified visually via screenshots across
+  Watchlist, an active Draft, Draft History, Stats, and Settings.
+  `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm test`, and
+  `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** does not touch every one of
+  the ~95 `text-muted-foreground` usages app-wide — only the handful the
+  brief's own screenshot-described symptoms pointed at (film-card
+  metadata, headings, progress/distribution bars). Does not change
+  `--background`, `--foreground`, `--primary`, or any accent hue — this
+  was a contrast/spacing pass on existing neutrals, not a repaint. Does
+  not add hover/hierarchy treatment to genre badges individually (e.g.
+  per-genre colour) — the brief explicitly asks to keep things
+  restrained, and uniform badge chips are the correct amount of visual
+  noise for tags that carry no ranking between each other.
+
+### Phase 9.5M — Typography redesign (Manrope), and a real bug found along the way
+
+Prompt 10, Part 1: the app's typography read as unintentionally
+"serif-heavy." Investigating why turned up an actual bug, not just a
+taste problem — see "TYPOGRAPHY" above for the resulting canonical rules.
+
+- **Root cause found: a broken, self-referential CSS custom property.**
+  `src/app/globals.css`'s `@theme inline` block had
+  `--font-sans: var(--font-sans);` — pointing at itself instead of at
+  `--font-geist-sans` (the variable `next/font/google`'s `Geist` actually
+  populated on `<html>` in `layout.tsx`). Because Tailwind v4's `@theme
+inline` inlines this literally into the generated `.font-sans` utility,
+  the compiled CSS was `font-family: var(--font-sans)` with no matching
+  declaration anywhere in the cascade — an unresolvable reference, which
+  per the CSS spec falls back to the browser's UA default stylesheet
+  font. That default is a serif in most browsers, which is exactly the
+  "old-fashioned" appearance reported: the app was never intentionally
+  serif, it was silently failing to apply ANY of its intended sans font
+  and rendering in the browser's fallback the entire time. This was
+  confirmed by checking `getComputedStyle(document.body).fontFamily`
+  before and after the fix in a Playwright script, not just visually.
+- **Font choice: Manrope**, evaluated in-app against the brief's
+  suggestions (Geist, Inter, DM Sans, Source Sans 3) and chosen per the
+  brief's own default preference — a geometric, slightly rounded sans
+  that reads modern and a little distinctive without tipping into
+  playful or corporate, while remaining highly legible at the small
+  metadata sizes this app leans on heavily. Loaded via
+  `next/font/google`'s `Manrope` export (`src/app/layout.tsx`) — zero new
+  npm dependency, same self-hosting mechanism the previous (broken)
+  Geist setup already used. Only weights 500/600/700 are downloaded —
+  the exact set the new weight hierarchy actually uses — rather than the
+  full 200–800 range Manrope offers.
+- **Weight hierarchy applied across the app**, not just declared: page
+  headings (`.page-heading`) 600 → 700; every `<h2>`-style section
+  heading (`text-lg font-semibold`, 8 call sites across
+  `new-draft-form.tsx`, `drafts/page.tsx`, `drafts/history/page.tsx`,
+  `recently-watched-section.tsx`) 600 → 700; film titles in both
+  `FilmCard` and `DraftFilmCard` 500 → 600; navigation links
+  (`nav-links.tsx`, also covers `MobileNav` which reuses the same
+  component) 500 → 600; the shared `Button` component 500 → 600; body
+  copy's default (previously unset, inheriting the browser's 400) raised
+  to 500 via a `body { font-weight: 500 }` base rule — anything with its
+  own weight utility already overrides this, so it only affects
+  otherwise-unstyled text. Genre badges and other "minor label" chips
+  were left at their existing 500 — already the correct tier.
+- **`--font-heading` token removed** (`globals.css`) — it aliased to the
+  same (broken) `--font-sans` value and was never actually applied
+  anywhere as a `font-heading` utility class; dead, and conceptually at
+  odds with "one primary family used everywhere," so deleted rather than
+  fixed-and-kept.
+- **Paragraph width**: `.page-subtitle` capped at `max-width: 60ch` so a
+  short subtitle sentence never stretches into a single very long line on
+  wide desktop viewports — the one clear "paragraph width" gap the
+  review turned up (`EmptyState`'s description was already `max-w-sm`).
+- **Testing.** New `e2e/offline-fonts.spec.ts`: blocks
+  `fonts.googleapis.com`/`fonts.gstatic.com` outright at the network
+  layer and confirms the app still renders with Manrope actually applied
+  (via computed style, not just "the page didn't crash") and that no
+  request to either host was ever attempted — a direct test of "OFFLINE
+  FONT REQUIREMENT," not an assumption based on how `next/font` is
+  documented to behave. Verified visually via screenshots across
+  Watchlist, Settings, and the new-draft flow. `pnpm format`, `pnpm
+lint`, `pnpm typecheck` (strict), `pnpm test`, and `pnpm test:e2e` are
+  all clean.
+- **What this phase does NOT do, on purpose:** does not touch
+  `Geist_Mono` — nothing in the app currently renders monospace text, so
+  there was nothing to evaluate or replace there; left as-is rather than
+  removed, since removing an unrelated, currently-harmless dependency
+  isn't part of a typography redesign. Does not introduce a second
+  typeface for headings — the brief explicitly asks for ONE primary
+  family used everywhere, with hierarchy coming from weight/size, not
+  from mixing families. Does not do a line-height/letter-spacing rewrite
+  beyond the one heading tracking adjustment (`-0.01em` → `-0.015em` on
+  `.page-heading`, since Manrope Bold reads slightly wide at large sizes)
+  — the existing line-heights were already reasonable and unrelated to
+  the reported "serif" bug.
+
+### Phase 9.5N — Film card height consistency
+
+Prompt 10, Part 2: fixes the reported bug where an unresolved film's
+card (title + year only) rendered visibly shorter than an enriched
+neighbor's card (title + year/runtime/rating + genre badges) in the same
+grid row — see "FILM CARD LAYOUT" above for the resulting canonical rule.
+
+- **Root cause**: `FilmCard`/`DraftFilmCard`'s outer elements had no
+  height set, so while CSS Grid's default `align-items: stretch` was
+  already sizing every `<li>` in a row to match the tallest card, the
+  VISIBLE bordered/backed card element inside each `<li>` was only ever
+  as tall as its own content — leaving invisible blank space inside the
+  taller `<li>`s of shorter cards, which reads exactly as "the grid looks
+  broken."
+- **Fix**: both card components' root `<div>` gained `h-full`, their
+  inner `<a>` became a `flex h-full flex-col`, the poster block gained
+  `shrink-0` (so flex never compresses its aspect-ratio box), and the
+  metadata block below it gained `flex flex-1 flex-col` — so it now
+  genuinely stretches to fill whatever height the grid row establishes,
+  with any leftover space (from a film missing runtime/rating/genres)
+  landing as blank space after the last real content line, never as a
+  visually shorter card. No placeholder metadata, no "N/A", no different
+  poster-box size for posterless films (that was already correct — the
+  same `aspect-2/3` wrapper renders for both the `<img>` and the icon
+  fallback branch).
+- **Long titles**: left as single-line `truncate` (ellipsis) rather than
+  switched to wrapping — a truncated title is always exactly one line,
+  so it can never be the reason one card in a row is taller than its
+  siblings; multi-line wrapping would reintroduce a variable-height
+  hazard the whole point of this phase is to eliminate.
+- **Testing.** New `e2e/film-card-consistent-height.spec.ts`: seeds one
+  enriched film and several bare (year-only) films in the same watchlist
+  grid and asserts their rendered bounding-box heights match within 1px,
+  plus asserts no fabricated `N/A`/`· ·` text ever appears. Verified
+  visually via screenshots at mobile/tablet/desktop/wide-desktop widths
+  on both the Watchlist grid and an Active Draft's film grid (mixed
+  matched/unresolved/challenge-badge combinations) — every card in every
+  row matches its siblings' height at every width tested. `pnpm format`,
+  `pnpm lint`, `pnpm typecheck` (strict), `pnpm test`, and `pnpm
+test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** does not add a "Metadata
+  unresolved" label to bare cards (one of the two options the prompt
+  itself offered) — with many films typically unenriched right after a
+  fresh CSV import, repeating that note on every such card would read as
+  clutter/an error state for what is actually just "not downloaded yet";
+  the reserved-space approach satisfies "consistent height" without
+  implying something is wrong. Does not touch `random-film-view.tsx`'s
+  single-card picker — it isn't in a multi-card grid, so there was no
+  row-height mismatch to fix there; it inherits the same `FilmCard`
+  markup harmlessly since `h-full` is a no-op without a definite-height
+  ancestor.
+
+### Phase 9.5O — Unresolved metadata resolution
+
+Prompt 10, Part 4: the metadata download UX gave the user almost no way
+to understand or repair unresolved films — see "UNRESOLVED METADATA
+RESOLUTION" above for the resulting canonical rules. This was the
+largest gap the whole final-hardening pass found: no per-film match
+status was ever persisted anywhere, only transient in-memory run
+summaries.
+
+- **New Dexie table, `unresolvedMetadata`** (schema version 2 —
+  `src/infrastructure/local-db/schema.ts`; the first real version bump
+  since the app's single-commit v1 schema, exercising the migration
+  mechanism `schema.test.ts` had only ever simulated). Catalog-wide like
+  `filmMetadata`, not profile-scoped, keyed by `[filmId+provider]`. One
+  row per film currently unresolved/failed; deleted the moment that film
+  matches (automatically or manually) — see `UnresolvedMetadataRecord` in
+  `records.ts`.
+- **`FilmMetadataRecord` gained `matchMethod: "automatic" | "manual"`** —
+  a plain (non-indexed) field, so unlike the new table it needed no
+  schema version of its own, only `resolveMatchMethod()`
+  (`src/domain/metadata/match-method.ts`) defaulting a pre-existing
+  record with no such property to `"automatic"` at every read boundary,
+  the same pattern `resolveDefaultPage()` established for
+  `ProfileSettings.defaultPage`.
+- **`downloadForFilms` in `local-metadata-service.ts`** now persists this
+  classification instead of only tallying it in memory: `not-found`/
+  `ambiguous` → `unresolvedMetadata` row with `status: "unresolved"`;
+  `rate-limited`/`provider-error`/`invalid-import-data`/a caught
+  `MetadataNetworkError` → `status: "failed"`; a successful match deletes
+  any existing row for that film and stamps `matchMethod: "automatic"`.
+  `classifyActiveWatchlistFilms`'s "old" bucket (feeding "Refresh Old
+  Metadata") now excludes any film whose current metadata is
+  `matchMethod: "manual"`, regardless of `lastEnrichedAt` age — see
+  "MANUAL OVERRIDE SAFETY".
+- **Candidate ranking reuses the existing engine.** `rankCandidates()`
+  (new export, `film-metadata-matching.ts`) shares `scoreCandidate`'s
+  scoring and sorting with `pickBestMatch` (extracted into a
+  `scoreAndSort` helper) but never collapses to a single verdict — it
+  always returns the top few candidates above a sensible floor
+  (`MIN_SENSIBLE_CANDIDATE_CONFIDENCE = 0.2`, well below the `0.6`
+  auto-match threshold — a floor for "worth showing a human," not "worth
+  auto-selecting"), so an obviously-unrelated film is filtered out rather
+  than padding the list to reach 5 results.
+- **TMDB provider gained `search(query, releaseYear)`**
+  (`tmdb-provider.ts`), an optional capability on the
+  `FilmMetadataProvider` interface. Reuses the same broad (no
+  year-filter) `searchMovie` call `lookup()` already made, ranks with
+  `rankCandidates`, then fetches full details (poster/runtime/directors)
+  for only the top few candidates — bounded, sequential requests, since
+  this is a human-initiated action with no throughput pressure. The
+  `lookup()`/`search()` detail-mapping logic was unified into one shared
+  `mapDetailsToResult` so a manually-chosen candidate persists in exactly
+  the same shape an automatic match would have.
+- **New server route, `POST /api/metadata/search`**
+  (`src/app/api/metadata/search/route.ts`) — sibling to the existing
+  `/api/metadata` route, same "keep the provider API key server-side"
+  rationale, but deliberately never returns a matched/ambiguous/not-found
+  verdict, only a ranked candidate list (or `not-supported` for a
+  provider without `search()`). Each returned candidate carries a full,
+  ready-to-persist `FilmMetadataResult` — "Use This Film" needs no second
+  round-trip to the provider.
+- **New Settings sub-page, `/settings/unresolved-metadata`**
+  (`unresolved-metadata-view.tsx`). Two sections, never merged:
+  "Unresolved" (expandable per film — possible matches, a manual
+  title/year search box, "Use This Film," "Leave Unresolved") and
+  "Failed" (a reason and a single "Retry" button — no candidate picker,
+  since a technical failure isn't a matching problem). The Settings
+  page's Metadata card gained a persistent "Needs review" stat (backed by
+  the new `countUnresolvedFilms`, not the old run-scoped state) that
+  links here.
+- **Backup/restore.** `unresolvedMetadata` added to the backup format as
+  an `.optional()` array (a backup exported before this phase simply has
+  none to restore) and to `FilmMetadataRecord`'s backup schema as an
+  `.optional()` `matchMethod` — both resolved at the read boundary, never
+  assumed present. Restored the same "existing local state always wins,
+  never overwritten by an imported backup" rule `filmMetadata` already
+  used (`upsertUnresolvedMetadataIfMissing`, mirroring
+  `upsertMetadataIfMissing`).
+- **Testing.** New unit tests across `film-metadata-matching.test.ts`
+  (`rankCandidates`), `match-method.test.ts`, `tmdb-provider.test.ts`
+  (`search()`), `local-metadata-service.test.ts` (persisted
+  unresolved/failed records, manual-match exclusion from refresh, and an
+  explicit "UPCOMING FILMS" regression test proving a confidently-matched
+  film with null rating/runtime/genres is stored as `matched`, never
+  `unresolved`), `unresolved-films.test.ts` (list/count/manual-match, and
+  "never creates a duplicate watchlist film"), the new search route's
+  `route.test.ts`, and backup export/restore round-trip tests. Two new
+  Playwright E2E tests (`e2e/unresolved-metadata.spec.ts`) exercise the
+  full loop end to end — download leaves one ambiguous and one failed
+  film, the persistent count is clickable, candidates render, "Use This
+  Film" clears the queue and updates the Watchlist card, and everything
+  survives a hard reload — plus a per-film "Retry" for the failed
+  category. Verified visually via screenshots of the whole flow. `pnpm
+format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm test`, and `pnpm
+test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** does not add a UI toggle
+  to force automatic re-enrichment over an existing manual match — the
+  prompt's own "MANUAL OVERRIDE SAFETY" only requires that automatic
+  passes never do this _silently_; an explicit override action can be a
+  later, separately-requested addition rather than speculatively built
+  now. Does not persist full candidate payloads (posters, etc.) —
+  "Possible matches" and "Search metadata" both query the provider live
+  when a film's row is expanded, which is simpler, avoids stale/rotted
+  poster URLs, and matches the manual-search box being inherently a live
+  action anyway. Does not add a separate Letterboxd-slug-keyed mapping
+  table for manual matches — unnecessary, since the same Letterboxd film
+  always reuses the same local film id across re-imports (see "LETTERBOXD
+  IMPORT"), so keying the mapping directly on `FilmMetadataRecord.filmId`
+  already gets "remembered across re-import" for free.
+
+### Phase 9.5P — Improved metadata summary and matcher audit
+
+Prompt 10, Parts 5 and 6: makes the completion card's three counts
+actionable with correct visual hierarchy, then audits the whole matching
+pipeline for reason-code quality and dev-mode diagnostics — see
+"IMPROVED METADATA SUMMARY" and "METADATA MATCHER AUDIT" above.
+
+- **Completion card redesign**
+  (`src/app/(app)/settings/metadata-section.tsx`). The prior version
+  wrapped the whole card in a `destructive` (red) `Alert` whenever EITHER
+  `failed > 0` OR `unresolved > 0` — directly contradicting the brief's
+  "Unresolved should use a warning/neutral treatment rather than the
+  same visual language as failure." Fixed at both the per-stat level
+  (Matched always neutral; Unresolved `text-watchlist-orange` only when
+  above zero, else neutral; Failed `text-destructive` only when above
+  zero, else neutral — a Failed count of exactly 0 never reads as an
+  alarming red "0") and the card/toast level (`Alert` variant and toast
+  tone are now `destructive`/`error` if and only if `failed > 0`).
+  Unresolved also gained a direct inline "Review" link into the
+  Unresolved Metadata screen right on the completion card itself, not
+  just via the separate persistent "Needs review" stat elsewhere on the
+  page.
+- **`pickBestMatch` now explains WHY, not just THAT, nothing matched.**
+  Its `not-found` result gained a `reason: MetadataUnresolvedReason`
+  (`no_candidates` | `title_confidence_too_low` | `year_conflict`),
+  computed from the same scoring data already being calculated — no new
+  provider calls, no new fields to fetch, purely a richer read of
+  existing `ScoredFilmMetadataCandidate` data. `year_conflict` fires
+  specifically when the best candidate's title similarity clears a
+  sensible floor (`WEAK_TITLE_SIMILARITY = 0.5`) but its year is
+  confidently wrong; everything else weak on title alone falls to
+  `title_confidence_too_low`.
+- **Rewrote `metadata-debug-log.ts`** from the old `[Metadata]`/
+  single-line-summary format to `[MetadataResolution]`, matching the
+  brief's own example shape: imported title/year, a full `candidateCount`
+  - per-candidate `title`/`year`/`score` breakdown (capped at 10 so a
+    wildly popular title doesn't dump hundreds of lines), then
+    `decision`/`providerId`/`reason`. `providerId` is the provider's NAME
+    ("tmdb") for unresolved/manual-search logs, but the WINNING CANDIDATE'S
+    numeric id for a matched decision — matching the brief's own
+    `providerId=12345` example, which is clearly a TMDB movie id, not the
+    provider's name.
+- **TMDB provider now logs every real branch**, not just the ones that
+  used to have partial logging: the blank-title early return (previously
+  didn't log at all) now logs `reason=missing_import_title`; `search()`
+  (previously silent) now logs a `decision=manual-search` entry with the
+  full ranked candidate trail; `lookup()`'s not-found/ambiguous/matched
+  branches all log through the same `toLogCandidates` helper so the
+  trail is identical regardless of outcome.
+- **`provider_identifier_conflict`, implemented for a real, narrow case**:
+  a new `FilmRepository.findMetadataByExternalId(provider, externalId)`
+  (a full-table scan over the one provider's rows — deliberately not
+  indexed, since this only ever runs on the rare, human-initiated "Use
+  This Film" action) lets `manuallyMatchFilm` detect when a chosen
+  candidate's provider id is already the confirmed match for a
+  DIFFERENT local film. When detected, it throws
+  `ProviderIdentifierConflictError` (blocking the write entirely — the
+  film stays unresolved) and logs the conflict; the Unresolved Metadata
+  screen catches this specifically and shows a clear toast rather than
+  a generic error.
+- **Testing.** New/updated unit tests across `film-metadata-matching.test.ts`
+  (the three `not-found` reason branches), `metadata-debug-log.test.ts`
+  (rewritten for the new format, including an explicit "never
+  `reason=no match`" assertion), `tmdb-provider.test.ts` (a new
+  "structured dev-mode logging" describe block — 7 tests spying on
+  `console.log` to verify `no_candidates`/`year_conflict`/
+  `multiple_high_confidence_candidates`/`missing_import_title` all log
+  correctly, the full candidate trail appears, the winning candidate's
+  id is logged for a match, and the API key never appears in any logged
+  line), and `unresolved-films.test.ts` (the conflict is blocked and
+  logged; re-confirming a film's own existing mapping is NOT treated as
+  a conflict with itself). New E2E test asserting the completion alert
+  never carries `text-destructive` styling for an unresolved-only
+  outcome, and that the "Review" link renders in the warning/orange
+  treatment. `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm
+test`, and `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** does not add a literal
+  "Upcoming" row to the completion card (the brief's own example showed
+  one, but explicitly said "do not necessarily use this exact layout,"
+  and its four stated goals — hierarchy, clear counts, actionable
+  unresolved state, understandable failures — don't require it);
+  detecting "upcoming" honestly would need a stored release date FDraft
+  doesn't currently persist anywhere (`FilmMetadataResult` has no
+  release-date field, only a derived year), which is a real new
+  capability, not a summary-card polish item. Does not thread the
+  granular `MetadataUnresolvedReason` codes into the PERSISTED,
+  user-facing `UnresolvedMetadataRecord.reason` — that stays at the
+  outcome-status level (`ambiguous`/`not-found`/etc., already a real
+  improvement over "no match" from Phase 9.5O) specifically to avoid
+  breaking `FilmMetadataProvider.lookup()`'s explicit, deliberate
+  contract that it "must not throw for not found" — the granular reasons
+  are a dev-mode logging enhancement, not a change to that interface.
+  Does not implement every one of the six example reason codes as a
+  PERSISTED status for every layer — `provider_identifier_conflict` is
+  real and enforced, but scoped to the one concrete place a genuine
+  conflict can occur (the manual-match safety check), not invented for
+  hypothetical scenarios the current architecture has no path to
+  actually hit.

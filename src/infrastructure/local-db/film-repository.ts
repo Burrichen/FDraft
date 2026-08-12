@@ -87,4 +87,22 @@ export class LocalFilmRepository implements FilmRepository {
       existing ? { ...metadata, id: existing.id } : metadata,
     );
   }
+
+  async findMetadataByExternalId(
+    provider: string,
+    externalId: string,
+  ): Promise<FilmMetadataRecord | null> {
+    // Neither `provider` alone nor `externalIds` (a free-form JSON object)
+    // is an indexed Dexie field, so this is a full-table scan — fine
+    // here: it only ever runs on the rare, human-initiated "Use This
+    // Film" action, never in the bulk enrichment queue's hot path.
+    const match = await this.db.filmMetadata
+      .filter(
+        (row) =>
+          row.provider === provider &&
+          row.externalIds?.[provider] === externalId,
+      )
+      .first();
+    return match ?? null;
+  }
 }

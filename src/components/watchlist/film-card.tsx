@@ -1,5 +1,6 @@
 import { Check, Film } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { FilmMetadataLine } from "@/components/film-metadata-line";
 import { cn } from "@/lib/utils";
 import { useIsWatchedThisSession, WatchToggle } from "./watch-toggle";
 import type { WatchlistFilmCardView } from "./types";
@@ -31,16 +32,9 @@ interface FilmCardProps {
 export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
   const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const genresToShow = size === "large" ? 4 : 2;
-  const metadataLine = [
-    film.releaseYear ? String(film.releaseYear) : null,
-    film.runtimeMinutes ? `${film.runtimeMinutes} min` : null,
-    film.averageRating !== null ? `★ ${film.averageRating.toFixed(1)}` : null,
-  ]
-    .filter((part): part is string => part !== null)
-    .join(" · ");
 
   return (
-    <div className="group relative">
+    <div className="group relative h-full">
       <WatchToggle
         entryId={film.entryId}
         title={film.title}
@@ -51,9 +45,9 @@ export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
         target="_blank"
         rel="noreferrer"
         aria-label={`Open ${film.title}${film.releaseYear ? ` (${film.releaseYear})` : ""} on Letterboxd`}
-        className="group border-border bg-card hover:border-primary/50 focus-visible:outline-ring block overflow-hidden rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="group border-border bg-card hover:border-primary/50 focus-visible:outline-ring flex h-full flex-col overflow-hidden rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <div className="bg-muted aspect-2/3 w-full overflow-hidden">
+        <div className="bg-muted aspect-2/3 w-full shrink-0 overflow-hidden">
           {film.posterUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- posters are external, remote URLs from third-party providers
             <img
@@ -75,22 +69,24 @@ export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
         </div>
         <div
           className={cn(
-            "space-y-1",
+            "flex flex-1 flex-col space-y-1",
             size === "large" ? "p-4" : "p-2.5",
             isWatchedThisSession && "opacity-60",
           )}
         >
           <p
             className={cn(
-              "text-foreground truncate font-medium",
+              "text-foreground truncate font-semibold",
               size === "large" ? "text-lg" : "text-sm",
             )}
           >
             {film.title}
           </p>
-          {metadataLine ? (
-            <p className="text-muted-foreground text-xs">{metadataLine}</p>
-          ) : null}
+          <FilmMetadataLine
+            releaseYear={film.releaseYear}
+            runtimeMinutes={film.runtimeMinutes}
+            averageRating={film.averageRating}
+          />
           {isWatchedThisSession ? (
             <p className="text-watchlist-green flex items-center gap-1 text-xs font-medium">
               <Check aria-hidden="true" className="size-3.5" />

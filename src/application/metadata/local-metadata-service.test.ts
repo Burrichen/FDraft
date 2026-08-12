@@ -16,7 +16,10 @@ const PROFILE_ID = "alex";
 async function seedFilmWithEntry(
   repos: Repositories,
   filmId: string,
-  overrides: { metadataAgeIso?: string } = {},
+  overrides: {
+    metadataAgeIso?: string;
+    matchMethod?: "automatic" | "manual";
+  } = {},
 ) {
   await repos.films.create({
     id: filmId,
@@ -63,6 +66,7 @@ async function seedFilmWithEntry(
       listAppearances: null,
       externalIds: null,
       raw: null,
+      matchMethod: overrides.matchMethod ?? "automatic",
       lastEnrichedAt: overrides.metadataAgeIso,
       createdAt: overrides.metadataAgeIso,
       updatedAt: overrides.metadataAgeIso,
@@ -425,5 +429,177 @@ describe("refreshOldMetadata", () => {
 
     expect(fetchMetadata).toHaveBeenCalledTimes(1);
     expect(outcome.attempted).toBe(1);
+  });
+
+  it("never targets a manually-matched film, no matter how old its metadata looks — see docs/product-spec.md, 'MANUAL OVERRIDE SAFETY'", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const clock = new FixedClock(new Date("2026-06-01T00:00:00.000Z"));
+
+    await seedFilmWithEntry(repos, "film-manual", {
+      metadataAgeIso: "2020-01-01T00:00:00.000Z", // years stale
+      matchMethod: "manual",
+    });
+    await seedFilmWithEntry(repos, "film-automatic-old", {
+      metadataAgeIso: "2020-01-01T00:00:00.000Z",
+      matchMethod: "automatic",
+    });
+
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "matched",
+      providerId: "tmdb",
+      result: { runtimeMinutes: 100 },
+    });
+    const outcome = await refreshOldMetadata(repos, PROFILE_ID, {
+      fetchMetadata,
+      clock,
+    });
+
+    expect(fetchMetadata).toHaveBeenCalledTimes(1);
+    expect(outcome.attempted).toBe(1);
+    // The manual pick's own metadata must be completely untouched.
+    const manualMetadata = await repos.films.getMetadataForFilm("film-manual");
+    expect(manualMetadata[0].matchMethod).toBe("manual");
+    expect(manualMetadata[0].lastEnrichedAt).toBe("2020-01-01T00:00:00.000Z");
+  });
+});
+
+describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESOLVED METADATA RESOLUTION')", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("persists an 'unresolved' record for an ambiguous result, distinct from 'failed'", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-ambiguous");
+
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "ambiguous",
+      providerId: "tmdb",
+      candidates: [],
+    });
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+
+    const record = await repos.unresolvedMetadata.getByFilmId(
+      "film-ambiguous",
+      "tmdb",
+    );
+    expect(record).toMatchObject({ status: "unresolved", reason: "ambiguous" });
+  });
+
+  it("persists a 'failed' record — never 'unresolved' — for a technical provider error", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-error");
+
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "provider-error",
+      providerId: "tmdb",
+      message: "TMDB is down",
+    });
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+
+    const record = await repos.unresolvedMetadata.getByFilmId(
+      "film-error",
+      "tmdb",
+    );
+    expect(record).toMatchObject({
+      status: "failed",
+      reason: "provider-error",
+    });
+  });
+
+  it("persists a 'failed' record for a network failure", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-offline");
+
+    const fetchMetadata = vi
+      .fn()
+      .mockRejectedValue(new MetadataNetworkError("offline"));
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+
+    const record = await repos.unresolvedMetadata.getByFilmId(
+      "film-offline",
+      "unknown",
+    );
+    expect(record).toMatchObject({
+      status: "failed",
+      reason: "network-error",
+    });
+  });
+
+  it("clears a film's unresolved/failed record once it finally matches — e.g. a successful retry", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-retry");
+
+    const fetchMetadata = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "not-found", providerId: "tmdb" });
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+    expect(
+      await repos.unresolvedMetadata.getByFilmId("film-retry", "tmdb"),
+    ).not.toBeNull();
+
+    fetchMetadata.mockResolvedValueOnce({
+      status: "matched",
+      providerId: "tmdb",
+      result: { runtimeMinutes: 90 },
+    });
+    await retryMetadataForFilms(repos, ["film-retry"], { fetchMetadata });
+
+    expect(
+      await repos.unresolvedMetadata.getByFilmId("film-retry", "tmdb"),
+    ).toBeNull();
+  });
+
+  it("UPCOMING FILMS: a confidently-matched film with no rating/runtime yet is stored as matched, never as unresolved — identity confidence and metadata completeness are separate concepts", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-upcoming");
+
+    // A confident title/year match whose result has no rating/runtime at
+    // all yet — exactly what an announced-but-unreleased film looks like.
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "matched",
+      providerId: "tmdb",
+      result: {
+        averageRating: null,
+        runtimeMinutes: null,
+        genres: null,
+        posterUrl: "https://example.invalid/poster.jpg",
+      },
+    });
+    const outcome = await downloadMissingMetadata(repos, PROFILE_ID, {
+      fetchMetadata,
+    });
+
+    expect(outcome.matched).toBe(1);
+    expect(outcome.ambiguous).toBe(0);
+    expect(outcome.notFound).toBe(0);
+    expect(
+      await repos.unresolvedMetadata.getByFilmId("film-upcoming", "tmdb"),
+    ).toBeNull();
+    const metadata = await repos.films.getMetadataForFilm("film-upcoming");
+    expect(metadata[0].matchMethod).toBe("automatic");
+  });
+
+  it("automatically-matched films are tagged matchMethod: 'automatic'", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-auto");
+
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "matched",
+      providerId: "tmdb",
+      result: { runtimeMinutes: 100 },
+    });
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+
+    const metadata = await repos.films.getMetadataForFilm("film-auto");
+    expect(metadata[0].matchMethod).toBe("automatic");
   });
 });

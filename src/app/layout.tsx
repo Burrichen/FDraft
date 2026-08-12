@@ -1,13 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Manrope } from "next/font/google";
 import { SerwistProvider } from "@serwist/next/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// See docs/product-spec.md, "TYPOGRAPHY" — chosen over Geist/Inter/DM Sans
+// after in-app evaluation for feeling modern, cinematic, and slightly
+// distinctive without reading as corporate. `next/font/google` downloads
+// and self-hosts the font files at BUILD time — the browser never fetches
+// from fonts.googleapis.com/fonts.gstatic.com at runtime, which is what
+// makes this safe for an offline-first app (see "OFFLINE FONT
+// REQUIREMENT"). Only the real weights actually used by the app's type
+// hierarchy are loaded, not the full 200-800 range.
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -51,7 +60,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`dark ${manrope.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <SerwistProvider

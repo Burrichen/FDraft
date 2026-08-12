@@ -62,6 +62,34 @@ export const SCHEMA_MIGRATIONS: SchemaVersion[] = [
       settings: "[profileId+key], profileId",
     },
   },
+  {
+    // Adds `unresolvedMetadata` — see docs/product-spec.md, "UNRESOLVED
+    // METADATA RESOLUTION" (Prompt 10, Part 4). A brand-new, empty store:
+    // no `upgrade` callback needed, since there's no existing data to
+    // transform. `FilmMetadataRecord` also gained a new `matchMethod`
+    // field in this same phase, but that's a plain (non-indexed)
+    // property — Dexie/IndexedDB don't need a schema version bump for
+    // that at all, only `resolveMatchMethod()` defaulting stale records
+    // at the read boundary (see `src/domain/metadata/match-method.ts`).
+    version: 2,
+    stores: {
+      profiles: "id",
+      films: "id, letterboxdSlug, [title+releaseYear]",
+      filmMetadata: "id, filmId, [filmId+provider]",
+      watchlistEntries: "id, profileId, filmId, [profileId+filmId]",
+      watchlistImports: "id, profileId, status",
+      watchedHistory: "id, profileId, watchlistEntryId, filmId",
+      userRatings: "id, [profileId+filmId], profileId",
+      drafts: "id, profileId, [profileId+status]",
+      draftItems: "id, draftId, watchlistEntryId",
+      draftChallengeAttempts: "id, draftId",
+      draftChallengeInteractions: "id, draftId, [draftId+challengeId], status",
+      draftPostmortemResponses: "id, &draftItemId, draftId",
+      selectionWeightAdjustments: "id, watchlistEntryId",
+      settings: "[profileId+key], profileId",
+      unresolvedMetadata: "id, filmId, [filmId+provider], status",
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.at(-1)!.version;

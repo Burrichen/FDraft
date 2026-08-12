@@ -1,6 +1,7 @@
 import { Check, Film } from "lucide-react";
 import { formatChallengeDisplayValue } from "@/domain/challenges/format-display-value";
 import { Badge } from "@/components/ui/badge";
+import { FilmMetadataLine } from "@/components/film-metadata-line";
 import {
   Tooltip,
   TooltipContent,
@@ -24,6 +25,7 @@ export interface DraftFilmCardView {
   entryId: string | null;
   title: string;
   releaseYear: number | null;
+  runtimeMinutes: number | null;
   letterboxdUri: string | null;
   posterUrl: string | null;
   averageRating: number | null;
@@ -60,7 +62,7 @@ export function DraftFilmCard({ film }: { film: DraftFilmCardView }) {
   const canUndo = film.isCompleted && isWatchedThisSession && film.entryId;
 
   return (
-    <div className="group relative">
+    <div className="group relative h-full">
       {!film.isCompleted && film.entryId ? (
         <WatchToggle entryId={film.entryId} title={film.title} />
       ) : null}
@@ -77,9 +79,9 @@ export function DraftFilmCard({ film }: { film: DraftFilmCardView }) {
         target="_blank"
         rel="noreferrer"
         aria-label={`Open ${film.title}${film.releaseYear ? ` (${film.releaseYear})` : ""} on Letterboxd`}
-        className="border-border bg-card hover:border-primary/50 focus-visible:outline-ring block overflow-hidden rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="border-border bg-card hover:border-primary/50 focus-visible:outline-ring flex h-full flex-col overflow-hidden rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <div className="bg-muted aspect-2/3 w-full overflow-hidden">
+        <div className="bg-muted aspect-2/3 w-full shrink-0 overflow-hidden">
           {film.posterUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- posters are external, remote URLs from third-party providers
             <img
@@ -97,16 +99,15 @@ export function DraftFilmCard({ film }: { film: DraftFilmCardView }) {
             </div>
           )}
         </div>
-        <div className="space-y-1 p-2.5">
-          <p className="text-foreground truncate text-sm font-medium">
+        <div className="flex flex-1 flex-col space-y-1 p-2.5">
+          <p className="text-foreground truncate text-sm font-semibold">
             {film.title}
           </p>
-          <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            {film.releaseYear ? <span>{film.releaseYear}</span> : null}
-            {film.averageRating !== null ? (
-              <span>★ {film.averageRating.toFixed(1)}</span>
-            ) : null}
-          </div>
+          <FilmMetadataLine
+            releaseYear={film.releaseYear}
+            runtimeMinutes={film.runtimeMinutes}
+            averageRating={film.averageRating}
+          />
           {canUndo ? (
             <p className="text-watchlist-green flex items-center gap-1 text-xs font-medium">
               <Check aria-hidden="true" className="size-3.5" />

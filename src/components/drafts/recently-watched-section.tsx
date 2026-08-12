@@ -18,9 +18,7 @@ export function RecentlyWatchedSection({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-foreground text-lg font-semibold">
-        Recently Watched
-      </h2>
+      <h2 className="text-foreground text-lg font-bold">Recently Watched</h2>
       {films.length === 0 ? (
         <EmptyState
           icon={Film}

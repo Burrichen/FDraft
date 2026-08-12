@@ -144,9 +144,7 @@ export default function DraftHistoryPage() {
       <RecentlyWatchedSection films={data.recentlyWatched} />
 
       <section className="space-y-3">
-        <h2 className="text-foreground text-lg font-semibold">
-          Previous Drafts
-        </h2>
+        <h2 className="text-foreground text-lg font-bold">Previous Drafts</h2>
         {data.previousDrafts.length === 0 ? (
           <EmptyState
             icon={History}

@@ -39,7 +39,7 @@ export function NavLinks({
             onClick={onNavigate}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+              "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-150",
               isActive
                 ? "text-foreground"
                 : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",

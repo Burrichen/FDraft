@@ -132,6 +132,14 @@ export async function buildProfileBackup(
   ]);
   const filmMetadata = [...metadataByFilmId.values()].flat();
 
+  // Same "only what this profile's own data references" scoping as
+  // `filmMetadata` above — `unresolvedMetadata` is catalog-wide, not
+  // profile-owned (see `UnresolvedMetadataRecord`'s doc comment).
+  const allUnresolvedMetadata = await repos.unresolvedMetadata.listAll();
+  const unresolvedMetadata = allUnresolvedMetadata.filter((record) =>
+    referencedFilmIds.has(record.filmId),
+  );
+
   const profileWithoutFunctions: LocalProfile = {
     id: profile.id,
     displayName: profile.displayName,
@@ -176,6 +184,7 @@ export async function buildProfileBackup(
     draftPostmortemResponses,
     selectionWeightAdjustments,
     settings,
+    unresolvedMetadata,
   };
 }
 
