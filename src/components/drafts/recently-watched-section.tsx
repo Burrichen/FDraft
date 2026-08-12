@@ -2,7 +2,7 @@ import { Film } from "lucide-react";
 import type { RecentlyWatchedFilmView } from "@/application/history/recently-watched";
 import { EmptyState } from "@/components/empty-state";
 import { DIFFICULTIES } from "@/domain/drafts/difficulty";
-import { formatReadableDate } from "@/lib/utils";
+import { formatReadableCalendarDate } from "@/lib/utils";
 
 /**
  * The History page's "Recently Watched" section (see docs/product-spec.md,
@@ -69,7 +69,7 @@ export function RecentlyWatchedSection({
                 </div>
                 <p className="text-muted-foreground shrink-0 text-sm tabular-nums">
                   {film.watchedDate
-                    ? formatReadableDate(film.watchedDate)
+                    ? formatReadableCalendarDate(film.watchedDate)
                     : "Unknown date"}
                 </p>
               </div>

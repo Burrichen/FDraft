@@ -93,12 +93,25 @@ pnpm format       # Prettier, writes changes
 
 An optional `TMDB_API_KEY` (see `.env.example`) enables film metadata enrichment. Without it, imports work exactly the same, just without posters/genres/runtime until a key is configured later.
 
+### Desktop (Tauri)
+
+FDraft also ships as a Windows desktop app via [Tauri 2](https://v2.tauri.app) — same codebase, same local-first behavior, no bundled server.
+
+Prerequisite beyond Node.js: [Rust](https://www.rust-lang.org/tools/install) (via `rustup`). On Windows you'll also need the WebView2 runtime (preinstalled on modern Windows) and the Visual Studio Build Tools' "Desktop development with C++" workload.
+
+```bash
+pnpm run desktop:dev   # same `pnpm dev` server, opened in a native window — hot reload works as usual
+```
+
+`src-tauri/` holds the Rust shell. The desktop build's only real difference from the browser is metadata fetching — see `src/application/metadata/tauri-metadata-transport.ts` — since a packaged desktop app has no server to hide `TMDB_API_KEY` behind; everything else (IndexedDB, imports, drafts, offline behavior) is unchanged. Building the actual Windows installer (`pnpm run desktop:build`) is set up but not yet a supported, verified path — see `docs/product-spec.md`'s Tauri integration notes for what's still open.
+
 ## Architecture at a glance
 
 - **Storage**: Dexie/IndexedDB, entirely client-side (`src/infrastructure/local-db/`). No server-side database.
 - **Domain/application/repository layers**: `src/domain/`, `src/application/`, `src/repositories/` — pure, storage-agnostic business logic sitting behind a `Repositories` interface.
-- **The one server-side route**: `src/app/api/metadata/route.ts`, a thin proxy to TMDB for optional metadata enrichment. Nothing else in the app talks to a server.
-- **PWA**: `src/app/manifest.ts` and `src/app/sw.ts` (built via [Serwist](https://serwist.pages.dev)) make FDraft installable and give it a cached offline application shell — see `serwist.config.mjs`.
-- **Backup/restore**: `src/domain/backup/`, `src/application/backup/` — a versioned, portable export/import format for moving a profile between devices.
+- **Metadata transport**: `src/application/metadata/remote-metadata-client.ts` picks the transport at runtime — `src/app/api/metadata/route.ts` (a thin TMDB proxy) in the browser, `tauri-metadata-transport.ts` (Tauri's HTTP plugin, run from Rust) on desktop. Nothing else in the app talks to a server or knows which runtime it's in.
+- **PWA**: `src/app/manifest.ts` and `src/app/sw.ts` (built via [Serwist](https://serwist.pages.dev)) make the browser build installable and give it a cached offline application shell — see `serwist.config.mjs`. Disabled in the desktop build, which doesn't need it (see `src/app/layout.tsx`).
+- **Desktop shell**: `src-tauri/` (Tauri 2) — see "Desktop (Tauri)" above.
+- **Backup/restore**: `src/domain/backup/`, `src/application/backup/` — a versioned, portable export/import format for moving a profile between devices (including between the browser and desktop builds).
 
 `docs/product-spec.md` is the authoritative source of truth for product requirements and architecture decisions, including its implementation log of what shipped in each phase.

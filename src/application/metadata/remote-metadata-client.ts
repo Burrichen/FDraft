@@ -3,6 +3,10 @@ import type {
   FilmMetadataLookupInput,
   FilmMetadataResult,
 } from "@/domain/import/film-metadata-provider";
+import {
+  fetchFilmMetadataViaTauri,
+  isDesktopRuntime,
+} from "./tauri-metadata-transport";
 
 /**
  * Mirrors `src/app/api/metadata/route.ts`'s response shape exactly — see
@@ -23,7 +27,13 @@ export type RemoteMetadataLookupResult =
     }
   | { status: "not-configured" }
   | { status: "rate-limited"; providerId: string; retryAfterMs?: number }
-  | { status: "provider-error"; providerId: string; message: string }
+  | {
+      status: "provider-error";
+      providerId: string;
+      message: string;
+      /** The upstream provider's own HTTP status, when the failure came from a real response (e.g. `401` — an invalid/stale API key) rather than an unexpected local error — see docs/product-spec.md, "COMPLETE PRODUCT AUDIT". Lets callers give a 401 its own actionable message instead of collapsing every provider failure into one generic one. */
+      httpStatus?: number;
+    }
   | { status: "invalid-import-data"; message: string };
 
 const KNOWN_STATUSES = new Set<RemoteMetadataLookupResult["status"]>([
@@ -57,6 +67,9 @@ export class MetadataNetworkError extends Error {
   }
 }
 
+/** Our own `/api/metadata` route already bounds and retries its own upstream TMDB calls, but a hung server response would otherwise still park a download-queue worker forever with no cancel affordance — see docs/product-spec.md, "COMPLETE PRODUCT AUDIT". Generous relative to the route's own internal timeout/retry budget, since this also has to cover real network latency on top of it. */
+const FETCH_TIMEOUT_MS = 30_000;
+
 /**
  * Browser-side caller for `/api/metadata` (see docs/product-spec.md,
  * "METADATA BEHAVIOUR" — Prompt 9.5B). This, not a direct call to TMDB, is
@@ -71,11 +84,22 @@ export class MetadataNetworkError extends Error {
  * `RemoteMetadataLookupResult` for the caller to act on, not an exception.
  * Callers (`local-metadata-service.ts`) treat `MetadataNetworkError`
  * as the "you're probably offline" queue outcome, never a fatal error.
+ *
+ * Under the Tauri desktop shell there IS no `/api/metadata` at all — the
+ * production build's frontend is fully static (see docs/product-spec.md's
+ * Tauri integration notes, "STATIC PRODUCTION FRONTEND") — so this
+ * delegates to `tauri-metadata-transport.ts`'s native-HTTP equivalent
+ * instead. Every other caller in the app is unaffected: only this
+ * function (and its `search` sibling) knows a desktop runtime exists.
  */
 export async function fetchFilmMetadataViaApi(
   input: FilmMetadataLookupInput,
   deps: { fetchImpl?: typeof fetch } = {},
 ): Promise<RemoteMetadataLookupResult> {
+  if (isDesktopRuntime()) {
+    return fetchFilmMetadataViaTauri(input);
+  }
+
   const fetchImpl = deps.fetchImpl ?? fetch;
 
   let response: Response;
@@ -84,6 +108,7 @@ export async function fetchFilmMetadataViaApi(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (cause) {
     // fetch() throws (TypeError) for network-level failures, including

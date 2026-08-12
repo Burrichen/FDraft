@@ -324,6 +324,92 @@ describe("LocalBackupRestoreRepository", () => {
       expect(allFilmsWithSlug?.id).toBe(existingFilmId);
     });
 
+<<<<<<< Updated upstream
+=======
+    it("normalizes an invalid/corrupted timezone rather than restoring it verbatim — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+      db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db);
+      await seedFullProfile(repos, "profile-a");
+      const backup = await buildProfileBackup(repos, "profile-a", {
+        clock: CLOCK,
+      });
+      const corrupted: BackupV1 = {
+        ...backup,
+        profile: { ...backup.profile, timezone: "Not/AZone" },
+      };
+
+      const result = await repos.backupRestore.importAsNewProfile(corrupted, {
+        idGenerator: sequentialIdGenerator("new"),
+        clock: CLOCK,
+        currentSchemaVersion: SCHEMA_VERSION,
+      });
+
+      const profile = await repos.profiles.getById(result.profileId);
+      expect(profile?.timezone).not.toBe("Not/AZone");
+      expect(profile?.timezone).toBe(
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+      );
+    });
+
+    it("restores unresolvedMetadata, remapped to the correct local film id", async () => {
+      db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db);
+      await seedFullProfile(repos, "profile-a");
+      await repos.unresolvedMetadata.upsert({
+        id: "unresolved-1",
+        filmId: "film-profile-a",
+        provider: "tmdb",
+        status: "unresolved",
+        reason: "ambiguous",
+        message: "Could not confidently choose between multiple results.",
+        lastAttemptedAt: "2026-08-01T00:00:00.000Z",
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      });
+      const backup = await buildProfileBackup(repos, "profile-a", {
+        clock: CLOCK,
+      });
+
+      const result = await repos.backupRestore.importAsNewProfile(backup, {
+        idGenerator: sequentialIdGenerator("new"),
+        clock: CLOCK,
+        currentSchemaVersion: SCHEMA_VERSION,
+      });
+
+      const entries = await repos.watchlist.listAllEntries(result.profileId);
+      const restored = await repos.unresolvedMetadata.getByFilmId(
+        entries[0].filmId,
+      );
+      expect(restored).toMatchObject({
+        status: "unresolved",
+        reason: "ambiguous",
+      });
+    });
+
+    it("a backup exported before UNRESOLVED METADATA RESOLUTION existed (no unresolvedMetadata key at all) still restores cleanly", async () => {
+      db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db);
+      await seedFullProfile(repos, "profile-a");
+      const backup = await buildProfileBackup(repos, "profile-a", {
+        clock: CLOCK,
+      });
+      const legacyBackup = { ...backup } as Partial<BackupV1>;
+      delete legacyBackup.unresolvedMetadata;
+
+      const result = await repos.backupRestore.importAsNewProfile(
+        legacyBackup as BackupV1,
+        {
+          idGenerator: sequentialIdGenerator("new"),
+          clock: CLOCK,
+          currentSchemaVersion: SCHEMA_VERSION,
+        },
+      );
+
+      const entries = await repos.watchlist.listAllEntries(result.profileId);
+      expect(entries).toHaveLength(1);
+    });
+
+>>>>>>> Stashed changes
     it("leaves every other local profile's data completely untouched", async () => {
       db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db);

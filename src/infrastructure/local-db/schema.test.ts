@@ -77,6 +77,61 @@ describe("applySchema — migration mechanism (synthetic schema, independent of 
     await v2.close();
   });
 
+  it("v2 -> v3 -> v4 dedupes any unresolvedMetadata rows an install already accumulated under the old [filmId+provider] key, keeping the most recently attempted one per film, then tightens filmId to a unique index", async () => {
+    const name = `schema-test-${crypto.randomUUID()}`;
+    dbNames.push(name);
+
+    // Simulate "this install already has FDraft's real v1+v2 schema,
+    // with the exact bug this migration fixes: two rows for one film
+    // under two different provider labels."
+    const v2 = new Dexie(name);
+    applySchemaVersions(v2, SCHEMA_MIGRATIONS.slice(0, 2));
+    await v2.open();
+    await v2.table("unresolvedMetadata").bulkAdd([
+      {
+        id: "row-1",
+        filmId: "film-1",
+        provider: "unknown",
+        status: "failed",
+        reason: "network-error",
+        message: "Could not reach the metadata provider.",
+        lastAttemptedAt: "2026-01-01T00:00:00.000Z",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "row-2",
+        filmId: "film-1",
+        provider: "tmdb",
+        status: "failed",
+        reason: "rate-limited",
+        message: "The metadata provider rate-limited this request.",
+        lastAttemptedAt: "2026-01-02T00:00:00.000Z",
+        createdAt: "2026-01-02T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      },
+    ]);
+    await v2.close();
+
+    // Jumping straight from v2 to the latest declared version (v4) in one
+    // open — as a real returning user's browser would — must run v3's
+    // dedupe BEFORE v4's unique-index tightening is applied, or the
+    // ConstraintError this test guards against would resurface.
+    const latest = new Dexie(name);
+    applySchema(latest);
+    await latest.open();
+    expect(latest.verno).toBe(SCHEMA_VERSION);
+
+    const rows = await latest.table("unresolvedMetadata").toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      filmId: "film-1",
+      provider: "tmdb",
+      reason: "rate-limited",
+    });
+    await latest.close();
+  });
+
   it("the real app schema opens cleanly end to end (integration smoke test of applySchema itself)", async () => {
     const name = `schema-test-${crypto.randomUUID()}`;
     dbNames.push(name);

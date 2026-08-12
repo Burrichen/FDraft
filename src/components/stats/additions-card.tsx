@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Stat } from "@/domain/stats/types";
+import { parseCalendarDate } from "@/domain/time/calendar-date";
 import type { DateAddedEntry } from "@/domain/stats/watchlist-stats";
 
 interface AdditionsCardProps {
@@ -31,11 +32,10 @@ export function AdditionsCard({ title, stat }: AdditionsCardProps) {
                 {entry.title}
               </span>
               <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                {new Date(entry.dateAdded).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
+                {parseCalendarDate(entry.dateAdded).toLocaleDateString(
+                  undefined,
+                  { year: "numeric", month: "short", day: "numeric" },
+                )}
               </span>
             </li>
           ))}

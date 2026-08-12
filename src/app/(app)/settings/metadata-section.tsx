@@ -32,7 +32,7 @@ type OperationKind = "download" | "refresh" | "retry";
  * `MetadataDownloadOutcome`'s doc comment) — it's read from the status
  * summary that was current right before this run started.
  */
-function describeOutcome(outcome: MetadataDownloadOutcome): {
+export function describeOutcome(outcome: MetadataDownloadOutcome): {
   tone: "success" | "warning" | "error";
   message: string;
 } {
@@ -91,6 +91,7 @@ function StatBlock({ label, value }: { label: string; value: number }) {
  */
 export function MetadataSection() {
   const { activeProfile, repositories } = useProfileContext();
+<<<<<<< Updated upstream
   const {
     data: summary,
     isLoading,
@@ -99,6 +100,22 @@ export function MetadataSection() {
     if (!activeProfile) return null;
     return getMetadataStatusSummary(repositories, activeProfile.id);
   }, [activeProfile?.id, repositories]);
+=======
+  const { data, isLoading, reloadSilently } =
+    useAsyncData<MetadataSectionData | null>(async () => {
+      if (!activeProfile) return null;
+      const [summary, unresolvedCounts] = await Promise.all([
+        getMetadataStatusSummary(repositories, activeProfile.id),
+        countUnresolvedFilms(repositories),
+      ]);
+      return {
+        summary,
+        needsReview: unresolvedCounts.unresolved + unresolvedCounts.failed,
+      };
+    }, [activeProfile?.id, repositories]);
+  const summary = data?.summary ?? null;
+  const needsReview = data?.needsReview ?? 0;
+>>>>>>> Stashed changes
 
   const [runningOperation, setRunningOperation] =
     useState<OperationKind | null>(null);
@@ -121,7 +138,7 @@ export function MetadataSection() {
       setLastOutcome(outcome);
       const { tone, message } = describeOutcome(outcome);
       toast[tone](message);
-      reload();
+      await reloadSilently();
     } finally {
       setRunningOperation(null);
       setProgress(null);
@@ -170,6 +187,27 @@ export function MetadataSection() {
                 value={summary.missingMetadata}
               />
               <StatBlock label="Old metadata" value={summary.oldMetadata} />
+<<<<<<< Updated upstream
+=======
+              {needsReview > 0 ? (
+                <div>
+                  <dt className="text-xs font-medium">
+                    <Link
+                      href="/settings/unresolved-metadata"
+                      className="text-watchlist-orange hover:text-watchlist-orange/80 focus-visible:outline-ring inline-flex items-center gap-0.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      Needs review
+                      <ChevronRight aria-hidden="true" className="size-3" />
+                    </Link>
+                  </dt>
+                  <dd className="text-foreground text-xl font-semibold tabular-nums">
+                    {needsReview.toLocaleString()}
+                  </dd>
+                </div>
+              ) : (
+                <StatBlock label="Needs review" value={0} />
+              )}
+>>>>>>> Stashed changes
             </dl>
             {summary.missingMetadata > 0 &&
             typeof navigator !== "undefined" &&

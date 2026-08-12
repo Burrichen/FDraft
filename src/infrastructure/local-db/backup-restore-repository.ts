@@ -1,6 +1,7 @@
 import type { BackupV1 } from "@/domain/backup/backup-schema";
 import { resolveDefaultPage } from "@/domain/profiles/default-page";
 import type { LocalProfile } from "@/domain/profiles/profile";
+import { resolveProfileTimezone } from "@/domain/profiles/timezone";
 import type {
   BackupImportDeps,
   BackupImportResult,
@@ -171,7 +172,13 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
       displayName: backup.profile.displayName,
       createdAt: backup.profile.createdAt,
       lastOpenedAt: clock.now().toISOString(),
-      timezone: backup.profile.timezone,
+      // A hand-edited or corrupted backup could carry an unrecognized
+      // timezone string — `resolveProfileTimezone` falls back to this
+      // device's own current timezone rather than letting an invalid
+      // zone silently break Calendar Mode deadlines or crash "mark
+      // watched" the first time this profile's timezone is actually used
+      // (see docs/product-spec.md, "COMPLETE PRODUCT AUDIT").
+      timezone: resolveProfileTimezone(backup.profile.timezone),
       // A backup exported before "DEFAULT START PAGE SETTING" existed has
       // no `defaultPage` at all — `resolveDefaultPage` is what falls that
       // back to Watchlist, the same normalization every other reader of
@@ -350,4 +357,37 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
     }
     await this.db.filmMetadata.add(metadata);
   }
+<<<<<<< Updated upstream
+=======
+
+  /**
+   * Same "existing shared catalog state always wins" rule as
+   * `upsertMetadataIfMissing` — if this device already knows this film is
+   * matched (or already has its own unresolved record), the restored one
+   * never overwrites it. Checking `filmMetadata` too (not just
+   * `unresolvedMetadata`) is what actually makes the "already matched"
+   * half of that guarantee true — a device that matched a film AFTER a
+   * now-restored backup was taken elsewhere must not have it reappear as
+   * unresolved (see docs/product-spec.md, "COMPLETE PRODUCT AUDIT").
+   */
+  private async upsertUnresolvedMetadataIfMissing(
+    record: UnresolvedMetadataRecord,
+  ): Promise<void> {
+    const alreadyMatched = await this.db.filmMetadata
+      .where("filmId")
+      .equals(record.filmId)
+      .first();
+    if (alreadyMatched) {
+      return;
+    }
+    const existing = await this.db.unresolvedMetadata
+      .where("filmId")
+      .equals(record.filmId)
+      .first();
+    if (existing) {
+      return;
+    }
+    await this.db.unresolvedMetadata.add(record);
+  }
+>>>>>>> Stashed changes
 }

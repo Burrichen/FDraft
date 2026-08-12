@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { expireLocalDraftIfDue } from "@/application/drafts/local-draft-service";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { ActiveDraftFilms } from "@/components/drafts/active-draft-films";
 import type { DraftFilmCardView } from "@/components/drafts/draft-film-card";
@@ -48,62 +49,58 @@ export default function DraftsPage() {
   const { activeProfile, repositories } = useProfileContext();
   const watchUndo = useWatchUndo();
 
-  const { data, isLoading, reload, reloadSilently } = useAsyncData(async () => {
-    if (!activeProfile) return null;
+  const { data, isLoading, error, reload, reloadSilently } =
+    useAsyncData(async () => {
+      if (!activeProfile) return null;
 
-    let draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
-      activeProfile.id,
-    );
-    if (!draftRecord) {
-      // This session's own last-remaining-film watch action may have just
-      // archived the profile's one draft (see docs/product-spec.md,
-      // "WATCHED FILM UNDO", "COMPLETED/FULLY WATCHED DRAFT") —
-      // `getActiveOrExpiredDraft` correctly excludes archived drafts, but
-      // the undo opportunity for that action must still be reachable here,
-      // even after navigating away and back.
-      const pendingArchivedDraftId = watchUndo.getPendingArchivedDraftId();
-      if (pendingArchivedDraftId) {
-        const archived = await repositories.drafts.getById(
-          activeProfile.id,
-          pendingArchivedDraftId,
-        );
-        if (archived && archived.status === "archived") {
-          draftRecord = archived;
+      let draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
+        activeProfile.id,
+      );
+      if (!draftRecord) {
+        // This session's own last-remaining-film watch action may have just
+        // archived the profile's one draft (see docs/product-spec.md,
+        // "WATCHED FILM UNDO", "COMPLETED/FULLY WATCHED DRAFT") —
+        // `getActiveOrExpiredDraft` correctly excludes archived drafts, but
+        // the undo opportunity for that action must still be reachable here,
+        // even after navigating away and back.
+        const pendingArchivedDraftId = watchUndo.getPendingArchivedDraftId();
+        if (pendingArchivedDraftId) {
+          const archived = await repositories.drafts.getById(
+            activeProfile.id,
+            pendingArchivedDraftId,
+          );
+          if (archived && archived.status === "archived") {
+            draftRecord = archived;
+          }
         }
       }
-    }
-    if (!draftRecord) return { draft: null } as const;
+      if (!draftRecord) return { draft: null } as const;
 
-    let status = draftRecord.status;
-    if (status === "active") {
-      const justExpired = await expireLocalDraftIfDue(repositories, {
-        profileId: activeProfile.id,
-        draftId: draftRecord.id,
-      });
-      if (justExpired) status = "expired";
-    }
-    const draft = { ...draftRecord, status };
+      let status = draftRecord.status;
+      if (status === "active") {
+        const justExpired = await expireLocalDraftIfDue(repositories, {
+          profileId: activeProfile.id,
+          draftId: draftRecord.id,
+        });
+        if (justExpired) status = "expired";
+      }
+      const draft = { ...draftRecord, status };
 
-    const items = (await repositories.drafts.listItemsForDraft(draft.id)).sort(
-      (a, b) => a.orderIndex - b.orderIndex,
-    );
-    const films = await Promise.all(
-      items.map((item) => repositories.films.getById(item.filmId)),
-    );
-    const metadataByFilmId = await repositories.films.getMetadataForFilms(
-      items.map((item) => item.filmId),
-    );
-    const answeredItemIds = new Set(
-      (
-        await repositories.history.listPostmortemResponsesForDraft(draft.id)
-      ).map((response) => response.draftItemId),
-    );
-
-    const filmCards: DraftFilmCardView[] = items.map((item, index) => {
-      const film = films[index];
-      const metadata = mergeLocalFilmMetadata(
-        metadataByFilmId.get(item.filmId) ?? [],
+      const items = (
+        await repositories.drafts.listItemsForDraft(draft.id)
+      ).sort((a, b) => a.orderIndex - b.orderIndex);
+      const films = await Promise.all(
+        items.map((item) => repositories.films.getById(item.filmId)),
       );
+      const metadataByFilmId = await repositories.films.getMetadataForFilms(
+        items.map((item) => item.filmId),
+      );
+      const answeredItemIds = new Set(
+        (
+          await repositories.history.listPostmortemResponsesForDraft(draft.id)
+        ).map((response) => response.draftItemId),
+      );
+<<<<<<< Updated upstream
       const challengeDefinition = item.challengeId
         ? challengeRegistry.getById(item.challengeId)
         : undefined;
@@ -126,9 +123,40 @@ export default function DraftsPage() {
           : null,
       };
     });
+=======
+>>>>>>> Stashed changes
 
-    return { draft, items, filmCards, answeredItemIds } as const;
-  }, [activeProfile?.id, repositories]);
+      const filmCards: DraftFilmCardView[] = items.map((item, index) => {
+        const film = films[index];
+        const metadata = mergeLocalFilmMetadata(
+          metadataByFilmId.get(item.filmId) ?? [],
+        );
+        const challengeDefinition = item.challengeId
+          ? challengeRegistry.getById(item.challengeId)
+          : undefined;
+        return {
+          itemId: item.id,
+          entryId: item.watchlistEntryId,
+          title: film?.title ?? "Untitled",
+          releaseYear: film?.releaseYear ?? null,
+          runtimeMinutes: metadata.runtimeMinutes,
+          letterboxdUri: film?.letterboxdUri ?? null,
+          posterUrl: metadata.posterUrl,
+          averageRating: metadata.averageRating,
+          genres: metadata.genres,
+          isCompleted: item.isCompleted,
+          challenge: challengeDefinition
+            ? {
+                name: challengeDefinition.name,
+                description: challengeDefinition.description,
+                displayValue: item.challengeDisplayValue,
+              }
+            : null,
+        };
+      });
+
+      return { draft, items, filmCards, answeredItemIds } as const;
+    }, [activeProfile?.id, repositories]);
 
   // Keeps `filmCards`/`items` genuinely fresh after every mark-watched or
   // undo action anywhere on this page (see docs/product-spec.md, "WATCHED
@@ -150,7 +178,13 @@ export default function DraftsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchUndo]);
 
-  if (!activeProfile || isLoading || !data) {
+  if (!activeProfile) {
+    return null;
+  }
+  if (error) {
+    return <AsyncDataError error={error} onRetry={reload} />;
+  }
+  if (isLoading || !data) {
     return null;
   }
 

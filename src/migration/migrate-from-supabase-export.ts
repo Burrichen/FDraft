@@ -1,4 +1,5 @@
 import { DEFAULT_PROFILE_SETTINGS } from "@/domain/profiles/profile";
+import { resolveProfileTimezone } from "@/domain/profiles/timezone";
 import type { Clock } from "@/domain/time/clock";
 import { SystemClock } from "@/domain/time/clock";
 import type { Repositories } from "@/repositories";
@@ -54,7 +55,11 @@ export async function migrateFromSupabaseExport(
     displayName: exportData.profile.display_name ?? "Imported profile",
     createdAt: exportData.profile.created_at,
     lastOpenedAt: clock.now().toISOString(),
-    timezone: exportData.profile.timezone,
+    // This export has no schema validation at all (see docs/product-spec.md,
+    // "COMPLETE PRODUCT AUDIT") — an unrecognized timezone would otherwise
+    // silently crash Calendar Mode draft creation and "mark watched" the
+    // first time it's actually used.
+    timezone: resolveProfileTimezone(exportData.profile.timezone),
     settings: { ...DEFAULT_PROFILE_SETTINGS },
     dataVersion: deps.currentSchemaVersion,
   });
@@ -160,7 +165,10 @@ export async function migrateFromSupabaseExport(
       challengeMode: draft.challenge_mode as DraftRecord["challengeMode"],
       startedAt: draft.started_at,
       deadlineAt: draft.deadline_at,
-      timezone: draft.timezone,
+      // Same defensive normalization as the profile's own timezone above
+      // — an invalid zone here would only ever surface as a NaN% progress
+      // bar on a still-active migrated draft, but the fix is free.
+      timezone: resolveProfileTimezone(draft.timezone),
       completedAt: draft.completed_at,
       freeformAchievedRank:
         draft.freeform_achieved_rank as DraftRecord["freeformAchievedRank"],

@@ -1,4 +1,5 @@
 import { differenceInCalendarDays, differenceInYears } from "date-fns";
+import { parseCalendarDate } from "@/domain/time/calendar-date";
 import {
   countOccurrences,
   percentileSubsetAscendingBy,
@@ -87,7 +88,7 @@ export function calculateLotteryTickets(
     const baseline = 1;
     const completeYearsOnWatchlistBonus = Math.max(
       0,
-      differenceInYears(now, new Date(film.dateAdded)),
+      differenceInYears(now, parseCalendarDate(film.dateAdded)),
     );
     const underwatchedBonus = underwatchedEntryIds.has(film.watchlistEntryId)
       ? 2
@@ -185,7 +186,7 @@ export function calculateAntiLotteryTickets(
 
     const daysSinceAdded = differenceInCalendarDays(
       now,
-      new Date(film.dateAdded),
+      parseCalendarDate(film.dateAdded),
     );
     const recentAdditionPenalty =
       daysSinceAdded < config.antiLotteryRecentAdditionDays

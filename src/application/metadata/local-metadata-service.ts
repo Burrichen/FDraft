@@ -181,6 +181,48 @@ function emptyOutcome(): MetadataDownloadOutcome {
   };
 }
 
+<<<<<<< Updated upstream
+=======
+/** Human-readable, per-reason explanation shown on the Unresolved Metadata screen (see docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION"). */
+const UNRESOLVED_REASON_MESSAGES: Record<string, string> = {
+  ambiguous: "Could not confidently choose between multiple results.",
+  "not-found": "No confident match was found for this title.",
+  "rate-limited": "The metadata provider rate-limited this request.",
+  "provider-error": "The metadata provider returned an unexpected error.",
+  "invalid-api-key":
+    "The metadata provider rejected the configured API key (401) — check TMDB_API_KEY in your environment configuration.",
+  "invalid-import-data":
+    "This film's imported data could not be sent to the metadata provider.",
+  "network-error": "Could not reach the metadata provider.",
+  "unexpected-error":
+    "An unexpected error occurred while saving this film's metadata.",
+};
+
+function buildUnresolvedRecord(
+  film: FilmRecord,
+  providerId: string,
+  status: UnresolvedMetadataRecord["status"],
+  reason: string,
+  now: string,
+  idGenerator: IdGenerator,
+): UnresolvedMetadataRecord {
+  return {
+    // `LocalUnresolvedMetadataRepository.upsert` preserves an existing
+    // row's real id when one already exists for this filmId — this one
+    // is only ever actually used the first time.
+    id: idGenerator.generate(),
+    filmId: film.id,
+    provider: providerId,
+    status,
+    reason,
+    message: UNRESOLVED_REASON_MESSAGES[reason] ?? "This film needs review.",
+    lastAttemptedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+>>>>>>> Stashed changes
 async function downloadForFilms(
   repos: { films: FilmRepository },
   targets: FilmRecord[],
@@ -259,6 +301,15 @@ async function downloadForFilms(
               updatedAt: now,
             };
             await repos.films.upsertMetadata(record);
+<<<<<<< Updated upstream
+=======
+            // No longer unresolved/failed, if it ever was — e.g. a retry
+            // that finally succeeded. Keyed by filmId alone (see
+            // schema.ts version 3) so this clears the film's row
+            // regardless of which provider label an earlier failed
+            // attempt happened to record it under.
+            await repos.unresolvedMetadata.deleteByFilmId(film.id);
+>>>>>>> Stashed changes
             matched++;
             completed++;
             break;
@@ -284,6 +335,30 @@ async function downloadForFilms(
           }
           case "provider-error":
           case "invalid-import-data": {
+<<<<<<< Updated upstream
+=======
+            const now = deps.clock.now().toISOString();
+            // A 401 means the configured API key itself was rejected — a
+            // fundamentally different, actionable problem from a generic
+            // provider error, and worth its own message rather than
+            // collapsing every provider failure into one indistinguishable
+            // "unexpected error" (see docs/product-spec.md, "COMPLETE
+            // PRODUCT AUDIT").
+            const reason =
+              outcome.status === "provider-error" && outcome.httpStatus === 401
+                ? "invalid-api-key"
+                : outcome.status;
+            await repos.unresolvedMetadata.upsert(
+              buildUnresolvedRecord(
+                film,
+                "providerId" in outcome ? outcome.providerId : "unknown",
+                "failed",
+                reason,
+                now,
+                deps.idGenerator,
+              ),
+            );
+>>>>>>> Stashed changes
             failed++;
             completed++;
             retryableFilmIds.push(film.id);
@@ -294,9 +369,37 @@ async function downloadForFilms(
         failed++;
         completed++;
         retryableFilmIds.push(film.id);
-        if (cause instanceof MetadataNetworkError) {
+        const isNetworkError = cause instanceof MetadataNetworkError;
+        if (isNetworkError) {
           networkFailures++;
         }
+<<<<<<< Updated upstream
+=======
+        // A genuine "can't reach the provider" is honestly labeled as
+        // such; anything else (e.g. an IndexedDB write failing inside
+        // the try block above) is NOT mislabeled as a network problem —
+        // see docs/product-spec.md, "COMPLETE PRODUCT AUDIT".
+        const reason = isNetworkError ? "network-error" : "unexpected-error";
+        try {
+          const now = deps.clock.now().toISOString();
+          await repos.unresolvedMetadata.upsert(
+            buildUnresolvedRecord(
+              film,
+              "unknown",
+              "failed",
+              reason,
+              now,
+              deps.idGenerator,
+            ),
+          );
+        } catch {
+          // Storage itself is failing — there's nothing left to record
+          // this failure INTO. Swallow rather than let a secondary
+          // failure here escape as an unhandled rejection from the
+          // whole worker/Promise.all chain; the film is still counted
+          // above and will simply be retried on the next run.
+        }
+>>>>>>> Stashed changes
       }
       deps.onProgress?.({
         completed,

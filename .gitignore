@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# Tauri desktop build — see scripts/build-desktop-frontend.ts (self-healing,
+# but a hard-killed process could still leave this behind)
+/.desktop-build-staging/
+
 # production
 /build
 

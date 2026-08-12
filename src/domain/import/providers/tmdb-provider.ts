@@ -46,6 +46,10 @@ const TMDB_API_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 const MAX_FETCH_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 500;
+/** No single TMDB request should be able to hang forever — a stuck download-queue worker (see docs/product-spec.md, "COMPLETE PRODUCT AUDIT") otherwise stalls the whole run with no cancel affordance until the page is reloaded. */
+const FETCH_TIMEOUT_MS = 15_000;
+/** Caps how long a `Retry-After` header (untrusted, server-controlled input) can make this provider sleep — without this, a header like `Retry-After: 86400` would block the download queue for real hours instead of the seconds TMDB's actual rate-limit windows use. */
+const MAX_RETRY_AFTER_MS = 30_000;
 
 export const TMDB_SUPPORTED_CAPABILITIES: readonly DataCapability[] = [
   "runtime",
@@ -101,6 +105,25 @@ function emptyToNull<T>(values: T[]): T[] | null {
   return values.length > 0 ? values : null;
 }
 
+/**
+ * `fetchDetails`'s `as TmdbMovieDetails` cast is a compile-time-only
+ * assertion — it doesn't validate the actual JSON TMDB sent back. A
+ * malformed response (e.g. `runtime: "142"` as a string) would otherwise
+ * flow straight into `FilmMetadataRecord.runtimeMinutes` unchanged, then
+ * silently corrupt Stats' numeric aggregates via string concatenation
+ * (`0 + "142"` → `"0142"`, not `142`) instead of ever surfacing as an
+ * error — see docs/product-spec.md, "COMPLETE PRODUCT AUDIT". Every
+ * numeric field pulled from a TMDB response goes through this first.
+ */
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** Same defensive purpose as `asFiniteNumber`, for the array fields — a malformed non-array response must fail this one field, not throw and abort the whole lookup. */
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 /** `"2017-04-26"` -> `2017`. `undefined`/empty (upcoming or unknown release) -> `null`, never invented. */
 function parseReleaseYear(releaseDate: string | undefined): number | null {
   if (!releaseDate) return null;
@@ -112,7 +135,8 @@ function retryAfterMsFromHeader(response: Response): number | undefined {
   const header = response.headers.get("Retry-After");
   if (!header) return undefined;
   const seconds = Number(header);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
 }
 
 export function createTmdbProvider({
@@ -132,7 +156,22 @@ export function createTmdbProvider({
   async function fetchWithRetry(url: string): Promise<Response> {
     let lastResponse: Response | undefined;
     for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
-      const response = await fetchImpl(url);
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+      } catch {
+        lastResponse = undefined;
+        if (attempt === MAX_FETCH_ATTEMPTS) {
+          throw new FilmMetadataProviderError(
+            `TMDB request timed out after ${FETCH_TIMEOUT_MS}ms`,
+            "provider-error",
+          );
+        }
+        await sleepImpl(DEFAULT_RETRY_DELAY_MS * 2 ** (attempt - 1));
+        continue;
+      }
       if (response.ok) {
         return response;
       }
@@ -151,7 +190,8 @@ export function createTmdbProvider({
       await sleepImpl(delay);
     }
     // lastResponse is always assigned here: the loop only exits via
-    // `return` (success) or after assigning it on a non-ok response.
+    // `return` (success), by throwing directly on a final-attempt timeout,
+    // or after assigning it on a non-ok response.
     const response = lastResponse!;
     if (response.status === 429) {
       throw new FilmMetadataProviderError(
@@ -197,6 +237,59 @@ export function createTmdbProvider({
     return (await response.json()) as TmdbMovieDetails;
   }
 
+<<<<<<< Updated upstream
+=======
+  /** Shared by `lookup()` (automatic match) and `search()` (manual candidates) — identical mapping either way, since a manually-chosen candidate should persist exactly what an automatic match on the same film would have. */
+  function mapDetailsToResult(details: TmdbMovieDetails): FilmMetadataResult {
+    const directors = asArray<TmdbCrewMember>(details.credits?.crew)
+      .filter((member) => member.job === "Director")
+      .map((member) => member.name);
+    const voteAverage = asFiniteNumber(details.vote_average);
+
+    return {
+      posterUrl: details.poster_path
+        ? `${TMDB_IMAGE_BASE}${details.poster_path}`
+        : null,
+      runtimeMinutes: asFiniteNumber(details.runtime),
+      genres: emptyToNull(
+        asArray<{ name: string }>(details.genres).map((genre) => genre.name),
+      ),
+      directors: emptyToNull(directors),
+      countries: emptyToNull(
+        asArray<{ name: string }>(details.production_countries).map(
+          (country) => country.name,
+        ),
+      ),
+      languages: emptyToNull(
+        asArray<{ english_name: string }>(details.spoken_languages).map(
+          (language) => language.english_name,
+        ),
+      ),
+      collectionId: details.belongs_to_collection
+        ? String(details.belongs_to_collection.id)
+        : null,
+      collectionName: details.belongs_to_collection?.name ?? null,
+      // TMDB's collection endpoint doesn't expose a canonical release-order
+      // index on the movie details response itself.
+      collectionOrder: null,
+      averageRating:
+        voteAverage !== null && voteAverage > 0
+          ? Math.round((voteAverage / 2) * 100) / 100
+          : null,
+      popularity: asFiniteNumber(details.popularity),
+      // Letterboxd-specific community metrics TMDB does not have — never invented.
+      watchCount: null,
+      fansCount: null,
+      listAppearances: null,
+      externalIds: {
+        tmdb: String(details.id),
+        ...(details.imdb_id ? { imdb: details.imdb_id } : {}),
+      },
+      raw: details,
+    };
+  }
+
+>>>>>>> Stashed changes
   return {
     id: "tmdb",
     supportedCapabilities: TMDB_SUPPORTED_CAPABILITIES,

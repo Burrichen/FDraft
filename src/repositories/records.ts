@@ -68,6 +68,34 @@ export interface FilmMetadataRecord {
   updatedAt: string;
 }
 
+<<<<<<< Updated upstream
+=======
+/**
+ * One film the enrichment queue could not confidently resolve on its own
+ * — see docs/product-spec.md, "UNRESOLVED METADATA RESOLUTION". Exists
+ * only while a film is in this state: a successful match (automatic or
+ * manual) deletes the row for that `filmId` — the UNIQUE identity key
+ * (see `src/infrastructure/local-db/schema.ts` v3/v4), since there's only
+ * ever one configured provider active at a time in this app. `provider`
+ * is informational only, not part of the row's identity. Catalog-wide
+ * like `FilmMetadataRecord`, not profile-scoped — the same film is the
+ * same film regardless of which profile's watchlist surfaced it.
+ */
+export interface UnresolvedMetadataRecord {
+  id: string;
+  filmId: string;
+  provider: string;
+  status: MetadataResolutionStatus;
+  /** Machine-readable short code — the exact outcome that produced this row (e.g. "ambiguous", "not-found", "rate-limited", "provider-error", "invalid-import-data", "network-error"). */
+  reason: string;
+  /** Human-readable explanation for the resolution screen, e.g. "Could not confidently choose between multiple results." */
+  message: string;
+  lastAttemptedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+>>>>>>> Stashed changes
 export interface WatchlistEntryRecord {
   id: string;
   profileId: string;

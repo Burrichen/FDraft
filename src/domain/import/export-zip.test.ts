@@ -76,6 +76,16 @@ describe("extractLetterboxdExportZip", () => {
     const zip = buildZip({ "ratings.csv": "x" });
     const result = extractLetterboxdExportZip(zip);
     expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain("does not contain a watchlist.csv file");
+  });
+
+  it("succeeds (with an empty string) for a zero-byte watchlist.csv, rather than misreporting it as missing entirely — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", () => {
+    const zip = buildZip({ "watchlist.csv": "" });
+    const result = extractLetterboxdExportZip(zip);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.files.watchlistCsv).toBe("");
   });
 
   it("fails gracefully on a malformed (non-ZIP) buffer instead of throwing", () => {

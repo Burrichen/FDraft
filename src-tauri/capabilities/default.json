@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions, plus HTTP access narrowly scoped to TMDB (the only external service FDraft ever talks to — see docs/product-spec.md, METADATA REQUESTS)",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.themoviedb.org/*" },
+        { "url": "https://image.tmdb.org/*" }
+      ]
+    }
+  ]
+}

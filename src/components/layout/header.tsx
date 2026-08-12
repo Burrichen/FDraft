@@ -25,6 +25,7 @@ export function Header({ activeProfile, profiles }: HeaderProps) {
         <MobileNav />
         <Link
           href="/watchlist"
+          aria-label="FDraft — home"
           className="group text-foreground focus-visible:outline-ring flex items-center gap-2 font-semibold focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <Clapperboard
