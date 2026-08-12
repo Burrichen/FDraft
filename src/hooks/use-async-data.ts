@@ -1,13 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface AsyncDataState<T> {
   data: T | undefined;
   error: Error | null;
   isLoading: boolean;
-  /** Re-runs the loader — call after a mutation to reflect it without a full page reload. */
+  /** Re-runs the loader — call after a mutation to reflect it without a full page reload. Flips `isLoading` true first, so a page gating its render on that briefly shows nothing while this runs. */
   reload: () => void;
+  /**
+   * Re-runs the loader WITHOUT flipping `isLoading` — the previously loaded
+   * `data` stays rendered until the fresh result replaces it, so a page
+   * gating its render on `isLoading` never blanks for this. Meant for
+   * lightweight, frequent local mutations (e.g. marking a film watched, or
+   * undoing that — see docs/product-spec.md, "WATCHED FILM UNDO") where a
+   * `reload()`-style loading flash would be a jarring flicker on every
+   * click; `reload()` is still right for a rarer, deliberate "start over"
+   * action.
+   */
+  reloadSilently: () => Promise<void>;
 }
 
 /**
@@ -34,6 +45,18 @@ export function useAsyncData<T>(
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
+
+  // Read by `reloadSilently`, which runs outside this effect (from an event
+  // handler, not a dependency change) and so needs whichever `loader`
+  // closure is current at call time, not whichever one this effect closed
+  // over when it last ran. Updated in its own effect (not during render —
+  // refs are for event handlers/effects, not render) but that's still
+  // always ahead of any `reloadSilently()` call, which can only happen from
+  // a later event handler once this effect has already committed.
+  const loaderRef = useRef(loader);
+  useEffect(() => {
+    loaderRef.current = loader;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -65,5 +88,15 @@ export function useAsyncData<T>(
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
-  return { data, error, isLoading, reload };
+  const reloadSilently = useCallback(async () => {
+    try {
+      const result = await loaderRef.current();
+      setData(result);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause : new Error(String(cause)));
+    }
+  }, []);
+
+  return { data, error, isLoading, reload, reloadSilently };
 }

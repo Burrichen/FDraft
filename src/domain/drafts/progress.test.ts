@@ -4,11 +4,12 @@ import {
   calculateDraftTimeProgress,
 } from "./progress";
 
-describe("calculateDraftTimeProgress", () => {
+describe("calculateDraftTimeProgress — timer mode", () => {
   it("just created: 0% elapsed, full days remaining, not expired", () => {
     const startedAt = new Date("2026-01-01T00:00:00.000Z");
     const deadlineAt = new Date("2026-01-31T00:00:00.000Z"); // 30 days
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now: startedAt,
       startedAt,
       deadlineAt,
@@ -17,6 +18,7 @@ describe("calculateDraftTimeProgress", () => {
     expect(result).toMatchObject({
       daysRemaining: 30,
       percentElapsed: 0,
+      percentRemaining: 100,
       isExpired: false,
       isFinalDay: false,
     });
@@ -27,12 +29,14 @@ describe("calculateDraftTimeProgress", () => {
     const deadlineAt = new Date("2026-01-31T00:00:00.000Z");
     const now = new Date("2026-01-16T00:00:00.000Z"); // 15 of 30 days
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
       timezone: "UTC",
     });
     expect(result.percentElapsed).toBe(50);
+    expect(result.percentRemaining).toBe(50);
     expect(result.isExpired).toBe(false);
   });
 
@@ -41,6 +45,7 @@ describe("calculateDraftTimeProgress", () => {
     const deadlineAt = new Date("2026-01-31T23:59:59.999Z");
     const now = new Date("2026-01-31T08:00:00.000Z");
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
@@ -56,6 +61,7 @@ describe("calculateDraftTimeProgress", () => {
     const deadlineAt = new Date("2026-01-31T00:00:00.000Z");
     const now = new Date("2026-02-05T00:00:00.000Z");
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
@@ -64,6 +70,7 @@ describe("calculateDraftTimeProgress", () => {
     expect(result.isExpired).toBe(true);
     expect(result.daysRemaining).toBe(0);
     expect(result.percentElapsed).toBe(100);
+    expect(result.percentRemaining).toBe(0);
     expect(result.isFinalDay).toBe(false);
   });
 
@@ -71,6 +78,7 @@ describe("calculateDraftTimeProgress", () => {
     const startedAt = new Date("2026-01-01T00:00:00.000Z");
     const deadlineAt = new Date("2026-01-31T00:00:00.000Z");
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now: deadlineAt,
       startedAt,
       deadlineAt,
@@ -89,12 +97,14 @@ describe("calculateDraftTimeProgress", () => {
     const now = new Date("2026-01-31T04:00:00.000Z"); // Jan 30, 20:00 in America/Los_Angeles
 
     const utcResult = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
       timezone: "UTC",
     });
     const laResult = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
@@ -108,6 +118,7 @@ describe("calculateDraftTimeProgress", () => {
   it("does not divide by zero when startedAt equals deadlineAt", () => {
     const instant = new Date("2026-01-01T00:00:00.000Z");
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now: instant,
       startedAt: instant,
       deadlineAt: instant,
@@ -123,6 +134,7 @@ describe("calculateDraftTimeProgress", () => {
     const deadlineAt = new Date("2026-01-31T00:00:00.000Z");
     const now = new Date("2027-01-01T00:00:00.000Z"); // a full year late
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
@@ -136,12 +148,123 @@ describe("calculateDraftTimeProgress", () => {
     const deadlineAt = new Date("2026-01-31T00:00:00.000Z");
     const now = new Date("2026-01-30T12:00:00.000Z");
     const result = calculateDraftTimeProgress({
+      mode: "timer",
       now,
       startedAt,
       deadlineAt,
       timezone: "UTC",
     });
     expect(result.daysRemaining).toBe(1);
+  });
+});
+
+describe("calculateDraftTimeProgress — calendar mode", () => {
+  // Deadline is always the end of the calendar month (23:59:59.999 local),
+  // exactly what `calculateDraftDeadline` persists — see deadline.ts.
+  const deadlineAt = new Date("2026-08-31T23:59:59.999Z");
+
+  it("regression: a draft created partway through the month is NOT stuck at 0% just because it was created late (see docs/product-spec.md, 'Draft Time Mode')", () => {
+    // Created on the 11th — the exact scenario from the bug report.
+    const startedAt = new Date("2026-08-11T09:00:00.000Z");
+    const now = startedAt;
+    const result = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt,
+      deadlineAt,
+      timezone: "UTC",
+    });
+    expect(result.percentElapsed).toBeGreaterThan(0);
+  });
+
+  it("August 1st: approximately 0% through the month", () => {
+    const startedAt = new Date("2026-08-01T00:00:00.000Z");
+    const result = calculateDraftTimeProgress({
+      mode: "calendar",
+      now: startedAt,
+      startedAt,
+      deadlineAt,
+      timezone: "UTC",
+    });
+    expect(result.percentElapsed).toBe(0);
+  });
+
+  it("August 11th: approximately one-third through the month, regardless of when the draft was actually created", () => {
+    const now = new Date("2026-08-11T00:00:00.000Z");
+
+    const createdEarly = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt: new Date("2026-08-01T00:00:00.000Z"),
+      deadlineAt,
+      timezone: "UTC",
+    });
+    const createdLate = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt: new Date("2026-08-11T00:00:00.000Z"),
+      deadlineAt,
+      timezone: "UTC",
+    });
+
+    expect(createdEarly.percentElapsed).toBeGreaterThanOrEqual(30);
+    expect(createdEarly.percentElapsed).toBeLessThanOrEqual(35);
+    // Progress depends only on the calendar month and `now` — not on when
+    // the draft itself was created.
+    expect(createdLate.percentElapsed).toBe(createdEarly.percentElapsed);
+  });
+
+  it("August 31st: approaching/at 100% through the month", () => {
+    const now = new Date("2026-08-31T20:00:00.000Z");
+    const result = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt: new Date("2026-08-11T00:00:00.000Z"),
+      deadlineAt,
+      timezone: "UTC",
+    });
+    expect(result.percentElapsed).toBeGreaterThanOrEqual(95);
+  });
+
+  it("uses the calendar month in the draft's own timezone, not UTC", () => {
+    // "End of August, local time" is a different UTC instant depending on
+    // the timezone: 23:59:59.999 NZST (UTC+12) is 11:59:59.999 UTC the same
+    // day, twelve hours earlier than the plain-UTC deadline used elsewhere
+    // in this file — so the two months' start-of-month instants (and thus
+    // the elapsed-percentage math) diverge too.
+    const aucklandDeadline = new Date("2026-08-31T11:59:59.999Z");
+    const now = new Date("2026-08-15T00:00:00.000Z");
+
+    const utcResult = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt: new Date("2026-08-15T00:00:00.000Z"),
+      deadlineAt,
+      timezone: "UTC",
+    });
+    const aucklandResult = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt: new Date("2026-08-15T00:00:00.000Z"),
+      deadlineAt: aucklandDeadline,
+      timezone: "Pacific/Auckland",
+    });
+
+    expect(utcResult.percentElapsed).not.toBe(aucklandResult.percentElapsed);
+  });
+
+  it("daysRemaining and isExpired are unaffected by the progress-window change — they're always measured from `now` to the deadline", () => {
+    const startedAt = new Date("2026-08-11T00:00:00.000Z");
+    const now = new Date("2026-08-30T00:00:00.000Z");
+    const result = calculateDraftTimeProgress({
+      mode: "calendar",
+      now,
+      startedAt,
+      deadlineAt,
+      timezone: "UTC",
+    });
+    expect(result.daysRemaining).toBe(2);
+    expect(result.isExpired).toBe(false);
   });
 });
 

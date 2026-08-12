@@ -1,4 +1,8 @@
 import type { IdGenerator } from "@/domain/shared/id";
+import {
+  DEFAULT_PAGE_FALLBACK,
+  type DefaultPage,
+} from "@/domain/profiles/default-page";
 import type { Clock } from "@/domain/time/clock";
 
 /**
@@ -23,6 +27,8 @@ import type { Clock } from "@/domain/time/clock";
 export interface ProfileSettings {
   /** Mirrors the OS/browser-level accessibility preference (see docs/product-spec.md, "Design Direction" — "Animation should be subtle and functional"), but overridable per profile. */
   reducedMotion: boolean;
+  /** Which page FDraft opens to for this profile — see docs/product-spec.md, "DEFAULT START PAGE SETTING". Always read through `resolveDefaultPage()` (never trusted directly), which is what makes an older profile record predating this field, or a stale value, fall back to Watchlist rather than breaking. */
+  defaultPage: DefaultPage;
 }
 
 export interface LocalProfile {
@@ -37,6 +43,7 @@ export interface LocalProfile {
 
 export const DEFAULT_PROFILE_SETTINGS: ProfileSettings = {
   reducedMotion: false,
+  defaultPage: DEFAULT_PAGE_FALLBACK,
 };
 
 export interface CreateProfileParams {

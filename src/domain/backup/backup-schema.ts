@@ -141,6 +141,12 @@ export const watchedHistorySourceSchema = z.enum([
 
 export const profileSettingsSchema = z.object({
   reducedMotion: z.boolean(),
+  // Optional — a backup exported before this setting existed has no such
+  // key at all, and must still validate; `resolveDefaultPage()` (see
+  // `src/domain/profiles/default-page.ts`) is what actually falls back to
+  // Watchlist for a missing or invalid value wherever this is READ, not
+  // this schema.
+  defaultPage: z.enum(["watchlist", "drafts", "history", "stats"]).optional(),
 });
 
 export const backupProfileSchema = z.object({

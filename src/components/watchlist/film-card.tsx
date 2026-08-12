@@ -1,31 +1,50 @@
-import { Film } from "lucide-react";
+import { Check, Film } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { EyeButton } from "./eye-button";
+import { useIsWatchedThisSession, WatchToggle } from "./watch-toggle";
 import type { WatchlistFilmCardView } from "./types";
 
 interface FilmCardProps {
   film: WatchlistFilmCardView;
-  onWatched: (entryId: string) => void;
+  /** Fires after this film is freshly marked watched — the Random Film picker uses it to move on to its next pick. Not needed just to render the faded/undo state, which reads live from `useWatchUndo()` instead. */
+  onWatched?: (entryId: string) => void;
   /** "large" is used by the standalone random-film picker, which shows one film at a time. */
   size?: "default" | "large";
 }
 
 /**
  * A poster-focused watchlist card (see docs/product-spec.md, "Normal
- * Watchlist Page"). The whole poster/title/metadata block is one link to
- * the film's Letterboxd page; the eye control is a sibling positioned on
- * top of it, so the two clickable regions never conflict.
+ * Watchlist Page", "WATCHED FILM UNDO"). The whole poster/title/metadata
+ * block is one link to the film's Letterboxd page; the watch control is a
+ * sibling positioned on top of it, so the two clickable regions never
+ * conflict.
+ *
+ * Once marked watched this session, the card stays mounted right where it
+ * was — never removed or hidden — just visually faded (reduced opacity,
+ * desaturated poster, a "Watched" label swapped in for genres) so it reads
+ * as "marked watched, but you can still undo it" rather than looking
+ * unreadable or broken. `useIsWatchedThisSession` reads this live from the
+ * shared session context, so the fade appears/disappears immediately as the
+ * user marks watched or undoes, with no parent-managed hidden/visible list
+ * to keep in sync.
  */
 export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
+  const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const genresToShow = size === "large" ? 4 : 2;
+  const metadataLine = [
+    film.releaseYear ? String(film.releaseYear) : null,
+    film.runtimeMinutes ? `${film.runtimeMinutes} min` : null,
+    film.averageRating !== null ? `★ ${film.averageRating.toFixed(1)}` : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
 
   return (
     <div className="group relative">
-      <EyeButton
+      <WatchToggle
         entryId={film.entryId}
         title={film.title}
-        onWatched={() => onWatched(film.entryId)}
+        onMarkedWatched={() => onWatched?.(film.entryId)}
       />
       <a
         href={film.letterboxdUri ?? undefined}
@@ -40,7 +59,10 @@ export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
             <img
               src={film.posterUrl}
               alt=""
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+              className={cn(
+                "h-full w-full object-cover transition-transform group-hover:scale-105",
+                isWatchedThisSession && "opacity-50 grayscale-[50%]",
+              )}
             />
           ) : (
             <div className="text-muted-foreground flex h-full w-full items-center justify-center">
@@ -51,7 +73,13 @@ export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
             </div>
           )}
         </div>
-        <div className={cn("space-y-1", size === "large" ? "p-4" : "p-2.5")}>
+        <div
+          className={cn(
+            "space-y-1",
+            size === "large" ? "p-4" : "p-2.5",
+            isWatchedThisSession && "opacity-60",
+          )}
+        >
           <p
             className={cn(
               "text-foreground truncate font-medium",
@@ -60,13 +88,15 @@ export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
           >
             {film.title}
           </p>
-          <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            {film.releaseYear ? <span>{film.releaseYear}</span> : null}
-            {film.averageRating !== null ? (
-              <span>★ {film.averageRating.toFixed(1)}</span>
-            ) : null}
-          </div>
-          {film.genres?.length ? (
+          {metadataLine ? (
+            <p className="text-muted-foreground text-xs">{metadataLine}</p>
+          ) : null}
+          {isWatchedThisSession ? (
+            <p className="text-watchlist-green flex items-center gap-1 text-xs font-medium">
+              <Check aria-hidden="true" className="size-3.5" />
+              Watched
+            </p>
+          ) : film.genres?.length ? (
             <div className="flex flex-wrap gap-1 pt-0.5">
               {film.genres.slice(0, genresToShow).map((genre) => (
                 <Badge

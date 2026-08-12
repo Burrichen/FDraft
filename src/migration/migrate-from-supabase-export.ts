@@ -1,3 +1,4 @@
+import { DEFAULT_PROFILE_SETTINGS } from "@/domain/profiles/profile";
 import type { Clock } from "@/domain/time/clock";
 import { SystemClock } from "@/domain/time/clock";
 import type { Repositories } from "@/repositories";
@@ -54,7 +55,7 @@ export async function migrateFromSupabaseExport(
     createdAt: exportData.profile.created_at,
     lastOpenedAt: clock.now().toISOString(),
     timezone: exportData.profile.timezone,
-    settings: { reducedMotion: false },
+    settings: { ...DEFAULT_PROFILE_SETTINGS },
     dataVersion: deps.currentSchemaVersion,
   });
 

@@ -1,4 +1,5 @@
 import type { BackupV1 } from "@/domain/backup/backup-schema";
+import { resolveDefaultPage } from "@/domain/profiles/default-page";
 import type { LocalProfile } from "@/domain/profiles/profile";
 import type {
   BackupImportDeps,
@@ -171,7 +172,15 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
       createdAt: backup.profile.createdAt,
       lastOpenedAt: clock.now().toISOString(),
       timezone: backup.profile.timezone,
-      settings: { ...backup.profile.settings },
+      // A backup exported before "DEFAULT START PAGE SETTING" existed has
+      // no `defaultPage` at all — `resolveDefaultPage` is what falls that
+      // back to Watchlist, the same normalization every other reader of
+      // this setting goes through, rather than restoring `undefined` into
+      // a field the rest of the app assumes is always a real `DefaultPage`.
+      settings: {
+        ...backup.profile.settings,
+        defaultPage: resolveDefaultPage(backup.profile.settings.defaultPage),
+      },
       dataVersion: currentSchemaVersion,
     };
     await this.db.profiles.add(profile);

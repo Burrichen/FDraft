@@ -1,5 +1,6 @@
-import { isSameDay } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { isSameDay, startOfMonth } from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import type { DraftTimeMode } from "@/repositories";
 
 /**
  * Pure progress calculations for the Active Draft page (see
@@ -12,8 +13,10 @@ import { toZonedTime } from "date-fns-tz";
 export interface DraftTimeProgress {
   /** Whole days left, floored at 0 once the deadline has passed. */
   daysRemaining: number;
-  /** How much of the draft's total duration has elapsed, 0-100. */
+  /** How much of the progress window has elapsed, 0-100 (see `mode` below for what the window is). */
   percentElapsed: number;
+  /** `100 - percentElapsed`, provided so callers don't have to derive it themselves. */
+  percentRemaining: number;
   /** `now` is at or past `deadlineAt`. */
   isExpired: boolean;
   /** `now` and the deadline fall on the same local calendar day (in the draft's stored timezone), and it hasn't expired yet. */
@@ -23,17 +26,29 @@ export interface DraftTimeProgress {
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function calculateDraftTimeProgress(params: {
+  mode: DraftTimeMode;
   now: Date;
   startedAt: Date;
   deadlineAt: Date;
   timezone: string;
 }): DraftTimeProgress {
-  const { now, startedAt, deadlineAt, timezone } = params;
+  const { mode, now, startedAt, deadlineAt, timezone } = params;
 
   const isExpired = now.getTime() >= deadlineAt.getTime();
 
-  const totalDurationMs = deadlineAt.getTime() - startedAt.getTime();
-  const elapsedMs = now.getTime() - startedAt.getTime();
+  // Calendar Mode's progress window is the WHOLE calendar month the
+  // deadline falls in (see docs/product-spec.md, "Draft Time Mode",
+  // "Calendar Mode Progress") — a draft created partway through the month
+  // must not read as "0% elapsed" just because it hasn't personally been
+  // running long. Timer Mode keeps the original creation-to-deadline
+  // window: 0% is the exact draft creation timestamp.
+  const progressStart =
+    mode === "calendar"
+      ? fromZonedTime(startOfMonth(toZonedTime(deadlineAt, timezone)), timezone)
+      : startedAt;
+
+  const totalDurationMs = deadlineAt.getTime() - progressStart.getTime();
+  const elapsedMs = now.getTime() - progressStart.getTime();
   const percentElapsed =
     totalDurationMs <= 0
       ? 100
@@ -41,6 +56,7 @@ export function calculateDraftTimeProgress(params: {
           100,
           Math.max(0, Math.round((elapsedMs / totalDurationMs) * 100)),
         );
+  const percentRemaining = 100 - percentElapsed;
 
   const remainingMs = Math.max(0, deadlineAt.getTime() - now.getTime());
   const daysRemaining = isExpired
@@ -54,7 +70,13 @@ export function calculateDraftTimeProgress(params: {
     !isExpired &&
     isSameDay(toZonedTime(now, timezone), toZonedTime(deadlineAt, timezone));
 
-  return { daysRemaining, percentElapsed, isExpired, isFinalDay };
+  return {
+    daysRemaining,
+    percentElapsed,
+    percentRemaining,
+    isExpired,
+    isFinalDay,
+  };
 }
 
 export interface DraftFilmProgress {

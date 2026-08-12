@@ -9,6 +9,7 @@ import {
   ProfileProvider,
   useProfileContext,
 } from "@/components/profiles/profile-provider";
+import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
 /**
@@ -54,12 +55,19 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-full flex-col">
-      <Header activeProfile={activeProfile} profiles={profiles} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-        {children}
-      </main>
-    </div>
+    // Keyed by profile id so switching profiles starts a fresh, empty
+    // session-undo map instead of leaking one profile's pending undos into
+    // another's — see `WatchUndoProvider`'s doc comment. Mounted above
+    // `{children}` (the routed page) rather than inside any one page, so
+    // navigating between pages never resets it — only a hard reload does.
+    <WatchUndoProvider key={activeProfile.id}>
+      <div className="flex min-h-full flex-col">
+        <Header activeProfile={activeProfile} profiles={profiles} />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+          {children}
+        </main>
+      </div>
+    </WatchUndoProvider>
   );
 }
 

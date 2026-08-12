@@ -123,4 +123,48 @@ describe("ProfileService", () => {
     const sam = await service.createProfile("Sam", "UTC");
     expect(alex.id).not.toBe(sam.id);
   });
+
+  it("updateSettings merges a partial update, leaving other settings and profile fields untouched", async () => {
+    const { service, db } = buildService();
+    dbs.push(db);
+
+    const alex = await service.createProfile("Alex", "UTC");
+    expect(alex.settings.defaultPage).toBe("watchlist");
+
+    const updated = await service.updateSettings(alex.id, {
+      defaultPage: "drafts",
+    });
+    expect(updated.settings.defaultPage).toBe("drafts");
+    expect(updated.settings.reducedMotion).toBe(alex.settings.reducedMotion);
+    expect(updated.displayName).toBe(alex.displayName);
+    expect(updated.id).toBe(alex.id);
+
+    const persisted = await service.listProfiles();
+    expect(persisted[0].settings.defaultPage).toBe("drafts");
+  });
+
+  it("updateSettings keeps each profile's settings independent", async () => {
+    const { service, db } = buildService();
+    dbs.push(db);
+
+    const alex = await service.createProfile("Alex", "UTC");
+    const sam = await service.createProfile("Sam", "UTC");
+    await service.updateSettings(alex.id, { defaultPage: "drafts" });
+    await service.updateSettings(sam.id, { defaultPage: "stats" });
+
+    const [profiles] = await Promise.all([service.listProfiles()]);
+    const alexAfter = profiles.find((p) => p.id === alex.id)!;
+    const samAfter = profiles.find((p) => p.id === sam.id)!;
+    expect(alexAfter.settings.defaultPage).toBe("drafts");
+    expect(samAfter.settings.defaultPage).toBe("stats");
+  });
+
+  it("updateSettings throws for a profile id that doesn't exist", async () => {
+    const { service, db } = buildService();
+    dbs.push(db);
+
+    await expect(
+      service.updateSettings("does-not-exist", { defaultPage: "stats" }),
+    ).rejects.toThrow();
+  });
 });

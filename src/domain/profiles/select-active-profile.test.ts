@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LocalProfile } from "./profile";
+import { DEFAULT_PROFILE_SETTINGS, type LocalProfile } from "./profile";
 import { resolveAutoOpenProfileId } from "./select-active-profile";
 
 function profile(id: string): LocalProfile {
@@ -9,7 +9,7 @@ function profile(id: string): LocalProfile {
     createdAt: "2026-01-01T00:00:00.000Z",
     lastOpenedAt: "2026-01-01T00:00:00.000Z",
     timezone: "UTC",
-    settings: { reducedMotion: false },
+    settings: { ...DEFAULT_PROFILE_SETTINGS },
     dataVersion: 1,
   };
 }

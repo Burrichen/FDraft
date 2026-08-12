@@ -314,6 +314,31 @@ Mark it inactive/removed while retaining historical draft information.
 
 ---
 
+## DEFAULT START PAGE SETTING
+
+Settings has a "Default page" control — a dropdown/select, options
+Watchlist / Drafts / History / Stats.
+
+The selected page determines where FDraft opens when the app is launched
+or the root URL is opened. Persist this in the local profile.
+
+### Root routing
+
+Navigating to the root route ("/") redirects/opens the user's selected
+default page. Do not interfere with direct links — `/drafts/history` must
+still open History regardless of the default.
+
+If the setting is missing or invalid, default to Watchlist.
+
+### Multiple local profiles
+
+The default-page preference belongs to the profile, not the device: Alex
+can default to Drafts while Sam defaults to Stats on the same install.
+Switching profile must use that profile's own setting the next time the
+root/home routing behaviour is invoked.
+
+---
+
 ## LETTERBOXD IMPORT
 
 Allow importing a Letterboxd watchlist.
@@ -373,10 +398,31 @@ Each film should display relevant information including:
 - poster
 - title
 - year
+- runtime if available
 - average rating if available
 - genres if available
 
 Clicking a film should take the user to that film's Letterboxd page.
+
+### Runtime Display
+
+Integrate runtime naturally into the card's existing year/rating metadata
+line — do not add another visual row just for it.
+
+Format: plain minutes, e.g. `81 min`, `142 min`. Never convert to `2h 22m`
+— this is the one consistent convention used across FDraft for a single
+film's runtime (a separate `Xh Ym` convention exists only for aggregated
+totals on the Stats page, e.g. "142h 30m" of total watch time across many
+films, and the two must not be confused).
+
+If a film has no runtime yet, omit it gracefully — never show `N/A` or any
+other placeholder.
+
+The card's text must stay responsive at every grid width: titles must not
+overflow (truncating is acceptable), the year/runtime/rating line must not
+force horizontal overflow, genre badges must wrap, and the watch-toggle
+control must remain reachable regardless of how much metadata a given
+card has.
 
 Provide an eye control in the top-right area of the card.
 
@@ -396,6 +442,140 @@ When marked watched:
 - update draft progress.
 
 Do not lose historical information.
+
+The watched action above is undoable for the remainder of the current
+session — see "WATCHED FILM UNDO" below for the full rule.
+
+---
+
+## WATCHLIST SORT / FILTER CONTROL
+
+The main Watchlist page has a "Sort & Filter" control, primarily for
+controlling how films are organised. This is deliberately small — a fixed
+set of genuinely useful sort orders plus a handful of lightweight filters,
+never a query builder.
+
+### Sort options
+
+At least:
+
+- Date Added — Newest First (the default)
+- Date Added — Oldest First
+- Title — A to Z
+- Title — Z to A
+- Release Year — Newest First
+- Release Year — Oldest First
+- Runtime — Shortest First
+- Runtime — Longest First
+- Average Rating — Highest First
+- Average Rating — Lowest First
+- Random / Shuffle
+
+An option whose field can be missing (runtime, rating, release year) must
+behave sensibly, never crash, and never produce NaN ordering: films with a
+known value sort first, in the requested order; films missing that value
+group at the end, regardless of direction.
+
+### Filters
+
+A handful of lightweight filters, dynamically populated from what the
+current watchlist actually has (never a hardcoded list the watchlist
+doesn't match):
+
+- Genre
+- Decade
+- Runtime range
+- Metadata available/missing
+
+Filtering down to zero results gets its own distinct empty state — never
+confused with "the watchlist is empty" or "everything's been watched."
+
+### UI
+
+A menu/popover under a "Sort & Filter" button. Clearly show when a
+non-default sort or filter is active — not by colour alone. Works well on
+mobile, not just desktop.
+
+### Sort persistence
+
+The chosen sort is remembered in the profile's local settings and survives
+a reload. Filters are not persisted — they reset to "Any" each time the
+page is freshly loaded, which is intentional: a filter is a temporary lens
+on the list, while the sort is how the user actually wants their watchlist
+organised long-term.
+
+Do not persist a one-time Shuffle result as the permanent order — only the
+fact that "Shuffle" is the chosen mode. Every time that mode is active
+(picking it, or loading the page with it already chosen), generate a fresh
+random ordering.
+
+---
+
+## WATCHED FILM UNDO
+
+Marking a film watched — from the normal Watchlist page or the Active Draft
+page — is undoable for the remainder of the current application session.
+
+Marking watched still does everything it always did, immediately: mark the
+film watched, record the watched date, deactivate it on the watchlist,
+complete the matching active-draft item if any, and update draft/watchlist
+progress and stats. Nothing about the persisted outcome changes.
+
+What changes is the UI's reaction to it:
+
+- the card does NOT instantly disappear — it stays exactly where it was;
+- fade it (reduced opacity, a desaturated poster, subdued text) so it still
+  reads clearly, never becomes unreadable;
+- replace its watched control with an "Undo" control.
+
+The user should immediately understand: "I marked this as watched, but I
+can still undo it."
+
+### Undo window
+
+The undo opportunity lasts until the application reloads — not a fixed
+number of seconds, and not a toast-only affordance that disappears if the
+user looks away. It survives navigating between FDraft pages and back to
+whichever one showed it. A hard reload is what permanently closes the
+window; from that point on, the normal persisted watched state applies with
+no further undo available.
+
+Do not implement this as a countdown timer.
+
+### Undo semantics
+
+Undoing a watch action:
+
+- reactivates the watchlist entry;
+- reverts the matching draft item back to incomplete, if the watch action
+  completed one;
+- reverts the draft itself back to active, if completing that item is what
+  archived it early (see "Completed/fully watched draft" below) — never a
+  draft that's archived for some other, unrelated reason;
+- removes exactly the watched-history record that specific watch action
+  created — never an older or otherwise-unrelated one;
+- recalculates draft progress, watchlist state, and stats.
+
+Every reversal step re-checks that what it's about to touch is provably the
+result of THIS action (matching watched-history record ids, matching draft
+status) before touching anything, specifically so a stale or
+already-superseded undo can never revert someone else's legitimate state.
+
+### Session-only state
+
+Whether a given watch action can still be undone is not persisted anywhere
+— it exists only in memory for the current application session. The watch
+action itself is persisted immediately, exactly as it always was. Do not
+add a `canUndo`-style field, or anything like it, to any persisted record.
+
+### Completed/fully watched draft
+
+Completing a draft's last remaining film still archives it early, exactly
+as before. That early archive must not make the action that caused it
+impossible to undo: the draft — and that last watch action — must stay
+reachable and undoable for the rest of the session, including after
+navigating away from the Active Draft page and back, not merely while it
+happens to still be on screen at the moment of completion.
 
 ---
 
@@ -531,6 +711,46 @@ The draft lasts exactly 30 days from creation.
 Persist the calculated deadline.
 
 Do not continually recalculate it from the browser clock.
+
+### Calendar Mode Progress
+
+This is a distinction between DEADLINE ELIGIBILITY and the TIME progress
+indicator shown on the Active Draft page (see "ACTIVE DRAFT PAGE"). Calendar
+Mode eligibility rules above are unchanged: a draft created 27 August still
+begins 27 August and still ends at the end of 31 August, and does NOT
+receive 30 days just because it was created late.
+
+The TIME progress bar's percentage, however, represents progress through
+the CURRENT CALENDAR MONTH as a whole — not through the draft's own
+creation-to-deadline window. It does NOT start at 0% merely because the
+draft was created partway through the month.
+
+For Calendar Mode, the progress window is:
+
+- Progress start: the start of the first calendar day of the month, in the
+  profile's timezone.
+- Progress end: the end of the final calendar day of the month, in the
+  profile's timezone (the same instant as the deadline).
+
+Therefore, for a draft in August regardless of when in August it was
+created:
+
+- August 1: approximately 0% elapsed.
+- August 11: approximately one-third through August.
+- August 31: approaching/at 100% elapsed.
+
+For Timer Mode, the progress window is unchanged: 0% is the exact draft
+creation timestamp, 100% is the persisted 30-day deadline. Timer Mode must
+never be changed to calendar-month progress.
+
+Both modes:
+
+- Use exact timestamps (not integer day counts) for the percentage, so it
+  moves smoothly within a day rather than jumping only at midnight.
+- Clamp the percentage to 0-100 — never negative, never over 100%.
+- Compute days remaining consistently in the profile's timezone, including
+  around midnight, month boundaries, February, leap years, and the final
+  calendar day.
 
 ---
 
@@ -1323,6 +1543,15 @@ Handle:
 - completed early;
 - timezone boundaries.
 
+### Progress Bar Visual
+
+Progress bars stay elegant but must not read as barely-there: visible
+contrast between the track and its fill, an obvious filled portion, a
+restrained FDraft accent color for the fill (not a bright/neon treatment),
+a subtle animated transition when the value changes, and readable
+percentage text alongside the bar rather than relying on the bar's width
+alone.
+
 The primary film area should resemble a clean responsive Letterboxd watchlist.
 
 Cards need:
@@ -1347,6 +1576,10 @@ When watched:
 - retain draft history.
 
 Optionally move completed draft cards into a collapsed/completed section rather than simply making all evidence of them disappear.
+
+The watched action above is undoable for the remainder of the current
+session, including reversing an early archive it caused — see "WATCHED FILM
+UNDO".
 
 ---
 
@@ -1396,16 +1629,37 @@ Once resolved, mark the draft complete/archived and show results.
 
 ---
 
-## DRAFT HISTORY
+## HISTORY PAGE REDESIGN
 
-Provide a place to see previous drafts.
+The History page has TWO clearly separated sections — never one
+undifferentiated feed.
 
-Each draft should retain:
+### Section one — Recently Watched
+
+Heading: "Recently Watched". Shows the user's 5 most recently watched
+films, most recently watched first. Fewer than 5 shows however many exist;
+none shows a polished empty state.
+
+For each, show: poster where available; title; release year; runtime
+where available; the exact watched date; optional challenge/draft origin
+where relevant.
+
+Use the actual watched timestamp/history, never Date Added.
+
+#### Watched date format
+
+Readable, local-profile-timezone formatting — e.g. "9 August 2026" — never
+a raw ISO date.
+
+### Section two — Previous Drafts
+
+Heading: "Previous Drafts". Shows completed/expired/finalised drafts. Each
+should retain and clearly display:
 
 - difficulty;
-- time mode;
+- time mode (Calendar or Timer);
 - started date;
-- deadline;
+- deadline (date range);
 - number of films;
 - completed films;
 - completion percentage;
@@ -1414,7 +1668,59 @@ Each draft should retain:
 - postmortem responses;
 - Freeform achieved rank where applicable.
 
+Allow the user to open (expand) a previous draft.
+
+Each finalised draft's film list has the same general sorting control the
+Watchlist page has — see "SORTING FOR FINALISED / HISTORICAL DRAFTS" below.
+
+#### Historical draft films
+
+Within an opened previous draft, show ALL films that were drafted, always
+clearly split into two groups: Watched and Not Watched. Where a film was
+watched as part of that draft, show its watched date if available.
+
+Do not lose an unwatched historical film just because it remained on, or
+was later removed from, the current watchlist — historical drafts are
+snapshots.
+
+### History data integrity
+
+Do not infer historical state from the current watchlist. Use persisted
+draft/history records. A film may later be removed, watched later,
+re-imported, or metadata-refreshed — none of that may silently rewrite
+what actually happened during an old draft.
+
 Historical data must remain stable even if a film later leaves the watchlist.
+
+---
+
+## SORTING FOR FINALISED / HISTORICAL DRAFTS
+
+When viewing a completed/finalised draft, provide the same general sorting
+control as the Watchlist page's — sort only, no filters; a historical
+draft's small, fixed film list doesn't need narrowing.
+
+Relevant options:
+
+- Original Draft Order (the default — see below)
+- Watched / Unwatched
+- Title
+- Release Year
+- Runtime
+- Rating
+- Challenge / Random
+- Watched Date, where applicable
+
+The default MUST be Original Draft Order.
+
+Historical draft data must never be destructively reordered in the
+database. Sorting is presentation-only — it operates on a copy of the
+item list for display and never writes back to any stored field,
+`orderIndex` included. The original generated draft position must always
+be preserved and recoverable: switching back to "Original Draft Order"
+(or reloading the page, since the chosen sort isn't itself persisted)
+must always restore exactly the same order the draft was actually
+generated in.
 
 ---
 
@@ -3305,3 +3611,473 @@ Backup`, `Switch Profile`). The one inconsistency found was branding,
   this phase — see "Final test matrix" above); and it does not build any
   local UI for interactive challenges (Battle Royale/Three Doors), which
   remains exactly the Phase 9.5B-disclosed gap it always was.
+
+### Phase 9.5E — Watched film undo
+
+Adds a session-scoped "undo" to marking a film watched — see the new
+"WATCHED FILM UNDO" section above for the canonical rule this phase
+implements. Previously, clicking the watched control marked the film
+watched and immediately hid or moved its card with no way back short of
+re-importing.
+
+- **Session-only undo state, kept entirely out of the local database.**
+  `WatchUndoProvider` (`src/components/watch-undo/watch-undo-provider.tsx`)
+  is a plain React context holding an in-memory
+  `Map<watchlistEntryId, WatchSessionUndoRecord>` — no field on any
+  persisted record tracks "can this still be undone." It's mounted in
+  `AppShell` ABOVE the routed page (`{children}`), keyed by
+  `activeProfile.id`, so: switching profiles starts a clean map; navigating
+  between FDraft pages preserves it (the provider itself never unmounts on
+  a route change, only the page below it does); and a hard reload drops it
+  along with the rest of the JS heap — the entire mechanism behind "the
+  undo opportunity lasts until the application reloads," with no timer, no
+  expiry timestamp, nothing to clean up.
+- **`markLocalFilmWatched` extended additively.** Its success outcome now
+  also reports `watchedHistoryId`, `draftId`, and
+  `draftArchivedByThisAction` (whether this exact call is what just
+  archived the draft, from `archiveLocalDraftIfResolved`'s own return
+  value) — everything a `WatchSessionUndoRecord` needs to reverse this
+  specific call later. The function's existing behavior and signature are
+  unchanged.
+- **New `undoLocalFilmWatched`, the other half.** Reactivates the
+  watchlist entry (only when it's inactive for reason `"watched"` — never
+  blindly), reverts the matching draft item to incomplete (only when that
+  item's `watchedHistoryId` still matches the one recorded — proving it's
+  the same completion, not a later, different one), reverts the draft back
+  to `"active"` (clearing `completedAt`/`freeformAchievedRank`) only when
+  `draftArchivedByThisAction` was true AND the draft is currently
+  `"archived"`, and deletes exactly the named watched-history record via a
+  new `HistoryRepository.deleteWatchedHistory(id)` — the one deliberate,
+  narrowly-scoped exception to "watched history is append-only," used only
+  to reverse a same-session action, never to edit or clean up older,
+  legitimate history.
+- **`WatchToggle` replaces `EyeButton`.** One control, two faces, chosen by
+  whether `useWatchUndo()` has a live record for that watchlist entry: the
+  plain eye (marks watched) or "Undo" (reverses it). Used by `FilmCard`
+  (Watchlist grid, Random Film picker) and `DraftFilmCard` (Active Draft
+  page) alike. A watched-this-session card stays mounted exactly where it
+  was — faded poster/text, a "Watched" label — instead of disappearing;
+  on the Active Draft page specifically, a still-undoable completed film
+  stays in the main film grid rather than jumping into the collapsed
+  "Completed" section the way an already-completed-from-an-earlier-session
+  film does.
+  - "Keep it visible after navigating away and back" needed one addition
+    per page. The Watchlist page's normal query
+    (`listActiveEntries`) correctly stops returning a film the moment it's
+    marked watched — so `WatchlistView` also fetches any watchlist entry
+    named by `useWatchUndo().listPendingEntryIds()` that query missed, and
+    renders it as a normal "ghost" card (still faded/undoable). The Active
+    Draft page's normal query (`getActiveOrExpiredDraft`) correctly
+    excludes archived drafts — so `drafts/page.tsx` falls back to
+    `useWatchUndo().getPendingArchivedDraftId()` when that comes back
+    empty, fetching that specific draft directly so completing its last
+    film, navigating away, and coming back still shows it (and lets the
+    user undo the completion) instead of "No active draft."
+- **`useAsyncData` gained `reloadSilently()`** — re-runs the same loader
+  but never flips `isLoading`, so a page gating its render on that (every
+  page in this app does) doesn't blank for a frame on every single
+  mark-watched/undo click the way calling the existing `reload()` would.
+  The Active Draft page calls it from a `useEffect` keyed on the
+  `useWatchUndo()` context value itself, not an inline callback fired
+  right after `registerWatched`/`clearUndo` — an inline call there races
+  ahead of React's own state commit and still sees the pre-update map (a
+  real bug caught by the E2E suite before it shipped, not just reasoned
+  about); an effect only re-runs once React has actually committed the new
+  context value.
+- **Testing.** 12 new unit tests (7 for `undoLocalFilmWatched`'s reversal
+  semantics — including "never removes an older, unrelated watched-history
+  record" and "does not revert a draft item completed by a different
+  action" — and 5 for `WatchUndoProvider`'s register/clear/list behavior),
+  plus 3 new Playwright E2E tests
+  (`e2e/watch-undo.spec.ts`): fade-and-undo-reverses-it on the Watchlist
+  page; the undo opportunity surviving a page navigation but not a hard
+  reload; and completing a Baby draft's last film, navigating away and
+  back to confirm the archived draft is still reachable, then undoing that
+  exact completion and confirming the draft is genuinely active again
+  after a refresh. `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict),
+  `pnpm test`, and `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** no countdown timer or
+  toast-with-a-deadline — the undo window is exactly "until reload," full
+  stop; no cross-session undo (a reload is a hard, deliberate boundary,
+  not a bug); and no change to the append-only rule for any watched-history
+  record other than the one a same-session undo is explicitly reversing.
+
+### Phase 9.5F — Watchlist sort/filter control
+
+Adds the "Sort & Filter" control described in "WATCHLIST SORT / FILTER
+CONTROL" above. Previously the Watchlist page had no way to reorder or
+narrow its poster grid at all — always whatever order the local database
+happened to return.
+
+- **New pure domain module, `src/domain/watchlist/sort-filter.ts`.**
+  `sortWatchlistFilms` handles all 11 sort options; `compareNullsLast` is
+  the one function every metadata-dependent sort (runtime, rating, release
+  year) routes through, so "unknown values group at the end regardless of
+  direction" is implemented exactly once, not re-derived per field.
+  `filterWatchlistFilms` handles genre/decade/runtime-range/metadata
+  availability, AND-combined; `collectAvailableGenres`/
+  `collectAvailableDecades` compute each filter's option list from the
+  watchlist actually on screen, never a hardcoded list. All pure, and unit
+  tested directly — including the specific "never NaN, never crashes"
+  cases the prompt called out (an entirely-unknown-runtime watchlist still
+  sorts to a stable, defined order).
+- **Shuffle without ever persisting a result.** `sortWatchlistFilms("shuffle", rng)`
+  reuses the existing `shuffle()` Fisher-Yates helper from
+  `src/domain/shared/rng.ts` (previously only used by the challenge
+  engine) — it takes an `Rng`, not a seed, so the CALLER controls when a
+  fresh shuffle happens. `WatchlistView` tracks a `shuffleNonce` bumped
+  every time "Shuffle" is (re-)chosen, and only recreates the `Rng` (via
+  `useMemo`) when that changes — so the resulting order is stable across
+  unrelated re-renders (marking a film watched elsewhere, an unrelated
+  context update) but genuinely fresh every time the user deliberately
+  asks for one, including re-picking "Shuffle" while it's already active.
+- **Sort persistence via `SettingsRepository`, not a new `LocalProfile`
+  field.** `getWatchlistSortPreference`/`setWatchlistSortPreference`
+  (`src/application/watchlist/watchlist-sort-preference.ts`) read/write the
+  `"watchlist.sort"` key — the same small-profile-scoped-preference
+  mechanism `export-backup.ts` already uses for "last backup exported at."
+  Only the MODE string is ever persisted (`"shuffle"` included) — never a
+  resulting order. A stale/corrupted stored value falls back to the
+  default rather than crashing.
+- **New `Popover` UI primitive** (`src/components/ui/popover.tsx`), not
+  `DropdownMenu` — a `Menu` closes on every item selection, which is right
+  for a one-shot action but wrong for a control where someone is likely to
+  adjust several filters in the same sitting; Base UI's `Popover` doesn't
+  auto-close on internal interaction the way `Menu` does. `SortFilterControl`
+  is a controlled view — every choice reports upward via
+  `onSortChange`/`onFiltersChange` — so `WatchlistView` stays the one place
+  that persists the sort and recomputes the visible list.
+- **`WatchlistFilmCardView` gained `dateAdded`, `runtimeMinutes`, and
+  `hasMetadata`** (both call sites — the main grid and the Random Film
+  picker, which shares the same card type — updated to populate them).
+  `hasMetadata` is true when ANY of posterUrl/genres/averageRating/
+  runtimeMinutes came back from a provider — the "Metadata available/missing"
+  filter's key.
+- **A third empty state.** `WatchlistGrid` already distinguished "never
+  imported" from "imported, and everything's watched" — filtering down to
+  zero results needed its own distinct "No films match your filters" state
+  with a one-click Reset, so it's never confused with either of those (a
+  real gap caught by walking through the "Metadata: Available" filter with
+  no metadata downloaded yet, which would otherwise have falsely read as
+  "you've watched everything").
+- **The watchlist's header film count is genuinely live**, computed at
+  render time from the current session-undo context rather than the
+  (deliberately non-reactive) initial fetch — the same reasoning Phase
+  9.5E already established for not calling a hard `reload()` on every
+  watch/undo click, applied here so the count doesn't lag behind the
+  fade/undo treatment it sits right next to.
+- **Testing.** 34 new unit tests (`sort-filter.test.ts`,
+  `watchlist-sort-preference.test.ts`) plus 6 new Playwright E2E tests
+  (`e2e/watchlist-sort-filter.spec.ts`): the default order, choosing a sort
+  and seeing the grid genuinely reorder with a visible active-indicator,
+  Reset restoring the default, the choice surviving a real reload, Shuffle
+  producing more than one distinct order across repeated invocations
+  (including after a reload, proving nothing "froze" a result), the
+  distinct empty state when a filter matches nothing, and the Genre filter
+  correctly disabling itself when the watchlist has no genre metadata yet.
+  `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm test`, and
+  `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** no saved/named filter
+  presets, no multi-select filters (one genre/decade/runtime-range at a
+  time, not a boolean query builder), and filters themselves are not
+  persisted across a reload — only the sort is (see "WATCHLIST SORT /
+  FILTER CONTROL" above for why that split is deliberate).
+
+### Phase 9.5G — Sorting for finalised/historical drafts
+
+Adds the sort control described in "SORTING FOR FINALISED / HISTORICAL
+DRAFTS" above to the Draft History page. Previously each archived draft's
+film list only ever rendered in whatever order `listItemsForDraft`
+happened to return (`orderIndex` ascending, incidentally — never
+guaranteed by anything the page itself enforced).
+
+- **Extracted `compareNullsLast` into a new shared home,
+  `src/domain/shared/sort.ts`**, taking the ascending comparator as a
+  parameter instead of being hardcoded to numeric subtraction — the exact
+  same "missing metadata always sorts to the end, regardless of
+  direction" rule Phase 9.5F built for the Watchlist now also drives
+  historical drafts' Release Year/Runtime/Rating/Watched Date sorts
+  (`Watched Date` needed a _string_ comparator, which is why the
+  parameterized version replaced `sort-filter.ts`'s original
+  number-only one rather than duplicating similar logic a second time).
+- **New pure domain module, `src/domain/drafts/history-sort.ts`.**
+  `sortHistoricalDraftItems` handles all 8 listed options; `"original_order"`
+  — the required default — is simply `orderIndex` ascending, which is
+  exactly the position the draft was actually generated into, always
+  intact and recoverable underneath whatever sort happens to be showing.
+  `"watched_status"` and `"source"` group by a boolean condition (watched
+  first; challenge picks first) while relying on `Array.prototype.sort`'s
+  stability to keep each group's own relative order exactly as generated,
+  rather than needing an explicit secondary sort key.
+- **Structurally presentation-only, not just by convention.** The Draft
+  History page's loader fetches each draft's items once, and
+  `sortHistoricalDraftItems` (like every other sort function in this
+  codebase) returns a new array, never mutating its input — nothing in
+  the render path ever calls `DraftRepository.updateItem` for a
+  cosmetic reorder, so there is no code path through which choosing a
+  sort here could touch the stored `orderIndex` at all.
+- **"Watched Date" resolves through `WatchedHistoryRecord`, the only way
+  to get it.** A `DraftItemRecord` only stores the id of the
+  watched-history entry its completion created
+  (`watchedHistoryId`), not a date — the loader fetches the whole
+  profile's watched history once (one indexed query, reused across every
+  draft on the page) and looks each item's date up by that id, `null` for
+  an item never watched ("where applicable").
+- **New, smaller `HistoricalDraftSortControl`** — the same `Popover` +
+  radiogroup pattern as the Watchlist's `SortFilterControl`, without the
+  filter section (a finalised draft's small, fixed film list doesn't need
+  narrowing). Sort state is local to each draft's own collapsible entry,
+  always starts at the required default, and is deliberately NOT
+  persisted (unlike the Watchlist's remembered sort) — there's no
+  "SORT PERSISTENCE" requirement for this control, and resetting on every
+  page load is what makes "Original Draft Order" a genuinely reliable
+  default to fall back on, not one a stale preference could quietly
+  override.
+- **Testing.** 18 new unit tests (`history-sort.test.ts`,
+  `sort.test.ts` for the extracted shared comparator) plus 1 new Playwright
+  E2E test (`e2e/historical-draft-sort.spec.ts`) that builds one real
+  archived draft (two films watched, three resolved via forced-expiry
+  postmortem) and drives the control end to end: the default really is
+  Original Draft Order, "Title" produces a genuinely alphabetized order,
+  "Watched / Unwatched" correctly groups the two films actually marked
+  watched away from the three that weren't, switching back to "Original
+  Draft Order" restores the exact original sequence, and a real page
+  reload confirms that sequence was never actually altered in storage.
+  `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm test`, and
+  `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** no filters (only the
+  Watchlist's control has those — see "WATCHLIST SORT / FILTER CONTROL"
+  for why a historical draft's list doesn't need them), and no persistence
+  of the chosen sort — every finalised draft's list always opens in
+  Original Draft Order.
+
+### Phase 9.5H — Default start page setting
+
+Adds the "Default page" control described in "DEFAULT START PAGE SETTING"
+above. Previously "/" always did a hardcoded server `redirect("/watchlist")`
+— no setting, no per-profile behavior.
+
+- **`ProfileSettings` gained `defaultPage`, on the profile record itself —
+  not the generic `SettingsRepository` key-value store** Phase 9.5F/9.5G
+  used for the sort preferences. Deliberate: the prompt's own wording
+  ("Persist this in the local profile," "Default-page preference belongs
+  to the profile") tracks `profile.ts`'s existing `ProfileSettings`
+  framing (`reducedMotion` already lives there as a small, structural,
+  per-profile preference) rather than the "arbitrary, doesn't belong on
+  the core record" framing `SettingsRepository`'s own doc comment uses for
+  the sort preferences. New pure domain module,
+  `src/domain/profiles/default-page.ts`: the `DefaultPage` type, its 4
+  options, `defaultPagePath()` (the one place a page's route can change
+  without touching more than this file), and `resolveDefaultPage()` — the
+  ONLY sanctioned way to read this setting anywhere, which is what makes
+  "missing or invalid -> Watchlist" hold even for a profile record created
+  before this phase ever existed, no data migration required.
+- **`ProfileService.updateSettings()` and `ProfileContextValue.updateProfileSettings()`
+  are genuinely new** — there was no existing way to change ANY
+  `ProfileSettings` field before this phase (`reducedMotion` had been a
+  typed field with no UI or update path behind it since it was added).
+  Both merge a partial update rather than replacing `settings` wholesale,
+  so this setting's addition can't accidentally reset `reducedMotion` or
+  vice versa for whatever's added next.
+- **Backward-compatible backup schema.** `profileSettingsSchema` gained
+  `defaultPage` as `.optional()`, not required — a backup exported before
+  this phase has no such key at all and must still validate; restoring one
+  runs the recovered value through `resolveDefaultPage()` before writing
+  it into the restored profile, the same normalization every other reader
+  uses, rather than restoring a literal `undefined` into a field the rest
+  of the app assumes is always a real `DefaultPage`.
+- **Root routing moved into the `(app)` route group.** `src/app/page.tsx`
+  (previously a plain Server Component doing `redirect("/watchlist")`, a
+  sibling of `(app)/layout.tsx` rather than a child of it) became
+  `src/app/(app)/page.tsx` — route groups add no URL segment, so this is
+  still exactly "/", but now rendered underneath `AppShell`/
+  `ProfileProvider` the way every other real page already is. That's what
+  makes it possible to read the active profile's setting at all: it lives
+  in IndexedDB, browser-only, so there's no server-side profile a plain
+  Server Component redirect could ever have read regardless. The new
+  `RootPage` is a client component that reads `activeProfile.settings.defaultPage`
+  and calls `router.replace(defaultPagePath(...))` — `AppShellContent`
+  only ever renders it once `activeProfile` is a real, resolved profile
+  (the loading/first-run/picker states are their own earlier branches), so
+  this never has to guard against a still-resolving or absent profile in
+  practice.
+- **"Do not interfere with direct links" falls out structurally, not from
+  an added check.** This phase touches exactly one route (`/`, i.e.
+  `(app)/page.tsx`) — every other page's own route file is untouched, so a
+  direct link/bookmark to `/drafts/history` renders that page directly and
+  never passes through the root-routing logic at all.
+- **Testing.** 10 new unit tests (`default-page.test.ts` for the domain
+  module's guard/fallback/path-mapping logic, 3 new `ProfileService` tests
+  for `updateSettings`) plus 2 new Playwright E2E tests
+  (`e2e/default-page.spec.ts`): a fresh profile's "/" opens Watchlist and
+  the Settings select shows it as selected; changing it to Drafts redirects
+  "/" to Drafts, survives a reload, and a direct link to
+  `/drafts/history` still opens History regardless; and two profiles
+  (Alex -> Drafts, Sam -> Stats) each keep their own setting across
+  switching between them. `pnpm format`, `pnpm lint`, `pnpm typecheck`
+  (strict), `pnpm test`, and `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** no device-wide/global
+  default (it's per-profile, deliberately, per "MULTIPLE LOCAL PROFILES"),
+  and no change to any route other than "/" itself.
+
+### Phase 9.5I — History page redesign
+
+Splits the History page into the two sections described in "HISTORY PAGE
+REDESIGN" above. Previously it was "Previous Drafts" alone, with no way to
+see what you've actually watched recently without opening a draft.
+
+- **New application module, `src/application/history/recently-watched.ts`.**
+  `listRecentlyWatchedFilms` is built entirely from
+  `WatchedHistoryRecord`/`FilmRecord`/`FilmMetadataRecord` — its
+  dependency type doesn't even ACCEPT a `WatchlistRepository`, so
+  "HISTORY DATA INTEGRITY" ("do not infer historical state from the
+  current watchlist") is a compile-time guarantee here, not a rule to
+  remember. Orders by `createdAt` (the watched-history record's real
+  timestamp), never `watchedDate` (a plain calendar-day string that can't
+  break same-day ties) — proven directly by a unit test seeding two
+  same-day watches at different times. "Optional challenge/draft origin"
+  is resolved via the existing `findItemsByWatchlistEntryId` (already used
+  by `markLocalFilmWatched`) matched against the exact `watchedHistoryId`,
+  never just "any item referencing this watchlist entry."
+- **`formatReadableDate` in `src/lib/utils.ts`** — a small shared
+  formatter (`"long"` by default — "9 August 2026"; `"medium"` reproduces
+  the Draft History page's existing date-range style exactly) alongside
+  `cn()`, replacing that page's own local `formatDate` helper. Uses the
+  browser's own locale/timezone via `toLocaleDateString(undefined, ...)`,
+  the same convention every other date display in this app already uses
+  (e.g. `additions-card.tsx`) — not a new, stricter one.
+- **"Historical draft films" now always groups by Watched/Not Watched**,
+  reconciling this phase's mandatory grouping with Phase 9.5G's sort
+  control rather than replacing it: `HistoricalDraftEntry` still calls
+  `sortHistoricalDraftItems` exactly once, on the full item list, and THEN
+  partitions the already-sorted result into the two groups — since none of
+  that function's comparators compare across group membership, this
+  produces the identical per-group order as sorting each subset
+  independently would, with far less code. Each watched film shows its
+  watched date (via the same `watchedDateById` lookup the sort control
+  already needed for its own "Watched Date" option); each unwatched film
+  keeps showing its postmortem reason where one exists, exactly as before.
+- **Testing.** 7 new unit tests (`recently-watched.test.ts` — including
+  the createdAt-vs-watchedDate ordering proof and an explicit "mutating
+  the watchlist entry afterward changes nothing about the reported
+  result" integrity test) plus 3 new/updated Playwright E2E tests: two new
+  (`e2e/recently-watched.spec.ts` — the empty state, most-recent-first
+  ordering with a real readable date, and the draft-origin annotation) and
+  one existing sort test (`e2e/historical-draft-sort.spec.ts`) rewritten
+  to assert within each of the new Watched/Not Watched groups instead of
+  one flat list. `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict),
+  `pnpm test`, and `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** "Recently Watched" is
+  profile-wide, not per-draft — it deliberately is not filtered to only
+  draft-completed watches, since the prompt's own example includes an
+  optional (not mandatory) draft-origin annotation, implying films watched
+  directly from the Watchlist belong here too.
+
+### Phase 9.5J — Calendar Mode time-progress bugfix and progress bar visual polish
+
+Fixes the reported bug: a Calendar Mode draft created partway through the
+month (e.g. 11 August, deadline 31 August) read "0% elapsed" — see "DRAFT
+TIME MODE", "Calendar Mode Progress" above for the corrected canonical
+behaviour.
+
+- **`calculateDraftTimeProgress` (`src/domain/drafts/progress.ts`) now
+  takes a `mode: DraftTimeMode` parameter** and derives its own progress
+  window's start instant from it, rather than always using the draft's
+  `startedAt`: Timer Mode keeps the original creation-to-deadline window
+  unchanged (0% is the exact creation timestamp); Calendar Mode instead
+  computes the start of the deadline's own calendar month, in the draft's
+  stored timezone (`startOfMonth(toZonedTime(deadlineAt, timezone))`,
+  converted back with `fromZonedTime` — the same zoned-date round-trip
+  `calculateDraftDeadline` already uses), and measures elapsed time from
+  there. `daysRemaining`/`isExpired`/`isFinalDay` are unaffected by this
+  change — they were always measured from `now` to the deadline, never
+  from the draft's creation instant, so nothing about deadline/expiry
+  behaviour changes here, only the elapsed-percentage reading. A new
+  `percentRemaining` field (`100 - percentElapsed`) is returned alongside
+  the existing fields, since callers wanted it directly rather than
+  deriving it themselves.
+- **Progress bar visual polish (`src/components/ui/progress.tsx`).** The
+  shared `Progress` primitive's track grew from `h-1` to `h-2` and gained a
+  subtle `border-border/60` ring for definition against the page
+  background; the indicator switched from the generic `bg-primary` to the
+  more semantically correct `bg-watchlist-blue` (the same "primary
+  interactive" accent `distribution-bars.tsx` already uses for data
+  fills, identical color today but the intentionally correct token) and
+  now transitions its width over 500ms rather than snapping instantly.
+  This is the shared component behind all three of the app's progress
+  bars — Active Draft's "Days" and "Films" bars, and the Settings
+  metadata-download bar — so all three get more visible contrast
+  consistently, per the prompt's own plural "the existing progress bars
+  are extremely subtle... improve them." Readable percentage text was
+  already present alongside each bar (e.g. "21 days left · 34% elapsed")
+  and needed no further change.
+- **Testing.** `calculateDraftTimeProgress`'s existing test suite was
+  split into `describe` blocks per mode (all pre-existing cases now pass
+  `mode: "timer"`, since they test that mode's exact semantics) plus a new
+  `describe("... — calendar mode")` block: the exact partway-through-the-
+  month regression from the bug report, August 1st/11th/31st reference
+  points from the prompt's own examples, a proof that elapsed percentage
+  depends only on the calendar month and `now` (not on when the draft was
+  actually created), a timezone-awareness case (the same UTC instant
+  yields different elapsed percentages under a different profile
+  timezone, since "the calendar month" is evaluated locally), and a check
+  that `daysRemaining`/`isExpired` are untouched by the mode change. Two
+  new Playwright E2E tests
+  (`e2e/calendar-draft-progress.spec.ts`) reproduce the bug end-to-end
+  with a fixed clock (Calendar Mode created 11 August must not read "0%
+  elapsed") and confirm Timer Mode's unchanged behaviour (a freshly
+  created Timer Mode draft still reads exactly "0% elapsed" regardless of
+  the calendar day). `pnpm format`, `pnpm lint`, `pnpm typecheck`
+  (strict), `pnpm test`, and `pnpm test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** does not touch Calendar
+  Mode deadline/eligibility calculation (`calculateDraftDeadline` in
+  `deadline.ts` is untouched) — only the progress-bar's percentage
+  reading changed, exactly as the prompt's own "IMPORTANT DISTINCTION"
+  required. Does not give any progress bar a bright/neon treatment — the
+  fill color is unchanged in hue, only track height/contrast and fill
+  transition timing changed.
+
+### Phase 9.5K — Runtime on Watchlist film cards
+
+Adds runtime to the main Watchlist page's film cards, per "NORMAL
+WATCHLIST PAGE", "Runtime Display" above.
+
+- **`src/components/watchlist/film-card.tsx`.** `WatchlistFilmCardView`
+  already carried `runtimeMinutes: number | null` (added in an earlier
+  phase purely for sorting) and it was already being populated from
+  `mergeLocalFilmMetadata(...)` at the call site — this phase only needed
+  to render it. The previous year/rating row (a flex `div` with no visual
+  separator between its two spans) was replaced with a single computed
+  `metadataLine` string — `[year, runtime, rating].filter(Boolean).join(" · ")`
+  — rendered as one `<p>`. This both adds runtime in the exact
+  requested "1997 · 81 min" format and, as a side effect, fixes the
+  missing "·" separator that previously existed between year and rating.
+  Using a plain paragraph rather than a non-wrapping flex row also means
+  the line wraps naturally on narrow cards instead of overflowing —
+  addressing "Responsive Film Card Text" without any extra CSS. Because
+  the Random Film picker's card (`random-film-view.tsx`) reuses this same
+  `FilmCard` component and already passed `runtimeMinutes` through, it
+  picked up the change with no changes of its own.
+- **Format.** Always plain minutes (`104 min`), matching the one other
+  place a single film's runtime was already shown in the app
+  (`recently-watched-section.tsx`'s ` · ${runtimeMinutes} min`) —
+  deliberately NOT the `Xh Ym` convention `formatRuntimeMinutes` in
+  `src/domain/stats/format.ts` uses, since that one is scoped to
+  aggregated multi-film totals on the Stats page, a different unit of
+  meaning entirely.
+- **Testing.** New `e2e/watchlist-runtime.spec.ts`: one film with a
+  known runtime shows "104 min" (and never a converted "2h" form), a
+  second film with no runtime yet shows its other metadata but omits
+  runtime — and `"N/A"` never appears anywhere on the page. Verified
+  visually via screenshots at both a wide desktop width and a 360px
+  mobile width: the metadata line never overflows its card, genre badges
+  wrap, titles truncate cleanly, and the watch-toggle eye control stays
+  reachable in the card's top-right corner at every width tested. `pnpm
+format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm test`, and `pnpm
+test:e2e` are all clean.
+- **What this phase does NOT do, on purpose:** does not add runtime to
+  `draft-film-card.tsx` (the Active/historical Draft film cards) —
+  `DraftFilmCardView` has no `runtimeMinutes` field today and the prompt
+  scoped this to the Watchlist/home page specifically; left as a
+  candidate for a future, explicitly-requested pass rather than
+  speculatively extended here.

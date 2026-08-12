@@ -34,11 +34,18 @@ export function RandomFilmView() {
         entryId: entry.id,
         filmId: entry.filmId,
         title: film?.title ?? "Untitled",
+        dateAdded: entry.dateAdded,
         releaseYear: film?.releaseYear ?? null,
+        runtimeMinutes: metadata.runtimeMinutes,
         letterboxdUri: film?.letterboxdUri ?? null,
         posterUrl: metadata.posterUrl,
         averageRating: metadata.averageRating,
         genres: metadata.genres,
+        hasMetadata:
+          metadata.posterUrl !== null ||
+          metadata.genres !== null ||
+          metadata.averageRating !== null ||
+          metadata.runtimeMinutes !== null,
         weight: entry.selectionWeight,
       };
     });

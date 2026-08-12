@@ -6,7 +6,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { EyeButton } from "@/components/watchlist/eye-button";
+import {
+  useIsWatchedThisSession,
+  WatchToggle,
+} from "@/components/watchlist/watch-toggle";
 import { cn } from "@/lib/utils";
 
 export interface DraftFilmChallengeView {
@@ -44,27 +47,27 @@ export interface DraftFilmCardView {
  * first, so this satisfies "hover/focus/tap should reveal the description"
  * without a separate mobile-only affordance.
  */
-export function DraftFilmCard({
-  film,
-  onWatched,
-}: {
-  film: DraftFilmCardView;
-  onWatched: (itemId: string) => void;
-}) {
+export function DraftFilmCard({ film }: { film: DraftFilmCardView }) {
   const displayEntries = formatChallengeDisplayValue(
     film.challenge?.displayValue,
   );
+  // `isWatchedThisSession` decides whether a *completed* card gets the
+  // interactive Undo control or the old plain checkmark badge. A film
+  // completed in an earlier session (no pending record) still shows the
+  // static badge, exactly as before — only this session's own actions are
+  // undoable (see docs/product-spec.md, "WATCHED FILM UNDO").
+  const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
+  const canUndo = film.isCompleted && isWatchedThisSession && film.entryId;
 
   return (
     <div className="group relative">
       {!film.isCompleted && film.entryId ? (
-        <EyeButton
-          entryId={film.entryId}
-          title={film.title}
-          onWatched={() => onWatched(film.itemId)}
-        />
+        <WatchToggle entryId={film.entryId} title={film.title} />
       ) : null}
-      {film.isCompleted ? (
+      {canUndo ? (
+        <WatchToggle entryId={film.entryId!} title={film.title} />
+      ) : null}
+      {film.isCompleted && !canUndo ? (
         <div className="bg-watchlist-green text-primary-foreground absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-full">
           <Check aria-hidden="true" className="size-4" />
         </div>
@@ -85,6 +88,7 @@ export function DraftFilmCard({
               className={cn(
                 "h-full w-full object-cover transition-transform group-hover:scale-105",
                 film.isCompleted && "opacity-60",
+                canUndo && "grayscale-[50%]",
               )}
             />
           ) : (
@@ -103,7 +107,12 @@ export function DraftFilmCard({
               <span>★ {film.averageRating.toFixed(1)}</span>
             ) : null}
           </div>
-          {film.genres?.length ? (
+          {canUndo ? (
+            <p className="text-watchlist-green flex items-center gap-1 text-xs font-medium">
+              <Check aria-hidden="true" className="size-3.5" />
+              Watched
+            </p>
+          ) : film.genres?.length ? (
             <div className="flex flex-wrap gap-1">
               {film.genres.slice(0, 2).map((genre) => (
                 <Badge

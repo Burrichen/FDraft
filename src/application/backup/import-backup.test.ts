@@ -28,7 +28,7 @@ async function seedProfile(repos: Repositories, profileId: string) {
     createdAt: "2026-01-01T00:00:00.000Z",
     lastOpenedAt: "2026-08-01T00:00:00.000Z",
     timezone: "Europe/London",
-    settings: { reducedMotion: false },
+    settings: { reducedMotion: false, defaultPage: "watchlist" },
     dataVersion: 1,
   });
   const filmId = `film-${profileId}`;

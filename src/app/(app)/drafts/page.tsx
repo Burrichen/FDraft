@@ -3,7 +3,7 @@
 import { CheckCircle2, Clapperboard } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { expireLocalDraftIfDue } from "@/application/drafts/local-draft-service";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
 import { EmptyState } from "@/components/empty-state";
@@ -17,6 +17,7 @@ import {
 } from "@/components/drafts/postmortem-item";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
+import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
 import {
   DIFFICULTIES,
@@ -45,13 +46,32 @@ export default function DraftsPage() {
   const challengeWarning = searchParams.get("challengeWarning");
   const [justArchived, setJustArchived] = useState(false);
   const { activeProfile, repositories } = useProfileContext();
+  const watchUndo = useWatchUndo();
 
-  const { data, isLoading, reload } = useAsyncData(async () => {
+  const { data, isLoading, reload, reloadSilently } = useAsyncData(async () => {
     if (!activeProfile) return null;
 
-    const draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
+    let draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
       activeProfile.id,
     );
+    if (!draftRecord) {
+      // This session's own last-remaining-film watch action may have just
+      // archived the profile's one draft (see docs/product-spec.md,
+      // "WATCHED FILM UNDO", "COMPLETED/FULLY WATCHED DRAFT") —
+      // `getActiveOrExpiredDraft` correctly excludes archived drafts, but
+      // the undo opportunity for that action must still be reachable here,
+      // even after navigating away and back.
+      const pendingArchivedDraftId = watchUndo.getPendingArchivedDraftId();
+      if (pendingArchivedDraftId) {
+        const archived = await repositories.drafts.getById(
+          activeProfile.id,
+          pendingArchivedDraftId,
+        );
+        if (archived && archived.status === "archived") {
+          draftRecord = archived;
+        }
+      }
+    }
     if (!draftRecord) return { draft: null } as const;
 
     let status = draftRecord.status;
@@ -109,6 +129,26 @@ export default function DraftsPage() {
 
     return { draft, items, filmCards, answeredItemIds } as const;
   }, [activeProfile?.id, repositories]);
+
+  // Keeps `filmCards`/`items` genuinely fresh after every mark-watched or
+  // undo action anywhere on this page (see docs/product-spec.md, "WATCHED
+  // FILM UNDO") — reacting to `watchUndo` itself, rather than a callback
+  // threaded down through every card, is what makes this safe: React only
+  // gives this a NEW `watchUndo` value after it has committed the
+  // register/clear state update, so by the time this effect runs the
+  // context is never stale the way calling `reloadSilently()` inline
+  // immediately after that update would be. Skips the very first run so
+  // mount doesn't trigger a redundant second fetch on top of `useAsyncData`'s
+  // own.
+  const isFirstWatchUndoEffect = useRef(true);
+  useEffect(() => {
+    if (isFirstWatchUndoEffect.current) {
+      isFirstWatchUndoEffect.current = false;
+      return;
+    }
+    void reloadSilently();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchUndo]);
 
   if (!activeProfile || isLoading || !data) {
     return null;
@@ -228,7 +268,7 @@ export default function DraftsPage() {
             <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {watchedFilms.map((film) => (
                 <li key={film.itemId}>
-                  <DraftFilmCard film={film} onWatched={() => {}} />
+                  <DraftFilmCard film={film} />
                 </li>
               ))}
             </ul>
@@ -244,6 +284,7 @@ export default function DraftsPage() {
   const unresolvedChallengeCount =
     draft.challengeFilmCount - challengeItemCount;
   const timeProgress = calculateDraftTimeProgress({
+    mode: draft.timeMode,
     now: new Date(),
     startedAt: new Date(draft.startedAt),
     deadlineAt: new Date(draft.deadlineAt),
@@ -269,7 +310,7 @@ export default function DraftsPage() {
             deadline {deadlineLabel}
           </p>
         </div>
-        {freeform ? (
+        {freeform && draft.status === "active" ? (
           <GenerateBatchButton
             draftId={draft.id}
             batchSize={FREEFORM_BATCH_SIZE}

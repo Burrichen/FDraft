@@ -1,36 +1,43 @@
 "use client";
 
-import { useState } from "react";
 import { calculateDraftFilmProgress } from "@/domain/drafts/progress";
 import { Progress } from "@/components/ui/progress";
+import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { DraftFilmCard, type DraftFilmCardView } from "./draft-film-card";
 
 /**
  * The Active Draft page's film list and FILM progress bar (see
- * docs/product-spec.md, "ACTIVE DRAFT PAGE"). A client island so marking a
- * film watched updates the progress bar and moves its card into the
- * "Completed" section immediately (see "immediately update progress") —
- * the mutation itself is still a real server action; this is the "feels
- * instant" layer on top, same pattern as the watchlist grid.
+ * docs/product-spec.md, "ACTIVE DRAFT PAGE", "WATCHED FILM UNDO"). `films`
+ * comes straight from the parent's `useAsyncData`, kept fresh by the
+ * parent's own `useEffect` reacting to `useWatchUndo()` (see
+ * `drafts/page.tsx`) after every mark-watched/undo — so `film.isCompleted`
+ * here is always genuinely fresh from the database, not a value this
+ * component has to reason about overriding itself.
  */
 export function ActiveDraftFilms({ films }: { films: DraftFilmCardView[] }) {
-  const [locallyWatchedIds, setLocallyWatchedIds] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
+  const watchUndo = useWatchUndo();
 
-  const effectiveFilms = films.map((film) =>
-    locallyWatchedIds.has(film.itemId) ? { ...film, isCompleted: true } : film,
-  );
-  const toWatch = effectiveFilms.filter((film) => !film.isCompleted);
-  const completed = effectiveFilms.filter((film) => film.isCompleted);
-  const progress = calculateDraftFilmProgress(
-    completed.length,
-    effectiveFilms.length,
-  );
-
-  function handleWatched(itemId: string) {
-    setLocallyWatchedIds((prev) => new Set(prev).add(itemId));
+  function hasPendingUndo(film: DraftFilmCardView): boolean {
+    return Boolean(film.entryId && watchUndo.getRecord(film.entryId));
   }
+
+  // A film completed THIS session (still undoable) stays in the main grid,
+  // faded with its Undo control, rather than disappearing into the
+  // collapsed section below — see docs/product-spec.md, "WATCHED FILM
+  // UNDO", "VISUAL BEHAVIOUR": "The card should remain visible temporarily
+  // rather than instantly disappearing." Only a film completed in an
+  // EARLIER session (no pending record — undo is long gone) moves into
+  // "Completed", exactly as before.
+  const toWatch = films.filter(
+    (film) => !film.isCompleted || hasPendingUndo(film),
+  );
+  const completed = films.filter(
+    (film) => film.isCompleted && !hasPendingUndo(film),
+  );
+  const progress = calculateDraftFilmProgress(
+    films.filter((film) => film.isCompleted).length,
+    films.length,
+  );
 
   return (
     <div className="space-y-6">
@@ -49,7 +56,7 @@ export function ActiveDraftFilms({ films }: { films: DraftFilmCardView[] }) {
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {toWatch.map((film) => (
             <li key={film.itemId}>
-              <DraftFilmCard film={film} onWatched={handleWatched} />
+              <DraftFilmCard film={film} />
             </li>
           ))}
         </ul>
@@ -67,7 +74,7 @@ export function ActiveDraftFilms({ films }: { films: DraftFilmCardView[] }) {
           <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {completed.map((film) => (
               <li key={film.itemId}>
-                <DraftFilmCard film={film} onWatched={handleWatched} />
+                <DraftFilmCard film={film} />
               </li>
             ))}
           </ul>

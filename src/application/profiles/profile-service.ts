@@ -2,6 +2,7 @@ import {
   createProfile,
   touchLastOpened,
   type LocalProfile,
+  type ProfileSettings,
 } from "@/domain/profiles/profile";
 import { resolveAutoOpenProfileId } from "@/domain/profiles/select-active-profile";
 import type { IdGenerator } from "@/domain/shared/id";
@@ -83,6 +84,29 @@ export class ProfileService {
       throw new Error(`No profile found with id ${profileId}`);
     }
     const updated: LocalProfile = { ...existing, displayName: trimmed };
+    await this.profiles.update(updated);
+    return updated;
+  }
+
+  /**
+   * Merges a partial update into this profile's `settings` — e.g. the
+   * Settings page's "Default page" select (see docs/product-spec.md,
+   * "DEFAULT START PAGE SETTING"). Merges rather than replaces, so
+   * changing one setting never has to know about, or accidentally reset,
+   * any other.
+   */
+  async updateSettings(
+    profileId: string,
+    settings: Partial<ProfileSettings>,
+  ): Promise<LocalProfile> {
+    const existing = await this.profiles.getById(profileId);
+    if (!existing) {
+      throw new Error(`No profile found with id ${profileId}`);
+    }
+    const updated: LocalProfile = {
+      ...existing,
+      settings: { ...existing.settings, ...settings },
+    };
     await this.profiles.update(updated);
     return updated;
   }

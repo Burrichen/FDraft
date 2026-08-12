@@ -22,7 +22,7 @@ async function seedFullProfile(repos: Repositories) {
     createdAt: "2026-01-01T00:00:00.000Z",
     lastOpenedAt: "2026-08-01T00:00:00.000Z",
     timezone: "Europe/London",
-    settings: { reducedMotion: true },
+    settings: { reducedMotion: true, defaultPage: "watchlist" },
     dataVersion: 1,
   });
   await repos.settings.set(PROFILE_ID, "customKey", { nested: [1, 2, 3] });
@@ -284,7 +284,7 @@ describe("buildProfileBackup", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       lastOpenedAt: "2026-01-01T00:00:00.000Z",
       timezone: "UTC",
-      settings: { reducedMotion: false },
+      settings: { reducedMotion: false, defaultPage: "watchlist" },
       dataVersion: 1,
     });
 

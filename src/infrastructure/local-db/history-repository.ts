@@ -21,6 +21,10 @@ export class LocalHistoryRepository implements HistoryRepository {
       .toArray();
   }
 
+  async deleteWatchedHistory(id: string): Promise<void> {
+    await this.db.watchedHistory.delete(id);
+  }
+
   async upsertRating(rating: UserRatingRecord): Promise<void> {
     const existing = await this.db.userRatings
       .where("[profileId+filmId]")

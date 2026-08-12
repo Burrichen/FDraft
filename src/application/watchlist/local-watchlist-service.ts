@@ -15,9 +15,38 @@ export type MarkWatchedOutcome =
       ok: true;
       watchlistEntryId: string;
       filmId: string;
+      /** The watched-history record this specific action created — the key `undoLocalFilmWatched` uses to reverse exactly this action and nothing else (see docs/product-spec.md, "WATCHED FILM UNDO"). */
+      watchedHistoryId: string;
       draftItemId: string | null;
+      /** The draft `draftItemId` belongs to, or `null` if this film wasn't part of any active draft. Carried alongside `draftArchivedByThisAction` so a caller can undo the archive too, not just the item completion. */
+      draftId: string | null;
+      /** Whether THIS call is what just archived that draft (e.g. completing its last remaining film) — see `archiveLocalDraftIfResolved`'s return value. `undoLocalFilmWatched` only ever reverts a draft's status back to "active" when this is true, never a draft that was already archived for an unrelated reason. */
+      draftArchivedByThisAction: boolean;
     }
   | { ok: false; error: MarkWatchedErrorCode; message: string };
+
+/**
+ * Everything `undoLocalFilmWatched` needs to reverse one specific
+ * `markLocalFilmWatched` call — a plain projection of its `ok: true`
+ * outcome. Deliberately session-only: the UI holds these in memory (see
+ * `src/components/watch-undo/watch-undo-provider.tsx`), never in the local
+ * database — the watched action itself is what's persisted; the fact that
+ * it can still be undone is not (see docs/product-spec.md, "WATCHED FILM
+ * UNDO", "SESSION-ONLY STATE").
+ */
+export interface WatchSessionUndoRecord {
+  watchlistEntryId: string;
+  filmId: string;
+  watchedHistoryId: string;
+  draftItemId: string | null;
+  draftId: string | null;
+  draftArchivedByThisAction: boolean;
+}
+
+export type UndoMarkWatchedErrorCode = "not_found";
+export type UndoMarkWatchedOutcome =
+  | { ok: true }
+  | { ok: false; error: UndoMarkWatchedErrorCode; message: string };
 
 /**
  * Local port of the `mark_watchlist_entry_watched` Postgres function (see
@@ -106,12 +135,15 @@ export async function markLocalFilmWatched(
     now,
   });
 
-  if (draftItemId && deps.archiveIfResolved) {
+  let draftId: string | null = null;
+  let draftArchivedByThisAction = false;
+  if (draftItemId) {
     const item = await repos.drafts.getItemById(draftItemId);
-    if (item) {
-      await deps.archiveIfResolved(repos, {
+    draftId = item?.draftId ?? null;
+    if (draftId && deps.archiveIfResolved) {
+      draftArchivedByThisAction = await deps.archiveIfResolved(repos, {
         profileId: params.profileId,
-        draftId: item.draftId,
+        draftId,
       });
     }
   }
@@ -120,8 +152,96 @@ export async function markLocalFilmWatched(
     ok: true,
     watchlistEntryId: entry.id,
     filmId: entry.filmId,
+    watchedHistoryId,
     draftItemId,
+    draftId,
+    draftArchivedByThisAction,
   };
+}
+
+/**
+ * Reverses exactly one prior `markLocalFilmWatched` call — the "UNDO
+ * SEMANTICS" rule from docs/product-spec.md, "WATCHED FILM UNDO": reactivate
+ * the watchlist entry, revert the draft item it completed (and, if that
+ * completion is what archived the draft, revert the draft back to active),
+ * and delete the *exact* watched-history record that action created.
+ *
+ * Every step is guarded by re-checking that the record it's about to touch
+ * is still, provably, the one this action produced — `item.watchedHistoryId
+ * === record.watchedHistoryId`, `draft.status === "archived"` alongside
+ * `record.draftArchivedByThisAction` — so a stale or already-superseded
+ * `WatchSessionUndoRecord` (e.g. the film was watched again, or the draft
+ * was archived for an unrelated reason) can never revert someone else's
+ * state. This never touches any watched-history record other than the one
+ * named by `record.watchedHistoryId`.
+ */
+export async function undoLocalFilmWatched(
+  repos: {
+    watchlist: WatchlistRepository;
+    drafts: DraftRepository;
+    history: HistoryRepository;
+  },
+  params: { profileId: string; record: WatchSessionUndoRecord },
+  deps: { clock?: Clock } = {},
+): Promise<UndoMarkWatchedOutcome> {
+  const clock = deps.clock ?? new SystemClock();
+  const { record } = params;
+
+  const entry = await repos.watchlist.getEntryById(
+    params.profileId,
+    record.watchlistEntryId,
+  );
+  if (!entry) {
+    return {
+      ok: false,
+      error: "not_found",
+      message: "Watchlist entry not found.",
+    };
+  }
+
+  const now = clock.now().toISOString();
+
+  if (!entry.isActive && entry.removedReason === "watched") {
+    await repos.watchlist.updateEntry({
+      ...entry,
+      isActive: true,
+      removedAt: null,
+      removedReason: null,
+      updatedAt: now,
+    });
+  }
+
+  if (record.draftItemId) {
+    const item = await repos.drafts.getItemById(record.draftItemId);
+    if (item && item.watchedHistoryId === record.watchedHistoryId) {
+      await repos.drafts.updateItem({
+        ...item,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+      });
+
+      if (record.draftId && record.draftArchivedByThisAction) {
+        const draft = await repos.drafts.getById(
+          params.profileId,
+          record.draftId,
+        );
+        if (draft && draft.status === "archived") {
+          await repos.drafts.updateDraft({
+            ...draft,
+            status: "active",
+            completedAt: null,
+            freeformAchievedRank: null,
+            updatedAt: now,
+          });
+        }
+      }
+    }
+  }
+
+  await repos.history.deleteWatchedHistory(record.watchedHistoryId);
+
+  return { ok: true };
 }
 
 async function completeMatchingActiveDraftItem(

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { ProfileService } from "@/application/profiles/profile-service";
-import type { LocalProfile } from "@/domain/profiles/profile";
+import type { LocalProfile, ProfileSettings } from "@/domain/profiles/profile";
 import { LocalStorageActiveProfilePointer } from "@/infrastructure/local-db/active-profile-pointer";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -28,6 +28,11 @@ interface ProfileContextValue {
   ) => Promise<LocalProfile>;
   switchToProfile: (profileId: string) => Promise<void>;
   renameProfile: (profileId: string, displayName: string) => Promise<void>;
+  /** Merges a partial update into the profile's settings — e.g. the Settings page's "Default page" select (see docs/product-spec.md, "DEFAULT START PAGE SETTING"). */
+  updateProfileSettings: (
+    profileId: string,
+    settings: Partial<ProfileSettings>,
+  ) => Promise<void>;
   /** Destructive. Callers are responsible for their own confirmation UI — this performs the deletion unconditionally. */
   deleteProfile: (profileId: string) => Promise<void>;
   /**
@@ -120,6 +125,13 @@ export function ProfileProvider({
       },
       async renameProfile(profileId, displayName) {
         const updated = await service.renameProfile(profileId, displayName);
+        setProfiles(await service.listProfiles());
+        setActiveProfile((current) =>
+          current?.id === profileId ? updated : current,
+        );
+      },
+      async updateProfileSettings(profileId, settings) {
+        const updated = await service.updateSettings(profileId, settings);
         setProfiles(await service.listProfiles());
         setActiveProfile((current) =>
           current?.id === profileId ? updated : current,

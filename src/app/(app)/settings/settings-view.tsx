@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DataBackupSection } from "./data-backup-section";
+import { DefaultPageSection } from "./default-page-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
 
@@ -92,6 +93,8 @@ export function SettingsView() {
           </form>
         </CardContent>
       </Card>
+
+      <DefaultPageSection />
 
       <MetadataSection />
 

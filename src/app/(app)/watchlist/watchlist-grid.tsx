@@ -1,38 +1,61 @@
 "use client";
 
-import { Film, Upload } from "lucide-react";
+import { Film, SlidersHorizontal, Upload } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { FilmCard } from "@/components/watchlist/film-card";
 import type { WatchlistFilmCardView } from "@/components/watchlist/types";
 
 /**
- * Client island so marking a film watched can hide its card immediately
- * (optimistic) instead of waiting on the server-revalidated page data — the
- * mutation itself is still a real server action; this is purely the "feels
- * instant" layer on top.
+ * The main Watchlist poster grid (see docs/product-spec.md, "Normal
+ * Watchlist Page", "WATCHED FILM UNDO", "WATCHLIST SORT / FILTER
+ * CONTROL"). Films marked watched this session stay right here — faded,
+ * with an Undo control — rather than disappearing the instant the eye
+ * button is clicked; `FilmCard` reads that fade state live from
+ * `useWatchUndo()`, so this component doesn't need to track any
+ * hidden/visible set of its own.
  */
-export function WatchlistGrid({ films }: { films: WatchlistFilmCardView[] }) {
-  const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const visibleFilms = films.filter((film) => !hiddenIds.has(film.entryId));
+export function WatchlistGrid({
+  films,
+  hasImportedBefore,
+  hasActiveFilters,
+  onResetFilters,
+}: {
+  films: WatchlistFilmCardView[];
+  /** Distinguishes "never imported anything" from "imported, and every film is already watched" — both leave `films` empty, but deserve different empty-state copy. */
+  hasImportedBefore: boolean;
+  /** Whether a non-default filter is currently narrowing `films` — an empty result because of THIS gets its own distinct empty state, never confused with "watchlist is empty"/"all caught up" (see docs/product-spec.md, "WATCHLIST SORT / FILTER CONTROL"). */
+  hasActiveFilters: boolean;
+  onResetFilters: () => void;
+}) {
+  if (films.length === 0 && hasActiveFilters) {
+    return (
+      <EmptyState
+        icon={SlidersHorizontal}
+        title="No films match your filters"
+        description="Try loosening or resetting the filters above."
+        action={
+          <Button variant="outline" onClick={onResetFilters}>
+            Reset filters
+          </Button>
+        }
+      />
+    );
+  }
 
-  if (visibleFilms.length === 0) {
-    const watchlistIsEmpty = films.length === 0;
+  if (films.length === 0) {
     return (
       <EmptyState
         icon={Film}
-        title={watchlistIsEmpty ? "Your watchlist is empty" : "All caught up!"}
+        title={hasImportedBefore ? "All caught up!" : "Your watchlist is empty"}
         description={
-          watchlistIsEmpty
-            ? "Import your Letterboxd watchlist.csv, or a full export .zip, to get started."
-            : "You've marked every film here as watched."
+          hasImportedBefore
+            ? "You've marked every film here as watched."
+            : "Import your Letterboxd watchlist.csv, or a full export .zip, to get started."
         }
         action={
-          watchlistIsEmpty ? (
+          hasImportedBefore ? undefined : (
             <Button
               nativeButton={false}
               render={<Link href="/watchlist/import" />}
@@ -40,7 +63,7 @@ export function WatchlistGrid({ films }: { films: WatchlistFilmCardView[] }) {
               <Upload aria-hidden="true" />
               Import watchlist
             </Button>
-          ) : undefined
+          )
         }
       />
     );
@@ -48,14 +71,9 @@ export function WatchlistGrid({ films }: { films: WatchlistFilmCardView[] }) {
 
   return (
     <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-      {visibleFilms.map((film) => (
+      {films.map((film) => (
         <li key={film.entryId}>
-          <FilmCard
-            film={film}
-            onWatched={(entryId) =>
-              setHiddenIds((prev) => new Set(prev).add(entryId))
-            }
-          />
+          <FilmCard film={film} />
         </li>
       ))}
     </ul>
