@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated at build time by `serwist build` — see serwist.config.mjs.
     "public/sw.js",
+    // Rust build artifacts (including generated JS glue code) — not source.
+    "src-tauri/target/**",
   ]),
 ]);
 

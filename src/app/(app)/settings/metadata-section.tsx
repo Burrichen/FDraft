@@ -36,7 +36,7 @@ type OperationKind = "download" | "refresh" | "retry";
  * `MetadataDownloadOutcome`'s doc comment) — it's read from the status
  * summary that was current right before this run started.
  */
-function describeOutcome(outcome: MetadataDownloadOutcome): {
+export function describeOutcome(outcome: MetadataDownloadOutcome): {
   tone: "success" | "warning" | "error";
   message: string;
 } {
@@ -103,7 +103,7 @@ interface MetadataSectionData {
 
 export function MetadataSection() {
   const { activeProfile, repositories } = useProfileContext();
-  const { data, isLoading, reload } =
+  const { data, isLoading, reloadSilently } =
     useAsyncData<MetadataSectionData | null>(async () => {
       if (!activeProfile) return null;
       const [summary, unresolvedCounts] = await Promise.all([
@@ -139,7 +139,7 @@ export function MetadataSection() {
       setLastOutcome(outcome);
       const { tone, message } = describeOutcome(outcome);
       toast[tone](message);
-      reload();
+      await reloadSilently();
     } finally {
       setRunningOperation(null);
       setProgress(null);
@@ -192,18 +192,20 @@ export function MetadataSection() {
               />
               <StatBlock label="Old metadata" value={summary.oldMetadata} />
               {needsReview > 0 ? (
-                <Link
-                  href="/settings/unresolved-metadata"
-                  className="group focus-visible:outline-ring rounded-md focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  <dt className="text-watchlist-orange group-hover:text-watchlist-orange/80 flex items-center gap-0.5 text-xs font-medium">
-                    Needs review
-                    <ChevronRight aria-hidden="true" className="size-3" />
+                <div>
+                  <dt className="text-xs font-medium">
+                    <Link
+                      href="/settings/unresolved-metadata"
+                      className="text-watchlist-orange hover:text-watchlist-orange/80 focus-visible:outline-ring inline-flex items-center gap-0.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      Needs review
+                      <ChevronRight aria-hidden="true" className="size-3" />
+                    </Link>
                   </dt>
                   <dd className="text-foreground text-xl font-semibold tabular-nums">
                     {needsReview.toLocaleString()}
                   </dd>
-                </Link>
+                </div>
               ) : (
                 <StatBlock label="Needs review" value={0} />
               )}

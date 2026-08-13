@@ -93,10 +93,15 @@ test("unresolved and failed films can be reviewed, resolved by picking a candida
   await page.getByRole("button", { name: "Download Missing Metadata" }).click();
   await expect(page.getByText(/matched.*unresolved.*failed/)).toBeVisible();
 
-  // Persistent, clickable — not just the transient run summary.
+  // Persistent, clickable — not just the transient run summary. The count
+  // itself lives in a sibling `<dd>`, not inside the link (see
+  // docs/product-spec.md, "COMPLETE PRODUCT AUDIT" — the link wraps only
+  // the `<dt>` label, keeping the dt/dd accessibility pairing intact
+  // rather than nesting both inside a single `<a>`).
   const needsReviewLink = page.getByRole("link", { name: /Needs review/ });
   await expect(needsReviewLink).toBeVisible();
-  await expect(needsReviewLink).toContainText("2");
+  const needsReviewStat = needsReviewLink.locator("xpath=../..");
+  await expect(needsReviewStat).toContainText("2");
   await needsReviewLink.click();
 
   await expect(

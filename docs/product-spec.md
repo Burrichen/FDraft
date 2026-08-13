@@ -4751,3 +4751,395 @@ test`, and `pnpm test:e2e` are all clean.
   conflict can occur (the manual-match safety check), not invented for
   hypothetical scenarios the current architecture has no path to
   actually hit.
+
+### Phase 9.5Q — Complete product audit
+
+A full re-audit of the shipped app against this spec: every requirement
+re-verified against the actual implementation (not just re-read), and a
+find-and-fix pass across incomplete features, race conditions,
+reload/state-loss bugs, malformed-import handling, provider-failure
+handling, date/time bugs, accessibility, and visual consistency. Four
+parallel review passes (race conditions/state-loss; challenge loops and
+date-time; accessibility/responsive/empty-states; malformed-import and
+provider-failure handling) plus direct grepping and live browser
+verification fed a single prioritized fix list. As instructed: challenge
+rules were left untouched except where an implementation contradicted this
+spec, and challenge execution continues to read only locally-cached
+`FilmMetadataRecord`s — no live metadata call was added anywhere near
+challenge selection or generation.
+
+**Confirmed clean, no changes needed:** every challenge-loop and weighted-
+selection path in `src/domain/challenges/` and `src/domain/drafts/` (zero
+unbounded loops, zero recursion, every retry bounded by an explicit
+attempt cap; ticket-sum-zero and empty-input edge cases already
+double-guarded); zero `TODO`/`FIXME`/type-escape comments anywhere in
+`src/`; zero live Supabase imports anywhere outside the standalone
+migration script; no Docker remnants; malformed-CSV handling (empty file,
+missing columns, malformed year/rating, non-ZIP, BOM, CRLF) was already
+well-hardened; missing-metadata reads are null-guarded everywhere they're
+consumed.
+
+**Calendar-date vs. datetime confusion (the single largest bug class
+found).** `new Date("2026-08-12")` — a bare calendar date — parses as UTC
+midnight, which renders and computes as the PREVIOUS day in any
+negative-UTC-offset timezone. Root-caused with a new
+`src/domain/time/calendar-date.ts` (`parseCalendarDate`, using the Date
+constructor's local-component form, correct by construction regardless of
+runtime timezone) and `formatReadableCalendarDate` in `lib/utils.ts`.
+Fixed every affected display site (`drafts/history/page.tsx`,
+`recently-watched-section.tsx`, `unresolved-metadata-view.tsx`,
+`stats/additions-card.tsx`) and arithmetic site
+(`challenges/lottery.ts`'s watchlist-age bonus and ticket weighting,
+`stats/watchlist-stats.ts`'s average watchlist age) — verified under
+`TZ=America/New_York` before and after.
+
+**Invalid profile timezone could crash draft creation and marking
+watched.** A corrupted or pre-validation-era stored timezone made
+`date-fns-tz` either silently return `Invalid Date` or throw a
+`RangeError` outright, depending on the call. New
+`src/domain/profiles/timezone.ts` (`resolveProfileTimezone`, backed by an
+`Intl.DateTimeFormat` probe — authoritative against the runtime's actual
+timezone database, unlike a regex) is now applied at both places a
+timezone enters storage: `backup-restore-repository.ts` and
+`migrate-from-supabase-export.ts`.
+
+**Unresolved-metadata reconciliation bug: films stuck in the queue
+forever.** `UnresolvedMetadataRecord` was keyed by `[filmId+provider]`, but
+a film could accumulate rows under different provider labels (`"unknown"`
+for a network error with no real provider id, vs. the real provider id for
+a later attempt) — a later successful match only deleted the ONE row
+matching that exact provider, leaving the other permanently stuck with a
+duplicate React key. Fixed at the root: `unresolvedMetadata`'s identity is
+now `filmId` alone (there is only ever one configured provider active at a
+time), via a two-step schema migration —
+version 3 dedupes any rows an install already accumulated (Dexie applies a
+store's index changes before running that version's `upgrade` callback, so
+the dedupe and the new unique constraint could not land in the same
+version without a `ConstraintError`); version 4 then tightens `filmId` to
+a unique index. `local-metadata-service.ts`,
+`unresolved-films.ts`, and the repository layer all updated to match.
+Backup restore's `upsertUnresolvedMetadataIfMissing` also now checks the
+`filmMetadata` table first, so restoring a backup can no longer recreate
+an unresolved row for a film that's actually already matched.
+
+**Race condition in manual candidate search.** Expanding film A (slow
+search in flight), collapsing it, then expanding film B (fast search)
+could let A's stale response overwrite B's still-open panel — an
+out-of-order `setState` with no request identity at all. Fixed with a
+monotonic request-id guard plus tagging each search result with the
+`filmId` it belongs to, so a stale response is dropped rather than
+rendered (`unresolved-metadata-view.tsx`).
+
+**Page-blanking and silent-failure bugs on the metadata screens.**
+`reload()` (which flips `isLoading` true) was used after every mutation on
+`unresolved-metadata-view.tsx`/`metadata-section.tsx`, collapsing the
+whole page and resetting scroll position on every "Use This Film"/"Retry"
+click; switched to `reloadSilently()`. `handleUseThisFilm`'s non-conflict
+error path rethrew inside an async `onClick` (an unhandled rejection, no
+toast) and `handleRetryFailed` had no `catch` at all and unconditionally
+reported success even on failure — both now properly interpret the
+outcome and show accurate toast feedback, reusing
+`metadata-section.tsx`'s `describeOutcome` (now exported).
+
+**Provider-failure hardening (`tmdb-provider.ts`).** No request had a
+timeout — a hung TMDB response could park a download-queue worker forever
+with no cancel affordance; every fetch now carries `AbortSignal.timeout`.
+An untrusted `Retry-After` header had no upper bound (`Retry-After: 86400`
+would have meant a real 24-hour sleep); now capped at 30s. A malformed 200
+OK body (e.g. `runtime` returned as a string) was trusted by TYPE alone
+and would have silently corrupted Stats' numeric aggregates via string
+concatenation — every numeric/array field read from a TMDB response is now
+defensively coerced (`asFiniteNumber`/`asArray`) rather than cast. A 401
+(invalid/stale API key) was indistinguishable from any other provider
+error; `FilmMetadataProviderError.httpStatus` now flows through the API
+route and `RemoteMetadataLookupResult` so a 401 gets its own actionable
+"check your API key" message instead of the generic one.
+
+**Malformed-import data loss.** A watchlist CSV row with an unparseable
+Date column was dropped entirely — inconsistent with `watched-csv.ts`'s
+handling of the identical situation, and silent data loss. `parseWatchlistCsv`
+now takes a `fallbackDate` and imports the row using it rather than
+discarding it (rather than making `dateAdded` nullable across the ~9
+call sites — sort/filter, challenge weighting, Stats — that treat it as
+always present, a substitute "date FDraft first recorded this" is a real
+fact, not an invented one, exactly like every record's own `createdAt`).
+A zero-byte `watchlist.csv` inside a ZIP also reported the misleading
+"does not contain a watchlist.csv file" instead of surfacing as an empty
+file — fixed by tracking presence separately from truthiness.
+
+**The app's own entry point could hang on "Loading…" forever.**
+`profile-provider.tsx`'s initial-load effect had no `.catch` at all — if
+`indexedDB.open()` ever failed (Firefox private browsing, Safari with
+storage disabled, a corrupt database, a failed schema upgrade), the app
+showed "Loading…" permanently, uncatchable by any error boundary since the
+failure is an effect rejection, not a render-time throw. `ProfileProvider`
+now exposes `initError`/`retryInit`; `AppShellContent` shows a real error
+state with a working retry instead. Added `app/global-error.tsx` for the
+other structurally-uncatchable case — a crash in the root layout itself
+(or a provider it mounts) — which must define its own `<html>`/`<body>`
+and apply its own theme class, since it replaces the root layout when
+active.
+
+**Loader-rejection blank pages across 8 data-owning views.** None of
+`stats-view.tsx`, `watchlist-view.tsx`, `random-film-view.tsx`,
+`unresolved-metadata-view.tsx`, `drafts/page.tsx`, `new-draft-view.tsx`,
+`drafts/history/page.tsx`, or `data-backup-section.tsx` destructured
+`useAsyncData`'s `error` return value, so any loader rejection rendered as
+an indefinite blank content area. New shared
+`src/components/async-data-error.tsx` (mirrors `app/error.tsx`'s
+treatment, with a retry button) is now shown by all 7 of the full-page
+views; `data-backup-section.tsx` — which never gated its whole render on
+its loader anyway — gets a lighter inline "Couldn't check / Retry" note
+next to the one stat that can fail, rather than hiding its always-working
+Export/Import controls behind a full-page error swap.
+
+**Accessibility fixes.** An `<a>` was nested inside a `<button>` on the
+Unresolved Metadata screen's row-expand control (invalid content model;
+the button's accessible name absorbed the word "Letterboxd" and the link
+was unreachable as a link) — the Letterboxd link is now a sibling, and the
+row gained a chevron affordance and `aria-controls`. A `<Link>` sat as a
+direct child of a `<dl>` on the Settings "Needs review" stat (also invalid
+— `dl` permits only `dt`/`dd`, optionally grouped in a `div`) — now wrapped
+in a `div` with the link scoped to just the `dt` label, keeping the
+dt/dd pairing intact for assistive tech. The header's home link had no
+accessible name below the `sm` breakpoint (icon `aria-hidden`, text
+`hidden` — nothing left for a screen reader) — given an explicit
+`aria-label`. The Stats page had no empty state for a brand-new,
+zero-film profile (the only list-rendering page missing one) and leaked
+its own internal doc path ("see docs/product-spec.md") into user-facing
+copy — both fixed.
+
+**Interactive-challenge schema guard.** "Choose My Challenge" and "Decide
+For Me" both already correctly avoid ever selecting Battle Royale/Three
+Doors (local interactive-challenge resolution isn't ported yet), but
+`chosenChallengeIds`'s Zod schema didn't itself reject one — reachable
+only via a deliberately tampered form submission, but the correct fix
+location per this audit's own finding was the schema, not just the UI
+filter. `draftConfigInputSchema` now rejects any chosen id that resolves
+to an interactive challenge, as defense in depth alongside the existing
+UI-layer filter — no change to which challenges get selected under normal
+use.
+
+**Testing.** New/updated unit tests alongside every fix above — including
+`schema.test.ts`'s new migration test proving the v2→v3→v4 dedupe-then-
+constrain sequence actually works end to end (the naive single-version
+approach was tried first and caught its own bug: Dexie's `ConstraintError`
+on adding a unique index against still-duplicated data) — plus new
+component tests (`app-shell.test.tsx`, `stats-view.test.tsx`,
+`unresolved-metadata-view.test.tsx`) exercising the race-condition fix,
+the init-error retry flow, and the Stats empty/error states against a real
+`fake-indexeddb`. Fixed one E2E assertion
+(`unresolved-metadata.spec.ts`) that had encoded the old (invalid) markup
+structure. `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), `pnpm
+test` (1,057 tests), `pnpm exec playwright test` (49 tests), and `pnpm
+build` are all clean.
+
+- **What this phase does NOT do, on purpose:** does not make
+  `WatchlistEntryRecord.dateAdded` nullable — see the malformed-import
+  section above for why a fallback date is the smaller, equally-honest
+  fix. Does not add a request-sequencing guard to `reloadSilently` calls
+  generally (only the metadata screens' specific page-blanking bug was in
+  scope) — the display-only, self-healing risk elsewhere was assessed and
+  explicitly deprioritized by the four review passes. Does not wrap the
+  metadata-match "write metadata + delete unresolved row" pair in a single
+  Dexie transaction — the exposure window that mattered (a permanently
+  orphaned row) was closed by the `filmId`-identity fix; the remaining
+  non-atomicity is a much smaller, low-probability belt-and-braces item.
+  Does not change any challenge selection, weighting, or generation
+  behavior for valid data — every fix in this phase closes an
+  implementation gap (a crash, a stale response, a silent corruption), not
+  a rule.
+
+### Phase 9.5R — Tauri compatibility and desktop development build
+
+Ships FDraft as a Windows desktop app via Tauri 2 (`src-tauri/`), started
+from a fresh `tauri init` scaffold, without migrating storage off
+IndexedDB or touching the web app's own behavior.
+
+- **Static-export compatibility.** The only real blockers were the two
+  POST-only `/api/metadata` routes (static export supports GET-only Route
+  Handlers) and `icon.tsx`/`apple-icon.tsx`/`manifest.ts` needing an
+  explicit `dynamic = "force-static"` export. `next.config.ts` sets
+  `output: "export"` only when `NEXT_PUBLIC_TAURI=1` (the desktop build's
+  own discriminator), leaving `pnpm dev`/`pnpm build` untouched;
+  `scripts/build-desktop-frontend.ts` relocates `src/app/api` out of the
+  tree for the duration of that build only (self-healing if a previous run
+  crashed mid-way) since the routes' mere presence fails an export build
+  regardless of whether the desktop frontend calls them.
+- **Metadata transport split at the network boundary only.**
+  `remote-metadata-client.ts`/`search-metadata-client.ts` branch on
+  `isDesktopRuntime()` (wrapping `@tauri-apps/api`'s `isTauri()`) and
+  delegate to the new `tauri-metadata-transport.ts`, which reuses the
+  unmodified `createTmdbProvider()` with `@tauri-apps/plugin-http`'s
+  `fetch` (the actual request runs in the Rust process) and a
+  `get_tmdb_api_key` Tauri command reading `.env.local`/`.env`. Nothing in
+  `tmdb-provider.ts`, the matching engine, or challenge/domain code knows
+  a desktop runtime exists. `capabilities/default.json` scopes
+  `http:default` to only `api.themoviedb.org`/`image.tmdb.org`.
+- **PWA disabled in the desktop build** (`layout.tsx`'s `SerwistProvider`)
+  — a webview shell has no browser tab to make "installable" and no need
+  for a second caching layer alongside its own persistent storage.
+- **Local data unchanged.** Existing IndexedDB repositories are reused
+  as-is; the desktop webview persists its own local storage independently
+  of the browser's, and the existing `.fdraft` backup/export remains the
+  supported way to move a profile between the two — never a direct read of
+  browser-profile IndexedDB files.
+- **Import/export need no Tauri APIs.** File import (`<input type="file">`
+  plus drag-and-drop) and backup export/import (`Blob` +
+  `URL.createObjectURL` + a synthetic anchor click) are all standard web
+  APIs that work unchanged in Tauri's webview — no file-dialog or
+  filesystem plugin was introduced.
+- **One version source.** `package.json`'s `version` is authoritative;
+  `scripts/sync-desktop-version.ts` copies it into
+  `src-tauri/tauri.conf.json` and `Cargo.toml` before every desktop
+  command (`desktop:dev`, `desktop:build`) — neither Tauri config format
+  can reference an external file natively.
+- **Testing.** Full existing suite (1,057 tests at the time), lint,
+  strict typecheck, both the web and static-export production builds, and
+  an actual `tauri dev` launch (Rust compile, native window, real page
+  loads through the dev server) all verified working.
+- **What this phase does NOT do, on purpose:** no updater, no GitHub
+  Releases pipeline, no Windows code signing, no SQLite migration, no
+  macOS/Linux packaging — all explicitly deferred to later phases.
+
+### Phase 9.5S — Windows installer packaging
+
+Turns the working Tauri dev build into a production-installable Windows
+build: NSIS as the sole bundle target (`bundle.targets: ["nsis"]`,
+`installMode: "currentUser"` so installing needs no admin elevation),
+`publisher`/`copyright`/`category`/`shortDescription` filled in for a
+proper Add/Remove Programs entry, and the Tauri icon set regenerated from
+FDraft's own real icon mark (rendered via the existing `icon-mark.tsx`/
+`icon-512.png` route at 1024px, fed through `tauri icon`) rather than the
+generic scaffold logo `tauri init` had left in place.
+
+- **External links fixed for the desktop shell.** `tauri-plugin-opener`
+  added and registered (`capabilities/default.json` gained
+  `opener:default`) — its default `open_js_links_on_click` behavior
+  intercepts `<a target="_blank">` clicks and opens them in the system
+  browser instead of silently doing nothing, which is WebView2's default
+  for a plain anchor click with no popup-window handling wired up. No
+  application code changed; Letterboxd links on film cards needed no
+  changes themselves.
+- **A pre-existing, unrelated `git stash pop` conflict was discovered and
+  resolved** while diagnosing an unrelated production-build failure: nine
+  source files (and this document) had literal, uncommitted merge-conflict
+  markers left in them from an earlier stash operation, silently missing
+  pieces of the "UNRESOLVED METADATA RESOLUTION" feature (the
+  `unresolvedMetadata` repository/table wiring, `FilmMetadataRecord
+.matchMethod`, the provider `search()` capability and its
+  `/api/metadata/search` route, `rankCandidates`) across roughly twenty
+  files. All were reconciled against the codebase's actual, current
+  conventions (not blindly restored) and re-verified with the full test
+  suite — unrelated to Tauri packaging itself, but blocked every
+  production build (web and desktop alike) until fixed.
+- **Windows packaging could not be produced or verified in this
+  environment.** This is a macOS development machine: `tauri build` here
+  only ever targets `aarch64-apple-darwin` and — since `bundle.targets` is
+  Windows-only (`nsis`) — produces just the raw binary, no installer, with
+  no warning. Attempting `--target x86_64-pc-windows-msvc` gets past
+  config validation and the frontend build, but fails compiling a native
+  dependency (`ring`) for lack of a Windows C toolchain/SDK, which `rustup`
+  alone cannot supply on macOS. The config itself is verified correct as
+  far as this platform allows; an actual `.exe` requires a Windows build
+  environment — planned for Prompt 13's GitHub Actions CI.
+- **Testing.** Full test suite, lint, strict typecheck, the web build, and
+  the static-export desktop-frontend build all verified clean after the
+  conflict resolution above; a full `tauri build` for the host
+  (`aarch64-apple-darwin`) target compiles and links successfully,
+  confirming the Rust/Tauri side of the config (icons, plugins,
+  capabilities, bundle metadata) is sound.
+- **What this phase does NOT do, on purpose:** no updater UI, no GitHub
+  Releases automation, no Windows publisher/Authenticode signing, no
+  other-platform packaging.
+
+### Phase 9.5T — User-friendly auto-updates, GitHub Releases, and Version 1 QA
+
+Ships the Tauri updater end to end: a visible, opt-out, never-silent
+update flow; a signed release pipeline via GitHub Actions; and closes one
+real gap the previous phase's packaging work exposed.
+
+- **Update flow — `src/components/updates/`.** `UpdateProvider` is a state
+  machine (`idle -> checking -> available -> downloading ->
+ready-to-restart`, or `error`) mounted once in `AppShell`, above
+  `ProfileProvider` and NOT keyed by profile (see "installation-level"
+  below). `UpdateDialog` renders it as an `AlertDialog` — only ever open
+  for `available`/`downloading`/`ready-to-restart`; a failed or
+  in-progress _check_ never interrupts anything. An AUTOMATIC check that
+  errors (offline, GitHub unreachable, malformed manifest) fails
+  completely silently — back to `idle`, nothing shown; only a MANUAL
+  "Check for Updates" click surfaces its own failure, inline in Settings.
+  The user always makes the actual install/restart decision — nothing
+  installs or restarts on its own.
+- **Installation-level, not per-profile.** `update-preference-store.ts`
+  (auto-check on/off, last-checked-at) uses `localStorage`, the same
+  device-local-preference mechanism `active-profile-pointer.ts` already
+  established — an update check has nothing to do with which of this
+  device's local profiles is active, and scoping it per-profile would
+  mean re-checking (and re-showing the dialog) on every profile switch.
+- **Check frequency — `src/domain/updates/update-check-policy.ts`.** Pure,
+  unit-tested: at most one automatic check per session (an in-memory
+  ref, catches remounts) AND at most one per 6 hours across sessions (the
+  persisted last-checked timestamp) — a corrupted/unparsable timestamp
+  checks again rather than getting permanently stuck. Never delays
+  startup: fired from an effect after first paint, not blocking render.
+- **Updater signing.** A real minisign keypair was generated
+  (`tauri signer generate`); the public key lives in
+  `src-tauri/tauri.conf.json`'s `plugins.updater.pubkey` (safe to commit —
+  it only verifies, never signs). The private key and its password were
+  handed to the user directly (never written to this repository) to store
+  as the `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+  GitHub Actions secrets — see README.md, "Updater secrets". Both are
+  supplied to the build ONLY as CI environment variables (`.github/workflows/release.yml`), never logged, never committed. `bundle.createUpdaterArtifacts: true`
+  makes `tauri build` produce the signed update package + `latest.json`
+  the updater's configured endpoint (`https://github.com/Burrichen/FDraft/releases/latest/download/latest.json`) serves.
+- **A real gap fixed: metadata in a packaged install.** `get_tmdb_api_key`
+  previously ONLY read `.env.local`/`.env` relative to the project
+  checkout — which doesn't exist next to an installed `.exe` on someone
+  else's machine, so a real friend's install could never have fetched
+  metadata at all. Now checks a COMPILE-TIME `option_env!("TMDB_API_KEY")`
+  first (baked into the release binary from the `TMDB_API_KEY` GitHub
+  secret during the release build), falling back to the original runtime
+  `.env.local`/`.env` read for local dev — additive, not a behavior change
+  for `pnpm run desktop:dev`.
+- **Data preservation.** Nothing about the update mechanism touches
+  IndexedDB, profiles, or settings — an NSIS update-mode install only
+  replaces the application's own program files; WebView2's persistent
+  storage lives in a separate, OS-managed per-identifier data directory an
+  installer never touches. The app version (`package.json`, synced into
+  `tauri.conf.json`/`Cargo.toml`) and the local database's own
+  `SCHEMA_VERSION` (`src/infrastructure/local-db/schema.ts`) are and
+  remain two entirely independent numbers — an app update is never a
+  reason to write a new Dexie migration, and vice versa.
+- **Release pipeline — `.github/workflows/release.yml`.** Triggers on a
+  `v*.*.*` tag push; runs on `windows-latest` (a genuine Windows
+  toolchain, unlike this project's own macOS dev machine — see Phase
+  9.5S's cross-compilation finding). Verifies the pushed tag matches
+  `package.json`'s version before doing anything else, runs the same
+  format/lint/typecheck/test gate as local development, then hands off to
+  `tauri-apps/tauri-action` to build the signed installer and open a
+  DRAFT GitHub Release (so the developer writes real release notes — never
+  a raw commit log — before publishing). See README.md, "Release" for the
+  full documented procedure.
+- **Testing.** New unit tests for `update-check-policy.ts` (session/
+  interval/corrupted-timestamp rules), `tauri-updater.ts` (up-to-date/
+  available/error mapping, download-progress event mapping, all with the
+  Tauri plugins mocked — no webview needed), and `update-provider.tsx`
+  (a DOM-level test of the actual state machine: auto-check fires once,
+  respects the disabled setting, manual check still works when disabled,
+  auto-check errors stay silent while manual ones surface, a second mount
+  within the interval doesn't re-check). `pnpm format`, `pnpm lint`,
+  `pnpm typecheck` (strict), `pnpm test` (1,065 tests), the web build, and
+  the static-export desktop-frontend build are all clean; `cargo check`
+  and a full host-target `tauri build` (Rust compiles and links with the
+  two new plugins) were re-verified after every Rust-side config change.
+  Actually producing/signing a Windows `.exe` was NOT re-attempted from
+  this macOS machine (already established as infeasible in Phase 9.5S) —
+  that path is exercised for the first time by the release workflow
+  itself, on real Windows CI.
+- **What this phase does NOT do, on purpose:** no Windows publisher/
+  Authenticode signing (a brief SmartScreen warning note is documented
+  instead, per explicit instruction not to attempt to solve it); no
+  custom release-management tooling beyond the one version-sync script
+  that already existed; no attempt to disable or work around Windows
+  security warnings.

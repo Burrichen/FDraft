@@ -325,6 +325,31 @@ describe("LocalBackupRestoreRepository", () => {
       expect(allFilmsWithSlug?.id).toBe(existingFilmId);
     });
 
+    it("normalizes an invalid/corrupted timezone rather than restoring it verbatim — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+      db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db);
+      await seedFullProfile(repos, "profile-a");
+      const backup = await buildProfileBackup(repos, "profile-a", {
+        clock: CLOCK,
+      });
+      const corrupted: BackupV1 = {
+        ...backup,
+        profile: { ...backup.profile, timezone: "Not/AZone" },
+      };
+
+      const result = await repos.backupRestore.importAsNewProfile(corrupted, {
+        idGenerator: sequentialIdGenerator("new"),
+        clock: CLOCK,
+        currentSchemaVersion: SCHEMA_VERSION,
+      });
+
+      const profile = await repos.profiles.getById(result.profileId);
+      expect(profile?.timezone).not.toBe("Not/AZone");
+      expect(profile?.timezone).toBe(
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+      );
+    });
+
     it("restores unresolvedMetadata, remapped to the correct local film id", async () => {
       db = new FDraftLocalDatabase(`restore-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db);
@@ -353,7 +378,6 @@ describe("LocalBackupRestoreRepository", () => {
       const entries = await repos.watchlist.listAllEntries(result.profileId);
       const restored = await repos.unresolvedMetadata.getByFilmId(
         entries[0].filmId,
-        "tmdb",
       );
       expect(restored).toMatchObject({
         status: "unresolved",

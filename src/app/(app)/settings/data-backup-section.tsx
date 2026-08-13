@@ -51,23 +51,25 @@ export function DataBackupSection() {
   const { activeProfile, repositories } = useProfileContext();
   const [isExporting, setIsExporting] = useState(false);
 
-  const { data: backupStatus, reload } =
-    useAsyncData<BackupStatus>(async () => {
-      if (!activeProfile) return { lastBackupAt: null, showReminder: false };
-      const lastBackupAt = await getLastBackupExportedAt(
-        repositories,
-        activeProfile.id,
-      );
-      const daysSince = lastBackupAt
-        ? (Date.now() - new Date(lastBackupAt).getTime()) /
-          (1000 * 60 * 60 * 24)
-        : null;
-      return {
-        lastBackupAt,
-        showReminder:
-          daysSince === null || daysSince > BACKUP_REMINDER_THRESHOLD_DAYS,
-      };
-    }, [activeProfile?.id, repositories]);
+  const {
+    data: backupStatus,
+    error: backupStatusError,
+    reload,
+  } = useAsyncData<BackupStatus>(async () => {
+    if (!activeProfile) return { lastBackupAt: null, showReminder: false };
+    const lastBackupAt = await getLastBackupExportedAt(
+      repositories,
+      activeProfile.id,
+    );
+    const daysSince = lastBackupAt
+      ? (Date.now() - new Date(lastBackupAt).getTime()) / (1000 * 60 * 60 * 24)
+      : null;
+    return {
+      lastBackupAt,
+      showReminder:
+        daysSince === null || daysSince > BACKUP_REMINDER_THRESHOLD_DAYS,
+    };
+  }, [activeProfile?.id, repositories]);
 
   async function handleExport(variant: "backup" | "readable") {
     if (!activeProfile) return;
@@ -123,7 +125,20 @@ export function DataBackupSection() {
           <div>
             <dt className="text-muted-foreground text-xs">Last backup</dt>
             <dd className="text-foreground">
-              {describeLastBackup(backupStatus?.lastBackupAt ?? null)}
+              {backupStatusError ? (
+                <span className="text-destructive inline-flex items-center gap-1.5">
+                  Couldn&apos;t check
+                  <button
+                    type="button"
+                    onClick={reload}
+                    className="focus-visible:outline-ring underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </span>
+              ) : (
+                describeLastBackup(backupStatus?.lastBackupAt ?? null)
+              )}
             </dd>
           </div>
         </dl>

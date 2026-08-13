@@ -8,15 +8,19 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
+import { UpdateProvider } from "@/components/updates/update-provider";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
+import { InMemoryUpdatePreferenceStore } from "@/infrastructure/updates/update-preference-store";
 import { SettingsView } from "./settings-view";
 
 function Harness({ databaseName }: { databaseName: string }) {
   return (
-    <ProfileProvider databaseName={databaseName}>
-      <SettingsView />
-    </ProfileProvider>
+    <UpdateProvider store={new InMemoryUpdatePreferenceStore()}>
+      <ProfileProvider databaseName={databaseName}>
+        <SettingsView />
+      </ProfileProvider>
+    </UpdateProvider>
   );
 }
 

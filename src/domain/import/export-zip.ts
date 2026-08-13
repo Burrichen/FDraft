@@ -53,6 +53,12 @@ export function extractLetterboxdExportZip(
     watchedCsv: null,
     diaryCsv: null,
   };
+  // A zero-byte watchlist.csv decodes to "" — falsy, but genuinely present.
+  // Tracked separately so that case reports "the file is empty" (from
+  // `parseCsv`, once this returns `ok: true`) rather than the misleading
+  // "does not contain a watchlist.csv file at all" — see
+  // docs/product-spec.md, "COMPLETE PRODUCT AUDIT".
+  let watchlistCsvFound = false;
 
   for (const [path, data] of Object.entries(unzipped)) {
     if (path.endsWith("/")) continue; // directory entry
@@ -62,16 +68,20 @@ export function extractLetterboxdExportZip(
     ][]) {
       if (pattern.test(path)) {
         files[key] = decoder.decode(data);
+        if (key === "watchlistCsv") watchlistCsvFound = true;
       }
     }
   }
 
-  if (!files.watchlistCsv) {
+  if (!watchlistCsvFound) {
     return {
       ok: false,
       reason: "The export ZIP does not contain a watchlist.csv file.",
     };
   }
 
-  return { ok: true, files: { ...files, watchlistCsv: files.watchlistCsv } };
+  return {
+    ok: true,
+    files: { ...files, watchlistCsv: files.watchlistCsv ?? "" },
+  };
 }

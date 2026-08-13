@@ -90,6 +90,85 @@ export const SCHEMA_MIGRATIONS: SchemaVersion[] = [
       unresolvedMetadata: "id, filmId, [filmId+provider], status",
     },
   },
+  {
+    // First half of retiring the `[filmId+provider]` compound key — see
+    // docs/product-spec.md, "COMPLETE PRODUCT AUDIT": a film that failed
+    // once under one provider label (e.g. the "unknown" placeholder used
+    // for a network error, which carries no real provider id) and later
+    // failed or succeeded under a different one could accumulate multiple
+    // rows for the SAME film, only one of which a later successful match
+    // would ever delete — leaving the film permanently stuck in the
+    // Unresolved queue with a duplicate React key. This version dedupes
+    // any rows an install already accumulated under the old key, keeping
+    // the most recently attempted one per film — `filmId` stays a
+    // NON-unique index here deliberately. IndexedDB applies a store's
+    // index changes (including a new unique constraint) before running
+    // its `upgrade` callback, so declaring `&filmId` in this same version
+    // would try to build the unique index against the still-duplicated
+    // data and throw `ConstraintError` before the dedupe below ever runs.
+    // Version 4 tightens `filmId` to unique once the data is guaranteed
+    // clean.
+    version: 3,
+    stores: {
+      profiles: "id",
+      films: "id, letterboxdSlug, [title+releaseYear]",
+      filmMetadata: "id, filmId, [filmId+provider]",
+      watchlistEntries: "id, profileId, filmId, [profileId+filmId]",
+      watchlistImports: "id, profileId, status",
+      watchedHistory: "id, profileId, watchlistEntryId, filmId",
+      userRatings: "id, [profileId+filmId], profileId",
+      drafts: "id, profileId, [profileId+status]",
+      draftItems: "id, draftId, watchlistEntryId",
+      draftChallengeAttempts: "id, draftId",
+      draftChallengeInteractions: "id, draftId, [draftId+challengeId], status",
+      draftPostmortemResponses: "id, &draftItemId, draftId",
+      selectionWeightAdjustments: "id, watchlistEntryId",
+      settings: "[profileId+key], profileId",
+      unresolvedMetadata: "id, filmId, status",
+    },
+    upgrade: async (tx) => {
+      const table = tx.table("unresolvedMetadata");
+      const rows = await table.toArray();
+      const newestByFilmId = new Map<string, (typeof rows)[number]>();
+      for (const row of rows) {
+        const existing = newestByFilmId.get(row.filmId);
+        if (!existing || row.lastAttemptedAt > existing.lastAttemptedAt) {
+          newestByFilmId.set(row.filmId, row);
+        }
+      }
+      await table.clear();
+      if (newestByFilmId.size > 0) {
+        await table.bulkAdd([...newestByFilmId.values()]);
+      }
+    },
+  },
+  {
+    // Second half — now that version 3 has guaranteed at most one row per
+    // `filmId`, `filmId` can safely become a UNIQUE index. There is only
+    // ever one configured provider active at a time in this app, so "is
+    // this film resolved" is fundamentally a per-film question, not a
+    // per-(film, provider) one; `provider` is now just an informational
+    // field on the row, not part of its identity. No `upgrade` callback
+    // needed — no data transformation, just a stricter constraint.
+    version: 4,
+    stores: {
+      profiles: "id",
+      films: "id, letterboxdSlug, [title+releaseYear]",
+      filmMetadata: "id, filmId, [filmId+provider]",
+      watchlistEntries: "id, profileId, filmId, [profileId+filmId]",
+      watchlistImports: "id, profileId, status",
+      watchedHistory: "id, profileId, watchlistEntryId, filmId",
+      userRatings: "id, [profileId+filmId], profileId",
+      drafts: "id, profileId, [profileId+status]",
+      draftItems: "id, draftId, watchlistEntryId",
+      draftChallengeAttempts: "id, draftId",
+      draftChallengeInteractions: "id, draftId, [draftId+challengeId], status",
+      draftPostmortemResponses: "id, &draftItemId, draftId",
+      selectionWeightAdjustments: "id, watchlistEntryId",
+      settings: "[profileId+key], profileId",
+      unresolvedMetadata: "id, &filmId, status",
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.at(-1)!.version;

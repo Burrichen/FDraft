@@ -1,5 +1,12 @@
 import type { FilmMetadataCandidateDetail } from "@/domain/import/film-metadata-provider";
 import { MetadataNetworkError } from "./remote-metadata-client";
+import {
+  isDesktopRuntime,
+  searchFilmMetadataCandidatesViaTauri,
+} from "./tauri-metadata-transport";
+
+/** See `remote-metadata-client.ts`'s identical constant for the full rationale — a hung `/api/metadata/search` response must not be able to hang this fetch forever. */
+const FETCH_TIMEOUT_MS = 30_000;
 
 /** Mirrors `src/app/api/metadata/search/route.ts`'s response shape exactly — see that file's doc comment for the full status list. */
 export type RemoteMetadataSearchResult =
@@ -50,6 +57,10 @@ export async function searchFilmMetadataCandidatesViaApi(
   input: { title: string; releaseYear: number | null },
   deps: { fetchImpl?: typeof fetch } = {},
 ): Promise<RemoteMetadataSearchResult> {
+  if (isDesktopRuntime()) {
+    return searchFilmMetadataCandidatesViaTauri(input);
+  }
+
   const fetchImpl = deps.fetchImpl ?? fetch;
 
   let response: Response;
@@ -58,6 +69,7 @@ export async function searchFilmMetadataCandidatesViaApi(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (cause) {
     throw new MetadataNetworkError(

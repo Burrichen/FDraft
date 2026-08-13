@@ -26,14 +26,30 @@ export interface ParsedWatchlistRow {
 
 export interface UnresolvedRow {
   sourceRowNumber: number;
-  reason: "missing_name" | "missing_or_invalid_date";
+  reason: "missing_name";
 }
 
 export type WatchlistCsvParseResult =
   | { ok: true; rows: ParsedWatchlistRow[]; unresolvedRows: UnresolvedRow[] }
   | { ok: false; reason: string };
 
-export function parseWatchlistCsv(content: string): WatchlistCsvParseResult {
+/**
+ * `fallbackDate` (an ISO calendar date, `YYYY-MM-DD`) is used for
+ * `dateAdded` when a row's own Date column is missing or unparseable —
+ * see docs/product-spec.md, "COMPLETE PRODUCT AUDIT". Earlier behavior
+ * dropped such a row entirely (silent data loss, inconsistent with
+ * `watched-csv.ts`'s handling of the identical situation); every other
+ * piece of domain logic that reads `dateAdded` (sorting, challenge
+ * weighting, Stats' average watchlist age) treats it as always present,
+ * so rather than making that a sprawling nullable-everywhere change for a
+ * rare hand-edited/corrupted export, this substitutes the date FDraft
+ * first recorded the entry — a real fact, not an invented one, exactly
+ * like every record's own `createdAt`.
+ */
+export function parseWatchlistCsv(
+  content: string,
+  fallbackDate: string,
+): WatchlistCsvParseResult {
   const parsed = parseCsv(content);
   if (!parsed.ok) {
     return { ok: false, reason: parsed.failure.message };
@@ -62,17 +78,10 @@ export function parseWatchlistCsv(content: string): WatchlistCsvParseResult {
       return;
     }
 
-    const dateAdded = (raw["Date"] ?? "").trim();
-    if (!isIsoDate(dateAdded)) {
-      unresolvedRows.push({
-        sourceRowNumber,
-        reason: "missing_or_invalid_date",
-      });
-      return;
-    }
+    const dateRaw = (raw["Date"] ?? "").trim();
 
     rows.push({
-      dateAdded,
+      dateAdded: isIsoDate(dateRaw) ? dateRaw : fallbackDate,
       title,
       releaseYear: parseYear(raw["Year"]),
       letterboxdUri: (raw["Letterboxd URI"] ?? "").trim() || null,

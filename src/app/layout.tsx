@@ -65,7 +65,21 @@ export default function RootLayout({
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <SerwistProvider
           swUrl="/sw.js"
-          disable={process.env.NODE_ENV !== "production"}
+          // A service worker's whole job — caching this same origin's own
+          // assets for offline use — is redundant inside the Tauri desktop
+          // shell: there's no real network origin serving the app at all
+          // (a bundled static frontend, loaded via Tauri's own asset
+          // protocol), and IndexedDB already gives every page fully
+          // working offline behavior on its own. Running both caching
+          // systems at once would be pure downside — see
+          // docs/product-spec.md's Tauri integration notes, "PWA
+          // INTERACTION". `NEXT_PUBLIC_TAURI` is a build-time flag (see
+          // `next.config.ts`), not a runtime check, since the desktop
+          // build is its own separate static bundle to begin with.
+          disable={
+            process.env.NODE_ENV !== "production" ||
+            process.env.NEXT_PUBLIC_TAURI === "1"
+          }
           // A stray page mid-draft-creation or mid-import force-reloading
           // itself the instant wifi flickers back on would be a genuinely
           // bad surprise for a local-first app that never needed the

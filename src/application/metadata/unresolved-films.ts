@@ -1,5 +1,5 @@
 import type { FilmMetadataResult } from "@/domain/import/film-metadata-provider";
-import { logMetadataResolution } from "@/domain/import/metadata-debug-log";
+import { logMetadata } from "@/domain/import/metadata-debug-log";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { SystemClock, type Clock } from "@/domain/time/clock";
 import type { FilmRepository } from "@/repositories/film-repository";
@@ -151,10 +151,10 @@ export async function manuallyMatchFilm(
       externalId,
     );
     if (conflicting && conflicting.filmId !== params.filmId) {
-      logMetadataResolution({
-        importedTitle: params.title ?? params.filmId,
-        decision: "failed",
-        providerId: externalId,
+      logMetadata({
+        film: params.title ?? params.filmId,
+        selectedCandidate: externalId,
+        status: "provider-error",
         reason: "provider_identifier_conflict",
       });
       throw new ProviderIdentifierConflictError(conflicting.filmId);
@@ -187,5 +187,5 @@ export async function manuallyMatchFilm(
     updatedAt: now,
   };
   await repos.films.upsertMetadata(record);
-  await repos.unresolvedMetadata.deleteByFilmId(params.filmId, params.provider);
+  await repos.unresolvedMetadata.deleteByFilmId(params.filmId);
 }

@@ -264,6 +264,43 @@ describe("downloadMissingMetadata", () => {
     expect(outcome.retryableFilmIds).toEqual(["film-missing"]);
   });
 
+  it("gives a 401 provider-error its own actionable message instead of the generic 'unexpected error' one — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-missing");
+
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "provider-error",
+      providerId: "tmdb",
+      message: "TMDB request failed with status 401",
+      httpStatus: 401,
+    });
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+
+    const record = await repos.unresolvedMetadata.getByFilmId("film-missing");
+    expect(record).toMatchObject({
+      reason: "invalid-api-key",
+      message: expect.stringContaining("API key"),
+    });
+  });
+
+  it("keeps the generic provider-error reason for a non-401 provider failure (e.g. a 500)", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-missing");
+
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "provider-error",
+      providerId: "tmdb",
+      message: "TMDB request failed with status 500",
+      httpStatus: 500,
+    });
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+
+    const record = await repos.unresolvedMetadata.getByFilmId("film-missing");
+    expect(record).toMatchObject({ reason: "provider-error" });
+  });
+
   it("network failures never crash the batch, never touch existing data, and are reported as likelyOffline", async () => {
     db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
@@ -482,10 +519,7 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
     });
     await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
 
-    const record = await repos.unresolvedMetadata.getByFilmId(
-      "film-ambiguous",
-      "tmdb",
-    );
+    const record = await repos.unresolvedMetadata.getByFilmId("film-ambiguous");
     expect(record).toMatchObject({ status: "unresolved", reason: "ambiguous" });
   });
 
@@ -501,10 +535,7 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
     });
     await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
 
-    const record = await repos.unresolvedMetadata.getByFilmId(
-      "film-error",
-      "tmdb",
-    );
+    const record = await repos.unresolvedMetadata.getByFilmId("film-error");
     expect(record).toMatchObject({
       status: "failed",
       reason: "provider-error",
@@ -521,10 +552,7 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
       .mockRejectedValue(new MetadataNetworkError("offline"));
     await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
 
-    const record = await repos.unresolvedMetadata.getByFilmId(
-      "film-offline",
-      "unknown",
-    );
+    const record = await repos.unresolvedMetadata.getByFilmId("film-offline");
     expect(record).toMatchObject({
       status: "failed",
       reason: "network-error",
@@ -541,7 +569,7 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
       .mockResolvedValueOnce({ status: "not-found", providerId: "tmdb" });
     await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
     expect(
-      await repos.unresolvedMetadata.getByFilmId("film-retry", "tmdb"),
+      await repos.unresolvedMetadata.getByFilmId("film-retry"),
     ).not.toBeNull();
 
     fetchMetadata.mockResolvedValueOnce({
@@ -551,8 +579,44 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
     });
     await retryMetadataForFilms(repos, ["film-retry"], { fetchMetadata });
 
+    expect(await repos.unresolvedMetadata.getByFilmId("film-retry")).toBeNull();
+  });
+
+  it("clears the film's unresolved record even when the ORIGINAL failure was recorded under a different provider label than the eventual match — see docs/product-spec.md, 'COMPLETE PRODUCT AUDIT'", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-offline-then-matched");
+
+    // First attempt: offline — recorded under the "unknown" provider
+    // placeholder, since no real providerId is available for a network
+    // failure.
+    const fetchMetadata = vi
+      .fn()
+      .mockRejectedValueOnce(new MetadataNetworkError("offline"));
+    await downloadMissingMetadata(repos, PROFILE_ID, { fetchMetadata });
+    const stuckRecord = await repos.unresolvedMetadata.getByFilmId(
+      "film-offline-then-matched",
+    );
+    expect(stuckRecord).toMatchObject({
+      provider: "unknown",
+      status: "failed",
+    });
+
+    // Second attempt: back online, matches under the REAL provider id —
+    // before the fix, only a row keyed `[filmId, "tmdb"]` would have been
+    // deleted, leaving the "unknown" row (and this film) stuck in the
+    // Unresolved queue forever.
+    fetchMetadata.mockResolvedValueOnce({
+      status: "matched",
+      providerId: "tmdb",
+      result: { runtimeMinutes: 100 },
+    });
+    await retryMetadataForFilms(repos, ["film-offline-then-matched"], {
+      fetchMetadata,
+    });
+
     expect(
-      await repos.unresolvedMetadata.getByFilmId("film-retry", "tmdb"),
+      await repos.unresolvedMetadata.getByFilmId("film-offline-then-matched"),
     ).toBeNull();
   });
 
@@ -581,7 +645,7 @@ describe("persisted unresolved/failed records (see docs/product-spec.md, 'UNRESO
     expect(outcome.ambiguous).toBe(0);
     expect(outcome.notFound).toBe(0);
     expect(
-      await repos.unresolvedMetadata.getByFilmId("film-upcoming", "tmdb"),
+      await repos.unresolvedMetadata.getByFilmId("film-upcoming"),
     ).toBeNull();
     const metadata = await repos.films.getMetadataForFilm("film-upcoming");
     expect(metadata[0].matchMethod).toBe("automatic");

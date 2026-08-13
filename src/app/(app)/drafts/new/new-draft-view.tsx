@@ -1,6 +1,7 @@
 "use client";
 
 import { listLocalChallengeAvailability } from "@/application/challenges/list-local-challenge-availability";
+import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { NewDraftForm } from "./new-draft-form";
@@ -8,7 +9,7 @@ import { NewDraftForm } from "./new-draft-form";
 export function NewDraftView() {
   const { activeProfile, repositories } = useProfileContext();
 
-  const { data, isLoading } = useAsyncData(async () => {
+  const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
     const activeWatchlistCount = (
       await repositories.watchlist.listActiveEntries(activeProfile.id)
@@ -20,7 +21,13 @@ export function NewDraftView() {
     return { activeWatchlistCount, ...availability };
   }, [activeProfile?.id, repositories]);
 
-  if (!activeProfile || isLoading || !data) {
+  if (!activeProfile) {
+    return null;
+  }
+  if (error) {
+    return <AsyncDataError error={error} onRetry={reload} />;
+  }
+  if (isLoading || !data) {
     return null;
   }
 
