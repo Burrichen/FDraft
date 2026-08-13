@@ -80,6 +80,8 @@ async function seedProfile(repos: Repositories, profileId: string) {
     timezone: "UTC",
     completedAt: "2026-01-05T00:00:00.000Z",
     freeformAchievedRank: null,
+    sourceEventId: null,
+    rewardsGrantedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-05T00:00:00.000Z",
   });

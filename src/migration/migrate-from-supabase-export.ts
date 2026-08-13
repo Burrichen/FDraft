@@ -175,6 +175,10 @@ export async function migrateFromSupabaseExport(
       completedAt: draft.completed_at,
       freeformAchievedRank:
         draft.freeform_achieved_rank as DraftRecord["freeformAchievedRank"],
+      // The Supabase-era data model predates the event system entirely —
+      // every migrated draft is, by definition, a normal one.
+      sourceEventId: null,
+      rewardsGrantedAt: null,
       createdAt: draft.created_at,
       updatedAt: draft.updated_at,
     };

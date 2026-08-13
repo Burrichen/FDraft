@@ -7,6 +7,22 @@ import type {
 } from "@/repositories/records";
 import type { FDraftLocalDatabase } from "./database";
 
+/**
+ * A draft written before `sourceEventId`/`rewardsGrantedAt` existed has
+ * neither property at all (Dexie/IndexedDB don't enforce a schema on
+ * non-indexed fields — see `schema.ts`'s note on `matchMethod` for the
+ * same situation) — normalize to their sensible defaults at the one
+ * chokepoint every read passes through, so nothing downstream ever has to
+ * treat `undefined` as a third state alongside `string | null`.
+ */
+function normalizeDraft(draft: DraftRecord): DraftRecord {
+  return {
+    ...draft,
+    sourceEventId: draft.sourceEventId ?? null,
+    rewardsGrantedAt: draft.rewardsGrantedAt ?? null,
+  };
+}
+
 export class LocalDraftRepository implements DraftRepository {
   constructor(private readonly db: FDraftLocalDatabase) {}
 
@@ -22,7 +38,7 @@ export class LocalDraftRepository implements DraftRepository {
       return null;
     }
     drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return drafts[0];
+    return normalizeDraft(drafts[0]);
   }
 
   async getById(
@@ -30,7 +46,9 @@ export class LocalDraftRepository implements DraftRepository {
     draftId: string,
   ): Promise<DraftRecord | null> {
     const draft = await this.db.drafts.get(draftId);
-    return draft && draft.profileId === profileId ? draft : null;
+    return draft && draft.profileId === profileId
+      ? normalizeDraft(draft)
+      : null;
   }
 
   async listArchived(profileId: string): Promise<DraftRecord[]> {
@@ -38,7 +56,9 @@ export class LocalDraftRepository implements DraftRepository {
       .where("[profileId+status]")
       .equals([profileId, "archived"])
       .toArray();
-    return drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return drafts
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(normalizeDraft);
   }
 
   async listAllForProfile(profileId: string): Promise<DraftRecord[]> {
@@ -46,7 +66,9 @@ export class LocalDraftRepository implements DraftRepository {
       .where("profileId")
       .equals(profileId)
       .toArray();
-    return drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return drafts
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(normalizeDraft);
   }
 
   async hasActiveDraft(profileId: string): Promise<boolean> {

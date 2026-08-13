@@ -297,6 +297,12 @@ export const backupDraftSchema = z.object({
   timezone: z.string().trim().min(1).max(100),
   completedAt: nullableIsoDateTimeSchema,
   freeformAchievedRank: freeformRankSchema,
+  // Both `.default(null)` — a backup exported before these fields existed
+  // has neither key at all; defaulting here means it still restores
+  // instead of failing to parse (see the other pre-existing-field notes in
+  // this file, e.g. `matchMethod`'s comment above).
+  sourceEventId: nullableIdSchema.default(null),
+  rewardsGrantedAt: nullableIsoDateTimeSchema.default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

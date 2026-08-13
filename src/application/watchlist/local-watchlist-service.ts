@@ -232,6 +232,11 @@ export async function undoLocalFilmWatched(
             status: "active",
             completedAt: null,
             freeformAchievedRank: null,
+            // Undoing the completion that archived this draft must also
+            // undo any reward that archival granted — otherwise a later
+            // re-completion would find `rewardsGrantedAt` already set and
+            // skip granting it again.
+            rewardsGrantedAt: null,
             updatedAt: now,
           });
         }

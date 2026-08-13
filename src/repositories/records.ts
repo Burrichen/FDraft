@@ -177,6 +177,19 @@ export interface DraftRecord {
   timezone: string;
   completedAt: string | null;
   freeformAchievedRank: FreeformRank | null;
+  /** The event that generated this draft, if any (see docs/product-spec.md, upcoming event system) — `null` for a normal, non-event draft. Never set or read by anything shipped so far; Phase 1 plumbing only. */
+  sourceEventId: string | null;
+  /**
+   * ISO 8601 timestamp of when this draft's completion rewards were
+   * granted, or `null` if they never have been — the persisted guard
+   * against granting the same draft's rewards twice (e.g. a retried or
+   * re-entrant completion step), the same "nullable timestamp as a
+   * one-time-event flag" convention as `completedAt`/`removedAt` elsewhere
+   * in this file. No reward system exists yet (see the event system's
+   * Phase 1 scope) — nothing sets this today; it only needs to persist and
+   * restore correctly so a later phase can check-and-set it atomically.
+   */
+  rewardsGrantedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

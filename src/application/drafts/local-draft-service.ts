@@ -93,7 +93,13 @@ function describeChallengeShortfall(
  */
 export async function createLocalDraft(
   repos: DraftRepos,
-  params: { profileId: string; timezone: string; config: DraftConfigInput },
+  params: {
+    profileId: string;
+    timezone: string;
+    config: DraftConfigInput;
+    /** The event that generated this draft, if any — `undefined`/omitted for a normal draft (see `DraftRecord.sourceEventId`). No caller passes this yet; the event system that will hasn't shipped. */
+    sourceEventId?: string | null;
+  },
   deps: { idGenerator?: IdGenerator; clock?: Clock; rng?: Rng } = {},
 ): Promise<CreateLocalDraftOutcome> {
   const idGenerator = deps.idGenerator ?? defaultIdGenerator;
@@ -174,6 +180,8 @@ export async function createLocalDraft(
     timezone,
     completedAt: null,
     freeformAchievedRank: null,
+    sourceEventId: params.sourceEventId ?? null,
+    rewardsGrantedAt: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -462,6 +470,10 @@ export async function archiveLocalDraftIfResolved(
     return false;
   }
 
+  // This guard is also where a future event-reward step would hang its own
+  // idempotency check (`draft.rewardsGrantedAt`) before this function's own
+  // `updateDraft` call below sets `status: "archived"` — no such step
+  // exists yet, and this function does not touch `rewardsGrantedAt` today.
   const items = await repos.drafts.listItemsForDraft(params.draftId);
   const unresolvedItems = items.filter(
     (item): item is DraftItemRecord => !item.isCompleted,
