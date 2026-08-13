@@ -2,7 +2,7 @@
 
 **A local-first Letterboxd companion that turns your watchlist into something you actually finish.**
 
-No account. No server-side database. No Docker. Your watchlist, drafts, and history live entirely in _this browser_ — install it, use it offline, and it's still there tomorrow.
+No account. No server-side database. No Docker. Your watchlist, drafts, and history live entirely on your device — install it, use it offline, and it's still there tomorrow.
 
 ---
 
@@ -19,20 +19,6 @@ You've got a Letterboxd watchlist with 400 films on it and you're never going to
 | 📊 **Stats**                         | Genre and decade breakdowns, average watchlist age, and more — built from whatever data it actually has.                                                                                                                         |
 | 🖼️ **Optional metadata**             | Posters, genres, runtime, ratings — fetched from [TMDB](https://www.themoviedb.org/) only when you ask, cached forever after. Everything else works with zero internet.                                                          |
 | 💾 **Real backups**                  | Export your whole profile to a single file, move it to a new device, or keep it as a safety copy. Nothing lives on a server to lose.                                                                                             |
-
----
-
-## Getting started
-
-You'll need [Node.js](https://nodejs.org) v20+.
-
-```bash
-corepack enable   # one-time, if you've never used pnpm before
-pnpm install
-pnpm dev
-```
-
-Open **[http://localhost:3000](http://localhost:3000)**. That's it — no database to start, no account to create, no internet connection required beyond the very first load.
 
 ---
 
@@ -72,86 +58,95 @@ The Drafts tab then becomes your dashboard: a countdown, a progress bar, and the
 
 - **Stats** — the bigger picture, whenever you want it.
 - **Settings → Metadata** — fetch posters/genres/runtime for films that don't have them yet, or refresh old ones. Nothing reaches the internet unless you click one of these buttons.
+- **Settings → Updates** — FDraft checks for new versions on launch and asks before installing anything; turn this off here if you'd rather check manually.
 - **Settings → Data & Backups** — export your whole profile to a file, or bring one back in on a new device. Replacing an existing profile always downloads a safety copy first and asks you to confirm.
 
 For the full walkthrough — profiles, backup/restore details, offline behavior — see **[local_setup.md](./local_setup.md)**.
 
 ---
 
+## Get FDraft (Windows)
+
+1. Go to **[Releases](../../releases)** and download the newest `FDraft_<version>_Setup.exe`.
+2. Run it and install — no Node, no Docker, nothing else needed.
+3. Open FDraft from the Start Menu.
+
+Windows may show an "unrecognized app" (SmartScreen) warning on first run, since the installer isn't code-signed. This is expected for a small, privately-distributed app — not a sign anything's broken. Click **More info → Run anyway**.
+
+Once installed, FDraft checks for new versions itself and asks before updating — see **Settings → Updates**.
+
+---
+
 ## Development
 
+You'll need [Node.js](https://nodejs.org) v20+.
+
 ```bash
-pnpm dev          # start the dev server
-pnpm build        # production build (also generates the PWA service worker — see serwist.config.mjs)
-pnpm start        # run the production build
+corepack enable   # one-time, if you've never used pnpm before
+pnpm install
+pnpm dev          # start the dev server → http://localhost:3000
+```
+
+Other useful commands:
+
+```bash
+pnpm build        # production build
 pnpm test         # unit/integration tests (Vitest)
-pnpm test:e2e     # end-to-end tests (Playwright), including offline scenarios
+pnpm test:e2e     # end-to-end tests (Playwright)
 pnpm lint         # ESLint
 pnpm typecheck    # strict TypeScript, no emit
 pnpm format       # Prettier, writes changes
 ```
 
-An optional `TMDB_API_KEY` (see `.env.example`) enables film metadata enrichment. Without it, imports work exactly the same, just without posters/genres/runtime until a key is configured later.
+An optional `TMDB_API_KEY` (see `.env.example`) enables film metadata enrichment. Without it, imports work the same, just without posters/genres/runtime until a key is configured.
 
 ### Desktop (Tauri)
 
-FDraft also ships as a Windows desktop app via [Tauri 2](https://v2.tauri.app) — same codebase, same local-first behavior, no bundled server.
+FDraft also ships as a Windows desktop app via [Tauri 2](https://v2.tauri.app) — same codebase, no bundled server.
 
 Prerequisite beyond Node.js: [Rust](https://www.rust-lang.org/tools/install) (via `rustup`). On Windows you'll also need the WebView2 runtime (preinstalled on modern Windows) and the Visual Studio Build Tools' "Desktop development with C++" workload.
 
 ```bash
-pnpm run desktop:dev   # same `pnpm dev` server, opened in a native window — hot reload works as usual
+pnpm run desktop:dev     # same dev server, opened in a native window — hot reload works as usual
+pnpm run desktop:build   # production Windows installer, for a local sanity check
 ```
 
-`src-tauri/` holds the Rust shell. The desktop build's only real difference from the browser is metadata fetching — see `src/application/metadata/tauri-metadata-transport.ts` — since a packaged desktop app has no server to hide `TMDB_API_KEY` behind; everything else (IndexedDB, imports, drafts, offline behavior) is unchanged.
-
-### Build
-
-```bash
-pnpm run desktop:build   # production Windows installer (FDraft_<version>_Setup.exe) — Windows only; see "Release" below
-```
-
-Real, distributable Windows installers are only ever produced by the [GitHub Actions release workflow](.github/workflows/release.yml) (a genuine Windows build environment). Running `desktop:build` yourself works for a local sanity check, but producing a _signed updater artifact_ requires `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to also be set in your own shell — see "Updater secrets" below.
+Real, distributable installers only ever come from the [GitHub Actions release workflow](.github/workflows/release.yml) (a genuine Windows build environment) — see "Release" below.
 
 ### Release
 
-FDraft checks for updates on launch and offers them in-app (Settings → Updates); see `src/components/updates/`. To ship a new version:
+1. Make your changes, merge them.
+2. `pnpm format && pnpm lint && pnpm typecheck && pnpm test`.
+3. Bump `version` in `package.json` — the one source of truth (`pnpm run sync-desktop-version` copies it everywhere else it needs to live).
+4. Commit, then `git tag v1.1.0` (must match `package.json`'s version) and `git push --tags`.
+5. GitHub Actions builds the signed Windows installer and opens a **draft** GitHub Release.
+6. Add short, user-friendly release notes to the draft (this is what FDraft's update dialog shows people) and publish it.
+7. Installed copies with "Automatically check for updates" on pick it up on their next launch.
 
-1. Make your changes and merge them.
-2. Run the full check locally: `pnpm format && pnpm lint && pnpm typecheck && pnpm test`.
-3. Bump `version` in `package.json` (the one source of truth — `pnpm run sync-desktop-version` copies it into `src-tauri/tauri.conf.json`/`Cargo.toml`; the release workflow also runs this automatically).
-4. Commit, then tag: `git tag v1.1.0` (must match `package.json`'s version exactly).
-5. `git push --tags`.
-6. GitHub Actions builds the Windows installer + signed updater artifacts and opens a **draft** GitHub Release.
-7. Edit the draft's release notes (short and user-friendly — this text is what FDraft's update dialog shows) and publish it.
-8. Existing installs on "Automatically check for updates" pick it up on their next launch.
+#### Release secrets (one-time setup)
 
-#### Updater secrets
+The release workflow needs three repository secrets before it can build and publish anything — add them at **your repo → Settings → Secrets and variables → Actions → New repository secret**. Never commit their values anywhere, including here.
 
-The release workflow needs these repository secrets (**Settings → Secrets and variables → Actions**) — never commit their values:
+| Name                                 | What it is                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `TAURI_SIGNING_PRIVATE_KEY`          | The updater's private signing key. Proves a downloaded update genuinely came from this project.           |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password protecting the key above.                                                                        |
+| `TMDB_API_KEY`                       | The same key from your local `.env.local` — baked into the release binary so installs can fetch metadata. |
 
-| Secret                               | Purpose                                                                                                                                                                                                                             |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TAURI_SIGNING_PRIVATE_KEY`          | The updater's private signing key (generated once via `tauri signer generate`). Proves a downloaded update genuinely came from this project — installs refuse anything signed with a different key.                                 |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password protecting the private key above.                                                                                                                                                                                          |
-| `TMDB_API_KEY`                       | Baked into the release binary at compile time (see `src-tauri/src/lib.rs`'s `get_tmdb_api_key`) so a packaged install can fetch metadata without shipping a `.env` file. The same key already in your `.env.local` works fine here. |
+The matching public key is already committed in `src-tauri/tauri.conf.json`, so nothing needs regenerating — you just need to paste the private key/password into GitHub as secrets. `GITHUB_TOKEN` needs no setup; GitHub provides it automatically.
 
-`GITHUB_TOKEN` is provided automatically by GitHub Actions — nothing to configure. Windows Authenticode/publisher code signing is explicitly out of scope for Version 1 (see `docs/product-spec.md`); an unsigned installer will trigger a Windows SmartScreen "unrecognized app" warning, which is expected and not a broken build — see "Distribution" below.
+Once all three are added, pushing a version tag (step 4 above) builds and publishes a real release.
 
-### Distribution
-
-For friends: **GitHub Releases → download the `FDraft_<version>_Setup.exe` asset → run it → install.** No Node, no Docker, no backend — it's a normal Windows installer. Future updates are offered inside FDraft itself once installed.
-
-Because the installer isn't Authenticode-signed (out of scope for Version 1), Windows SmartScreen may show an "unrecognized app" warning on first run — this is expected for a small, privately-distributed installer, not a sign of a broken or malicious build. There's no way to remove this warning without paid code signing, and this README won't walk through disabling Windows security to bypass it.
+---
 
 ## Architecture at a glance
 
 - **Storage**: Dexie/IndexedDB, entirely client-side (`src/infrastructure/local-db/`). No server-side database.
 - **Domain/application/repository layers**: `src/domain/`, `src/application/`, `src/repositories/` — pure, storage-agnostic business logic sitting behind a `Repositories` interface.
-- **Metadata transport**: `src/application/metadata/remote-metadata-client.ts` picks the transport at runtime — `src/app/api/metadata/route.ts` (a thin TMDB proxy) in the browser, `tauri-metadata-transport.ts` (Tauri's HTTP plugin, run from Rust) on desktop. Nothing else in the app talks to a server or knows which runtime it's in.
-- **PWA**: `src/app/manifest.ts` and `src/app/sw.ts` (built via [Serwist](https://serwist.pages.dev)) make the browser build installable and give it a cached offline application shell — see `serwist.config.mjs`. Disabled in the desktop build, which doesn't need it (see `src/app/layout.tsx`).
+- **Metadata transport**: `src/application/metadata/remote-metadata-client.ts` picks the transport at runtime — `src/app/api/metadata/route.ts` (a thin TMDB proxy) in the browser, `tauri-metadata-transport.ts` (Tauri's HTTP plugin, run from Rust) on desktop.
+- **PWA**: `src/app/manifest.ts` and `src/app/sw.ts` (via [Serwist](https://serwist.pages.dev)) make the browser build installable with an offline shell — see `serwist.config.mjs`. Disabled in the desktop build, which doesn't need it.
 - **Desktop shell**: `src-tauri/` (Tauri 2) — see "Desktop (Tauri)" above.
-- **Updates**: `src/components/updates/` (state machine + UI), `src/application/updates/tauri-updater.ts` (the only module touching `@tauri-apps/plugin-updater`), `src/domain/updates/update-check-policy.ts` (pure check-frequency rule). Desktop-only, checks GitHub Releases, always asks before installing — see "Release" above.
-- **Backup/restore**: `src/domain/backup/`, `src/application/backup/` — a versioned, portable export/import format for moving a profile between devices (including between the browser and desktop builds).
+- **Updates**: `src/components/updates/` (state machine + UI), `src/application/updates/tauri-updater.ts`, `src/domain/updates/update-check-policy.ts`. Desktop-only, checks GitHub Releases, always asks before installing.
+- **Backup/restore**: `src/domain/backup/`, `src/application/backup/` — a versioned, portable export/import format for moving a profile between devices.
 
 `docs/product-spec.md` is the authoritative source of truth for product requirements and architecture decisions, including its implementation log of what shipped in each phase.
