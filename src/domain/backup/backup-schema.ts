@@ -103,9 +103,20 @@ export const draftDifficultySchema = z.enum([
   "freeform",
 ]);
 export const draftTimeModeSchema = z.enum(["calendar", "timer"]);
-export const draftStatusSchema = z.enum(["active", "expired", "archived"]);
+export const draftStatusSchema = z.enum([
+  "active",
+  "expired",
+  "archived",
+  "discarded",
+]);
 export const draftChallengeModeSchema = z.enum(["choose", "decide"]).nullable();
 export const draftItemSourceSchema = z.enum(["random", "challenge"]);
+export const pointCurrencySchema = z.enum([
+  "lifetime",
+  "misery",
+  "signal",
+  "bounty",
+]);
 export const freeformRankSchema = z
   .enum(["below_baby", "baby", "easy", "medium", "hard", "hardcore"])
   .nullable();
@@ -368,6 +379,12 @@ export const backupSettingsEntrySchema = z.object({
   value: jsonValueSchema,
 });
 
+export const backupPointBalanceSchema = z.object({
+  currency: pointCurrencySchema,
+  total: z.number(),
+  updatedAt: isoDateTimeSchema,
+});
+
 // ---------------------------------------------------------------------------
 // The manifest + top-level v1 backup
 // ---------------------------------------------------------------------------
@@ -410,6 +427,12 @@ export const backupV1Schema = z.object({
   // reader treats a missing key the same as an empty list (there was
   // nothing unresolved to restore from that older export).
   unresolvedMetadata: boundedArray(backupUnresolvedMetadataSchema).optional(),
+  // `.default([])` (not `.optional()`) — a backup exported before event
+  // system Phase 4 has no such key either, and defaulting here (rather
+  // than at every read site) means every profile restored from one simply
+  // starts with every currency at 0, matching `PointsRepository.getBalance`'s
+  // own no-row-yet default exactly.
+  pointBalances: boundedArray(backupPointBalanceSchema).default([]),
 });
 export type BackupV1 = z.infer<typeof backupV1Schema>;
 

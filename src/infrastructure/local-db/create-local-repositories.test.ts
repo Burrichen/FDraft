@@ -107,4 +107,40 @@ describe("createLocalRepositories (real fake-indexeddb, not mocked)", () => {
     const all = await repos.watchlist.listAllEntries("alex");
     expect(all).toHaveLength(2);
   });
+
+  it("wires a working points repository — currencies default to 0 and persist independently", async () => {
+    db = new FDraftLocalDatabase(`test-db-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+
+    expect(await repos.points.getBalance("alex", "lifetime")).toBe(0);
+    expect(await repos.points.getAllBalances("alex")).toEqual({
+      lifetime: 0,
+      misery: 0,
+      signal: 0,
+      bounty: 0,
+    });
+
+    await repos.points.setBalance({
+      profileId: "alex",
+      currency: "lifetime",
+      total: 3,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await repos.points.setBalance({
+      profileId: "alex",
+      currency: "misery",
+      total: 7,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(await repos.points.getBalance("alex", "lifetime")).toBe(3);
+    expect(await repos.points.getBalance("alex", "misery")).toBe(7);
+    expect(await repos.points.getBalance("alex", "signal")).toBe(0);
+    expect(await repos.points.getAllBalances("alex")).toEqual({
+      lifetime: 3,
+      misery: 7,
+      signal: 0,
+      bounty: 0,
+    });
+  });
 });

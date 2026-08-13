@@ -3,6 +3,7 @@ import type { DataErasureRepository } from "./data-erasure-repository";
 import type { DraftRepository } from "./draft-repository";
 import type { FilmRepository } from "./film-repository";
 import type { HistoryRepository } from "./history-repository";
+import type { PointsRepository } from "./points-repository";
 import type { ProfileRepository } from "./profile-repository";
 import type { SettingsRepository } from "./settings-repository";
 import type { UnresolvedMetadataRepository } from "./unresolved-metadata-repository";
@@ -28,6 +29,8 @@ export type {
   ImportStatus,
   MetadataMatchMethod,
   MetadataResolutionStatus,
+  PointBalanceRecord,
+  PointCurrency,
   PostmortemResponseType,
   SelectionWeightAdjustmentRecord,
   UnresolvedMetadataRecord,
@@ -47,6 +50,7 @@ export type { DataErasureRepository } from "./data-erasure-repository";
 export type { DraftRepository } from "./draft-repository";
 export type { FilmRepository } from "./film-repository";
 export type { HistoryRepository } from "./history-repository";
+export type { PointsRepository } from "./points-repository";
 export type { ProfileRepository } from "./profile-repository";
 export type { SettingsRepository } from "./settings-repository";
 export type { UnresolvedMetadataRepository } from "./unresolved-metadata-repository";
@@ -66,6 +70,7 @@ export interface Repositories {
   drafts: DraftRepository;
   history: HistoryRepository;
   settings: SettingsRepository;
+  points: PointsRepository;
   dataErasure: DataErasureRepository;
   backupRestore: BackupRestoreRepository;
   unresolvedMetadata: UnresolvedMetadataRepository;

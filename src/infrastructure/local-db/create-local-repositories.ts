@@ -5,6 +5,7 @@ import { FDraftLocalDatabase } from "./database";
 import { LocalDraftRepository } from "./draft-repository";
 import { LocalFilmRepository } from "./film-repository";
 import { LocalHistoryRepository } from "./history-repository";
+import { LocalPointsRepository } from "./points-repository";
 import { LocalProfileRepository } from "./profile-repository";
 import { LocalSettingsRepository } from "./settings-repository";
 import { LocalUnresolvedMetadataRepository } from "./unresolved-metadata-repository";
@@ -29,6 +30,7 @@ export function createLocalRepositories(
     drafts: new LocalDraftRepository(db),
     history: new LocalHistoryRepository(db),
     settings: new LocalSettingsRepository(db),
+    points: new LocalPointsRepository(db),
     dataErasure: new LocalDataErasureRepository(db),
     backupRestore: new LocalBackupRestoreRepository(db),
     unresolvedMetadata: new LocalUnresolvedMetadataRepository(db),

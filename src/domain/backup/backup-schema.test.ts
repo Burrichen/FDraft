@@ -36,6 +36,7 @@ function minimalBackup(): BackupV1 {
     draftPostmortemResponses: [],
     selectionWeightAdjustments: [],
     settings: [],
+    pointBalances: [],
   };
 }
 

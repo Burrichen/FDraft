@@ -148,6 +148,7 @@ describe("applySchema — migration mechanism (synthetic schema, independent of 
         "drafts",
         "filmMetadata",
         "films",
+        "pointBalances",
         "profiles",
         "selectionWeightAdjustments",
         "settings",

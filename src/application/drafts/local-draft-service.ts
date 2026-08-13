@@ -2,6 +2,7 @@ import {
   fetchLocalChallengeCandidates,
   fetchLocalChallengeWatchedFilms,
 } from "@/application/drafts/local-fetch-context";
+import { awardDraftCompletionReward } from "@/application/events/draft-completion-reward";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
 import {
   attemptChosenChallenges,
@@ -24,6 +25,7 @@ import {
 } from "@/domain/drafts/difficulty";
 import { calculateFreeformRank } from "@/domain/drafts/freeform";
 import type { DraftConfigInput } from "@/domain/drafts/schemas";
+import { GENERIC_POINT_CURRENCY } from "@/domain/events/point-currency";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { createDefaultRng, type Rng } from "@/domain/shared/rng";
 import { pickRandomFilms } from "@/domain/watchlist/random-pick";
@@ -31,6 +33,7 @@ import { SystemClock, type Clock } from "@/domain/time/clock";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type { FilmRepository } from "@/repositories/film-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
+import type { PointsRepository } from "@/repositories/points-repository";
 import type {
   DraftItemRecord,
   DraftPostmortemResponseRecord,
@@ -466,10 +469,17 @@ export async function archiveLocalDraftIfResolved(
 ): Promise<boolean> {
   const clock = deps.clock ?? new SystemClock();
   const draft = await repos.drafts.getById(params.profileId, params.draftId);
-  if (!draft || draft.status === "archived") {
+  if (!draft || draft.status === "archived" || draft.status === "discarded") {
     return false;
   }
 
+  // The `"discarded"` half of that guard matters for a real race: marking
+  // this draft's last film watched (which calls this function) can be
+  // in flight at the same moment the Say Goodbye screen's "Say Goodbye"
+  // button discards it (see `settleAndDiscardLocalDraft`) — without it, a
+  // discarded draft could be resurrected back to `"archived"` the moment
+  // this function's own `updateDraft` call below ran.
+  //
   // This guard is also where a future event-reward step would hang its own
   // idempotency check (`draft.rewardsGrantedAt`) before this function's own
   // `updateDraft` call below sets `status: "archived"` — no such step
@@ -503,6 +513,76 @@ export async function archiveLocalDraftIfResolved(
     freeformAchievedRank,
     updatedAt: clock.now().toISOString(),
   });
+  return true;
+}
+
+/**
+ * Ends a draft the profile is letting go of for an event transition (see
+ * docs/product-spec.md, event system Phase 3, "SAY GOODBYE") — NOT a
+ * normal completion. Unlike `archiveLocalDraftIfResolved`, this never
+ * requires every item to be resolved first: whatever's still unwatched
+ * when this runs is simply left that way, and `status` becomes
+ * `"discarded"`, not `"archived"`. `sourceEventId` is never touched — the
+ * outgoing draft stays exactly whichever draft it always was.
+ *
+ * If the draft already reached a terminal state on its own before this
+ * ran (e.g. the profile watched every remaining film during the Say
+ * Goodbye screen, which auto-archives via the normal
+ * `archiveLocalDraftIfResolved` path through `markLocalFilmWatched`), its
+ * status is left exactly as is — only rewards get settled, never
+ * downgraded from `"archived"` to `"discarded"`.
+ *
+ * Idempotent the same way `archiveLocalDraftIfResolved` is: a draft
+ * already terminal with rewards already granted is untouched, returning
+ * `false`. `rewardsGrantedAt` is the same generic, currency-agnostic
+ * completion-reward guard Phase 1 added — this is its first real caller;
+ * it grants no event-specific currency, only marks the timestamp.
+ */
+export async function settleAndDiscardLocalDraft(
+  repos: LifecycleRepos & { points: PointsRepository },
+  params: { profileId: string; draftId: string },
+  deps: { clock?: Clock } = {},
+): Promise<boolean> {
+  const clock = deps.clock ?? new SystemClock();
+  const draft = await repos.drafts.getById(params.profileId, params.draftId);
+  if (!draft) {
+    return false;
+  }
+
+  const isTerminal =
+    draft.status === "archived" || draft.status === "discarded";
+  if (isTerminal && draft.rewardsGrantedAt) {
+    return false;
+  }
+
+  if (!isTerminal) {
+    const now = clock.now().toISOString();
+    await repos.drafts.updateDraft({
+      ...draft,
+      status: "discarded",
+      completedAt: draft.completedAt ?? now,
+      updatedAt: now,
+    });
+  }
+
+  // Say Goodbye always closes out the draft being LET GO OF for an event
+  // transition — never the incoming event's own draft (see
+  // `confirmSayGoodbye`) — so this never passes an `eventContext`: it
+  // always awards the generic/Lifetime currency outright, satisfying "Say
+  // Goodbye awards no event-specific currency" unconditionally rather than
+  // relying on the manual-event downgrade rule to happen to produce that
+  // result. Reuses the one centralized reward path (see
+  // `awardDraftCompletionReward`) instead of setting `rewardsGrantedAt`
+  // inline here itself.
+  await awardDraftCompletionReward(
+    repos,
+    {
+      profileId: params.profileId,
+      draftId: params.draftId,
+      reward: { currency: GENERIC_POINT_CURRENCY, amount: 0 },
+    },
+    { clock },
+  );
   return true;
 }
 

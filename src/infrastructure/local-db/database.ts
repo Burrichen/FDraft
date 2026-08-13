@@ -8,6 +8,7 @@ import type {
   DraftRecord,
   FilmMetadataRecord,
   FilmRecord,
+  PointBalanceRecord,
   SelectionWeightAdjustmentRecord,
   UnresolvedMetadataRecord,
   UserRatingRecord,
@@ -52,6 +53,7 @@ export class FDraftLocalDatabase extends Dexie {
   selectionWeightAdjustments!: Table<SelectionWeightAdjustmentRecord, string>;
   settings!: Table<SettingsRow, [string, string]>;
   unresolvedMetadata!: Table<UnresolvedMetadataRecord, string>;
+  pointBalances!: Table<PointBalanceRecord, [string, string]>;
 
   constructor(name = "fdraft") {
     super(name);

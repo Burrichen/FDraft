@@ -20,6 +20,7 @@ export class LocalDataErasureRepository implements DataErasureRepository {
         this.db.draftPostmortemResponses,
         this.db.selectionWeightAdjustments,
         this.db.settings,
+        this.db.pointBalances,
       ],
       async () => {
         const entryIds = await this.db.watchlistEntries
@@ -68,6 +69,10 @@ export class LocalDataErasureRepository implements DataErasureRepository {
           .delete();
         await this.db.userRatings.where("profileId").equals(profileId).delete();
         await this.db.settings.where("profileId").equals(profileId).delete();
+        await this.db.pointBalances
+          .where("profileId")
+          .equals(profileId)
+          .delete();
         await this.db.profiles.delete(profileId);
       },
     );

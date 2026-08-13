@@ -16,6 +16,7 @@ import type {
   DraftRecord,
   FilmMetadataRecord,
   FilmRecord,
+  PointBalanceRecord,
   SelectionWeightAdjustmentRecord,
   UnresolvedMetadataRecord,
   UserRatingRecord,
@@ -59,6 +60,7 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
       this.db.selectionWeightAdjustments,
       this.db.settings,
       this.db.unresolvedMetadata,
+      this.db.pointBalances,
     ];
   }
 
@@ -337,6 +339,16 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
         value: entry.value,
       };
       await this.db.settings.put(row);
+    }
+
+    for (const balance of backup.pointBalances) {
+      const row: PointBalanceRecord = {
+        profileId: targetProfileId,
+        currency: balance.currency,
+        total: balance.total,
+        updatedAt: balance.updatedAt,
+      };
+      await this.db.pointBalances.put(row);
     }
   }
 

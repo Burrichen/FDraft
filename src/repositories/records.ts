@@ -16,7 +16,15 @@
 export type DraftDifficulty =
   "baby" | "easy" | "medium" | "hard" | "hardcore" | "freeform";
 export type DraftTimeMode = "calendar" | "timer";
-export type DraftStatus = "active" | "expired" | "archived";
+/**
+ * `"discarded"`: the profile let go of this draft without completing it —
+ * currently only reachable via the event system's "Say Goodbye" flow (see
+ * docs/product-spec.md, event system Phase 3), never through normal
+ * drafting. Distinct from `"archived"`, which means every item was
+ * actually resolved (watched or answered) — a discarded draft can have
+ * unresolved items.
+ */
+export type DraftStatus = "active" | "expired" | "archived" | "discarded";
 export type DraftChallengeMode = "choose" | "decide";
 export type DraftItemSource = "random" | "challenge";
 export type FreeformRank =
@@ -30,6 +38,8 @@ export type ImportSource = "csv" | "zip";
 export type ImportStatus = "pending" | "completed" | "failed";
 export type WatchlistRemovalReason =
   "watched" | "postmortem_not_interested" | "manual";
+/** See `src/domain/events/point-currency.ts`. */
+export type PointCurrency = "lifetime" | "misery" | "signal" | "bounty";
 export type WatchedHistorySource =
   "app_watchlist_action" | "import_diary" | "import_watched";
 /** See `src/domain/metadata/match-method.ts` — always read through `resolveMatchMethod()`, never trusted raw (a record from before this field existed has no such property at all). */
@@ -248,4 +258,21 @@ export interface SelectionWeightAdjustmentRecord {
   delta: number;
   reason: string;
   createdAt: string;
+}
+
+/**
+ * A profile's running total for one permanent point currency (see
+ * docs/product-spec.md, event system Phase 4). One row per (profileId,
+ * currency) — that compound pair is this record's natural identity, so
+ * unlike most records here there's no separate `id`, the same convention
+ * `SettingsRow` (`src/infrastructure/local-db/database.ts`) already uses
+ * for its own `[profileId+key]`-keyed table. A profile with no row yet for
+ * a given currency has a balance of 0, not a missing/undefined state — see
+ * `PointsRepository.getBalance`.
+ */
+export interface PointBalanceRecord {
+  profileId: string;
+  currency: PointCurrency;
+  total: number;
+  updatedAt: string;
 }

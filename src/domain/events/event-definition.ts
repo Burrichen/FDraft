@@ -1,3 +1,5 @@
+import type { PointCurrency } from "./point-currency";
+
 /**
  * The shape a real event will eventually be described by (see
  * docs/product-spec.md, event system Phase 2: "one engine instead of
@@ -40,8 +42,8 @@ export interface EventDefinition {
   availability: EventAvailability;
   draftRules: EventDraftRules;
   eligibilityRules: EventEligibilityRules;
-  /** This event's own permanent currency identifier, or `null` if it only ever awards generic/Lifetime Points. */
-  pointType: string | null;
+  /** This event's own permanent currency, or `null` if it only ever awards generic/Lifetime Points (see the event system's CRITICAL RULE, enforced centrally by `awardDraftCompletionReward`, not here). */
+  pointType: PointCurrency | null;
   /** Identifier for a visual theme a later phase will define and apply — `null` for no theme. */
   visualTheme: string | null;
   /** Whether a profile can opt into this event manually via `EventSettings.manuallyEnabledEvents`, independent of `availability`. */

@@ -112,6 +112,15 @@ export async function buildProfileBackup(
     value: value as BackupV1["settings"][number]["value"],
   }));
 
+  const pointBalanceRecords = await repos.points.listBalances(profileId);
+  const pointBalances = pointBalanceRecords.map(
+    ({ currency, total, updatedAt }) => ({
+      currency,
+      total,
+      updatedAt,
+    }),
+  );
+
   // Only films this profile's own records actually reference — see the
   // doc comment above for why this isn't "every film in the local catalog".
   const referencedFilmIds = new Set<string>();
@@ -185,6 +194,7 @@ export async function buildProfileBackup(
     selectionWeightAdjustments,
     settings,
     unresolvedMetadata,
+    pointBalances,
   };
 }
 

@@ -169,6 +169,34 @@ export const SCHEMA_MIGRATIONS: SchemaVersion[] = [
       unresolvedMetadata: "id, &filmId, status",
     },
   },
+  {
+    // Adds `pointBalances` — see docs/product-spec.md, event system Phase
+    // 4. A brand-new, empty store (no upgrade callback needed): every
+    // existing profile simply has no rows yet, and `PointsRepository.
+    // getBalance` already treats a missing row as a balance of 0.
+    // `[profileId+currency]` is the primary key (no separate `id`) — the
+    // same "compound key, no synthetic id" convention `settings` already
+    // uses for its own `[profileId+key]`.
+    version: 5,
+    stores: {
+      profiles: "id",
+      films: "id, letterboxdSlug, [title+releaseYear]",
+      filmMetadata: "id, filmId, [filmId+provider]",
+      watchlistEntries: "id, profileId, filmId, [profileId+filmId]",
+      watchlistImports: "id, profileId, status",
+      watchedHistory: "id, profileId, watchlistEntryId, filmId",
+      userRatings: "id, [profileId+filmId], profileId",
+      drafts: "id, profileId, [profileId+status]",
+      draftItems: "id, draftId, watchlistEntryId",
+      draftChallengeAttempts: "id, draftId",
+      draftChallengeInteractions: "id, draftId, [draftId+challengeId], status",
+      draftPostmortemResponses: "id, &draftItemId, draftId",
+      selectionWeightAdjustments: "id, watchlistEntryId",
+      settings: "[profileId+key], profileId",
+      unresolvedMetadata: "id, &filmId, status",
+      pointBalances: "[profileId+currency], profileId",
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.at(-1)!.version;

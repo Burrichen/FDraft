@@ -69,6 +69,12 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         createdAt: "2026-01-01T00:00:00.000Z",
       });
       await repos.settings.set(profileId, "reducedMotion", true);
+      await repos.points.setBalance({
+        profileId,
+        currency: "lifetime",
+        total: 5,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      });
 
       await repos.drafts.createDraft({
         id: `draft-${profileId}`,
@@ -133,6 +139,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
     expect(await repos.drafts.listArchived(PROFILE_ID)).toHaveLength(0);
     expect(await repos.history.listWatchedHistory(PROFILE_ID)).toHaveLength(0);
     expect(await repos.settings.getAll(PROFILE_ID)).toEqual({});
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(0);
     expect(await repos.drafts.getItemById(`item-${PROFILE_ID}`)).toBeNull();
     expect(
       await repos.history.getPostmortemResponseForItem(`item-${PROFILE_ID}`),
@@ -153,6 +160,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
     expect(await repos.settings.getAll(OTHER_PROFILE_ID)).toEqual({
       reducedMotion: true,
     });
+    expect(await repos.points.getBalance(OTHER_PROFILE_ID, "lifetime")).toBe(5);
     expect(
       await repos.drafts.getItemById(`item-${OTHER_PROFILE_ID}`),
     ).not.toBeNull();
