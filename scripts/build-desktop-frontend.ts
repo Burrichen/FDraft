@@ -53,6 +53,10 @@ try {
   const result = spawnSync("pnpm", ["exec", "next", "build"], {
     cwd: ROOT,
     stdio: "inherit",
+    // On Windows, `pnpm` resolves to a `.cmd` shim — spawnSync can't launch
+    // those directly without a shell, and fails silently (no output, no
+    // next build banner) rather than actually running the build.
+    shell: process.platform === "win32",
     env: { ...process.env, NEXT_PUBLIC_TAURI: "1" },
   });
   if (result.status !== 0) {
