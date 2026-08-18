@@ -7,6 +7,11 @@ import {
   settleAndDiscardLocalDraft,
   submitLocalPostmortemResponse,
 } from "@/application/drafts/local-draft-service";
+import {
+  HALLOWEEN_EVENT_ID,
+  SIGNAL_FROM_BEYOND_EVENT_ID,
+  WATCHLIST_FRONTIER_EVENT_ID,
+} from "@/domain/events/event-registry";
 import { createSeededRng } from "@/domain/shared/rng";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -47,6 +52,65 @@ async function seedActiveFilms(repos: Repositories, count: number) {
     entryIds.push(entryId);
   }
   return entryIds;
+}
+
+/** Seeds one active watchlist film tagged with the given genres — for eligibility rules that key off `genres` (e.g. The Watchlist Frontier's `requiredGenres: ["Western"]`), unlike `seedActiveFilms`'s films, which carry no metadata at all. */
+async function seedActiveFilmWithGenres(
+  repos: Repositories,
+  filmId: string,
+  genres: string[],
+) {
+  await repos.films.create({
+    id: filmId,
+    title: filmId,
+    releaseYear: 2020,
+    letterboxdSlug: filmId,
+    letterboxdUri: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  await repos.films.upsertMetadata({
+    id: `${filmId}-meta`,
+    filmId,
+    provider: "tmdb",
+    posterUrl: null,
+    runtimeMinutes: null,
+    genres,
+    directors: null,
+    countries: null,
+    languages: null,
+    collectionId: null,
+    collectionName: null,
+    collectionOrder: null,
+    averageRating: null,
+    popularity: null,
+    watchCount: null,
+    fansCount: null,
+    listAppearances: null,
+    externalIds: null,
+    raw: null,
+    matchMethod: "automatic",
+    lastEnrichedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const entryId = `entry-${filmId}`;
+  await repos.watchlist.createEntry({
+    id: entryId,
+    profileId: PROFILE_ID,
+    filmId,
+    dateAdded: "2026-01-01",
+    position: 0,
+    isActive: true,
+    selectionWeight: 1,
+    importSource: null,
+    importId: null,
+    removedAt: null,
+    removedReason: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  return entryId;
 }
 
 describe("createLocalDraft", () => {
@@ -236,6 +300,345 @@ describe("createLocalDraft", () => {
   });
 });
 
+describe("createLocalDraft — Halloween-owned draft (event system Phase 6)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("normal Halloween eligibility: no curated data is configured yet, so the full normal watchlist stays eligible", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 5);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 5,
+        challengeCount: 0,
+      },
+      sourceEventId: HALLOWEEN_EVENT_ID,
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(5);
+  });
+
+  it("persists sourceEventId on the draft, surviving a fresh repository read (reload)", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+      sourceEventId: HALLOWEEN_EVENT_ID,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    // A fresh repository/database instance against the same underlying
+    // storage — simulates reloading the app rather than reading back the
+    // in-memory object this same call just created.
+    const reloadedDb = new FDraftLocalDatabase(db.name);
+    const reloadedRepos = createLocalRepositories(reloadedDb);
+    const reloaded = await reloadedRepos.drafts.getById(
+      PROFILE_ID,
+      outcome.draftId,
+    );
+    expect(reloaded?.sourceEventId).toBe(HALLOWEEN_EVENT_ID);
+    await reloadedDb.close();
+  });
+
+  // The "bare {} placeholder never throws" case this used to cover via
+  // F_YOU_ITS_JANUARY no longer applies now that January has a real
+  // eligibilityRules shape (see docs/updates, "JANUARY ELIGIBILITY
+  // RULES") — that generic `{}` safety is unit-tested directly in
+  // `event-eligibility.test.ts` ("no rules configured at all"), and
+  // Halloween's own explicit `{requiredGenres: null, curatedFilmIds:
+  // null}` safety is already proven by this describe block's other tests
+  // above (e.g. the 5-item draft creation test).
+});
+
+describe("createLocalDraft — The Watchlist Frontier-owned draft (event system Phase 7)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("normal Western qualifies: only Western-genre films are drawn, unrelated genres are excluded", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilmWithGenres(repos, "western-1", ["Western"]);
+    await seedActiveFilmWithGenres(repos, "western-2", ["Western", "Drama"]);
+    await seedActiveFilmWithGenres(repos, "comedy-1", ["Comedy"]);
+    await seedActiveFilmWithGenres(repos, "drama-1", ["Drama"]);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
+      sourceEventId: WATCHLIST_FRONTIER_EVENT_ID,
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((item) => item.filmId))).toEqual(
+      new Set(["western-1", "western-2"]),
+    );
+  });
+
+  it("fails with not_enough_films when fewer Western/curated films are eligible than requested — an unrelated watchlist doesn't silently pad the pool", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilmWithGenres(repos, "western-1", ["Western"]);
+    await seedActiveFilmWithGenres(repos, "comedy-1", ["Comedy"]);
+    await seedActiveFilmWithGenres(repos, "drama-1", ["Drama"]);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
+      sourceEventId: WATCHLIST_FRONTIER_EVENT_ID,
+    });
+
+    expect(outcome).toEqual({
+      ok: false,
+      error: "not_enough_films",
+      message: expect.any(String),
+    });
+  });
+
+  it("persists sourceEventId on the draft, surviving a fresh repository read (reload)", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilmWithGenres(repos, "western-1", ["Western"]);
+    await seedActiveFilmWithGenres(repos, "western-2", ["Western"]);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
+      sourceEventId: WATCHLIST_FRONTIER_EVENT_ID,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const reloadedDb = new FDraftLocalDatabase(db.name);
+    const reloadedRepos = createLocalRepositories(reloadedDb);
+    const reloaded = await reloadedRepos.drafts.getById(
+      PROFILE_ID,
+      outcome.draftId,
+    );
+    expect(reloaded?.sourceEventId).toBe(WATCHLIST_FRONTIER_EVENT_ID);
+    await reloadedDb.close();
+  });
+});
+
+describe("createLocalDraft — Signal from Beyond-owned draft (event system Phase 6)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("ordinary sci-fi film qualifies: only Science Fiction-genre films are drawn, unrelated genres are excluded", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilmWithGenres(repos, "scifi-1", ["Science Fiction"]);
+    await seedActiveFilmWithGenres(repos, "scifi-2", [
+      "Science Fiction",
+      "Adventure",
+    ]);
+    await seedActiveFilmWithGenres(repos, "comedy-1", ["Comedy"]);
+    await seedActiveFilmWithGenres(repos, "drama-1", ["Drama"]);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
+      sourceEventId: SIGNAL_FROM_BEYOND_EVENT_ID,
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((item) => item.filmId))).toEqual(
+      new Set(["scifi-1", "scifi-2"]),
+    );
+  });
+
+  it("fails with not_enough_films when fewer sci-fi/whitelisted films are eligible than requested — an unrelated watchlist doesn't silently pad the pool", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilmWithGenres(repos, "scifi-1", ["Science Fiction"]);
+    await seedActiveFilmWithGenres(repos, "comedy-1", ["Comedy"]);
+    await seedActiveFilmWithGenres(repos, "drama-1", ["Drama"]);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
+      sourceEventId: SIGNAL_FROM_BEYOND_EVENT_ID,
+    });
+
+    expect(outcome).toEqual({
+      ok: false,
+      error: "not_enough_films",
+      message: expect.any(String),
+    });
+  });
+
+  it("event draft survives reload: sourceEventId persists across a fresh repository read", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilmWithGenres(repos, "scifi-1", ["Science Fiction"]);
+    await seedActiveFilmWithGenres(repos, "scifi-2", ["Science Fiction"]);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
+      sourceEventId: SIGNAL_FROM_BEYOND_EVENT_ID,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const reloadedDb = new FDraftLocalDatabase(db.name);
+    const reloadedRepos = createLocalRepositories(reloadedDb);
+    const reloaded = await reloadedRepos.drafts.getById(
+      PROFILE_ID,
+      outcome.draftId,
+    );
+    expect(reloaded?.sourceEventId).toBe(SIGNAL_FROM_BEYOND_EVENT_ID);
+    await reloadedDb.close();
+  });
+});
+
+describe("createLocalDraft — sourceEventManuallyEnabled persistence (event system Phase 10)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  async function createOne(
+    repos: Repositories,
+    overrides: {
+      sourceEventId?: string | null;
+      sourceEventManuallyEnabled?: boolean | null;
+    },
+  ) {
+    await seedActiveFilmWithGenres(repos, "scifi-1", ["Science Fiction"]);
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+      ...overrides,
+    });
+    if (!outcome.ok) throw new Error("unreachable — draft creation failed");
+    return outcome.draftId;
+  }
+
+  it("captures an explicit true at creation and it survives a fresh repository read (reload)", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const draftId = await createOne(repos, {
+      sourceEventId: SIGNAL_FROM_BEYOND_EVENT_ID,
+      sourceEventManuallyEnabled: true,
+    });
+
+    const reloadedDb = new FDraftLocalDatabase(db.name);
+    const reloadedRepos = createLocalRepositories(reloadedDb);
+    const reloaded = await reloadedRepos.drafts.getById(PROFILE_ID, draftId);
+    expect(reloaded?.sourceEventManuallyEnabled).toBe(true);
+    await reloadedDb.close();
+  });
+
+  it("captures an explicit false at creation just as durably as true", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const draftId = await createOne(repos, {
+      sourceEventId: SIGNAL_FROM_BEYOND_EVENT_ID,
+      sourceEventManuallyEnabled: false,
+    });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, draftId);
+    expect(draft?.sourceEventManuallyEnabled).toBe(false);
+  });
+
+  it("defaults to null when an event-sourced draft's caller omits it (legacy call site)", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const draftId = await createOne(repos, {
+      sourceEventId: SIGNAL_FROM_BEYOND_EVENT_ID,
+    });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, draftId);
+    expect(draft?.sourceEventManuallyEnabled).toBeNull();
+  });
+
+  it("is forced to null for a normal, non-event draft even if a caller mistakenly passes true", async () => {
+    db = new FDraftLocalDatabase(`draft-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const draftId = await createOne(repos, {
+      sourceEventId: null,
+      sourceEventManuallyEnabled: true,
+    });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, draftId);
+    expect(draft?.sourceEventId).toBeNull();
+    expect(draft?.sourceEventManuallyEnabled).toBeNull();
+  });
+});
+
 describe("expireLocalDraftIfDue", () => {
   let db: FDraftLocalDatabase;
   afterEach(async () => {
@@ -263,6 +666,7 @@ describe("expireLocalDraftIfDue", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -398,6 +802,7 @@ describe("submitLocalPostmortemResponse + archiveLocalDraftIfResolved", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -741,6 +1146,7 @@ describe("settleAndDiscardLocalDraft", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -843,15 +1249,21 @@ describe("settleAndDiscardLocalDraft", () => {
     });
     expect(archived).toBe(true);
 
+    // archiveLocalDraftIfResolved itself already granted the reward as
+    // part of this normal completion (see event system Phase 5) — so
+    // settleAndDiscardLocalDraft now finds nothing left to do.
+    const draftAfterArchive = await repos.drafts.getById(PROFILE_ID, "draft-1");
+    expect(draftAfterArchive?.rewardsGrantedAt).not.toBeNull();
+
     const result = await settleAndDiscardLocalDraft(repos, {
       profileId: PROFILE_ID,
       draftId: "draft-1",
     });
-    expect(result).toBe(true); // rewards weren't granted yet
+    expect(result).toBe(false);
 
     const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
     expect(draft?.status).toBe("archived"); // never downgraded to discarded
-    expect(draft?.rewardsGrantedAt).not.toBeNull();
+    expect(draft?.rewardsGrantedAt).toBe(draftAfterArchive?.rewardsGrantedAt);
   });
 
   it("returns false for a draft that doesn't exist", async () => {

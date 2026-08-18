@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { resolveDraftCompletionReward } from "@/application/events/draft-completion-reward";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
 import { migrateFromSupabaseExport } from "./migrate-from-supabase-export";
@@ -182,6 +183,19 @@ describe("migrateFromSupabaseExport", () => {
       isCompleted: true,
       watchedHistoryId: "history-1",
     });
+
+    // Event system Phase 10 old-save compatibility: a Supabase-era draft
+    // predates the entire event system — both fields must default safely
+    // and the reward resolver must treat it as a normal, non-event draft
+    // rather than crashing on the missing event-system fields.
+    const migratedDraft = await repos.drafts.getById("user-123", "draft-1");
+    expect(migratedDraft?.sourceEventId).toBeNull();
+    expect(migratedDraft?.sourceEventManuallyEnabled).toBeNull();
+    const reward = await resolveDraftCompletionReward(repos, {
+      profileId: "user-123",
+      draft: migratedDraft!,
+    });
+    expect(reward).toEqual({ currency: "lifetime", amount: 1 });
   });
 
   it("migrated data is fully isolated under its new profile id — no leakage to an unrelated profile", async () => {

@@ -3,11 +3,13 @@
 import { Check, Circle, History } from "lucide-react";
 import { useState } from "react";
 import { listRecentlyWatchedFilms } from "@/application/history/recently-watched";
+import { getEventSettings } from "@/application/events/event-settings-store";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
 import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { HistoricalDraftSortControl } from "@/components/drafts/historical-draft-sort-control";
 import { RecentlyWatchedSection } from "@/components/drafts/recently-watched-section";
+import { EventPresentationBadge } from "@/components/events/event-presentation-badge";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Badge } from "@/components/ui/badge";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
@@ -69,6 +71,10 @@ export default function DraftHistoryPage() {
       repositories,
       activeProfile.id,
     );
+    const eventSettings = await getEventSettings(
+      repositories,
+      activeProfile.id,
+    );
 
     const drafts = await repositories.drafts.listArchived(activeProfile.id);
     // One lookup for the whole profile's watched history, reused across
@@ -125,7 +131,11 @@ export default function DraftHistoryPage() {
       }),
     );
 
-    return { recentlyWatched, previousDrafts };
+    return {
+      recentlyWatched,
+      previousDrafts,
+      eventVisualsEnabled: eventSettings.eventVisualsEnabled,
+    };
   }, [activeProfile?.id, repositories]);
 
   if (!activeProfile) {
@@ -165,6 +175,7 @@ export default function DraftHistoryPage() {
                 key={draft.id}
                 draft={draft}
                 items={items}
+                eventVisualsEnabled={data.eventVisualsEnabled}
               />
             ))}
           </ul>
@@ -194,9 +205,11 @@ export default function DraftHistoryPage() {
 function HistoricalDraftEntry({
   draft,
   items,
+  eventVisualsEnabled,
 }: {
   draft: DraftRecord;
   items: HistoricalDraftItemView[];
+  eventVisualsEnabled: boolean;
 }) {
   const [sort, setSort] = useState<HistoricalDraftSortOption>(
     DEFAULT_HISTORICAL_DRAFT_SORT,
@@ -233,7 +246,11 @@ function HistoricalDraftEntry({
                 <Badge variant="secondary" className="ml-2 align-middle">
                   Achieved: {FREEFORM_RANK_LABELS[draft.freeformAchievedRank]}
                 </Badge>
-              ) : null}
+              ) : null}{" "}
+              <EventPresentationBadge
+                sourceEventId={draft.sourceEventId}
+                eventVisualsEnabled={eventVisualsEnabled}
+              />
             </p>
             <p className="text-muted-foreground text-xs">
               {TIME_MODE_LABELS[draft.timeMode]} ·{" "}

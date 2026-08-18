@@ -1,4 +1,5 @@
 import { createLocalDraft } from "@/application/drafts/local-draft-service";
+import { getEventSettings } from "@/application/events/event-settings-store";
 import { draftConfigInputSchema } from "@/domain/drafts/schemas";
 import type { Repositories } from "@/repositories";
 
@@ -58,10 +59,32 @@ export async function createDraftAction(
     };
   }
 
+  // A new draft is tagged with whichever event is currently active for
+  // this profile (see docs/product-spec.md, event system Phase 5) —
+  // reusing this exact, unmodified draft-creation flow rather than a
+  // separate "event draft" path; normal FDraft drafting/eligibility
+  // applies unchanged either way.
+  const eventSettings = await getEventSettings(
+    context.repositories,
+    context.profileId,
+  );
+  const sourceEventId = eventSettings.eventsEnabled
+    ? eventSettings.activeEvent
+    : null;
+  // Captured once, now, so a later change to `manuallyEnabledEvents` (e.g.
+  // opting into a different event, or this one's availability window
+  // changing) can never retroactively alter which currency THIS draft's
+  // completion awards (see docs/product-spec.md, event system Phase 10).
+  const sourceEventManuallyEnabled = sourceEventId
+    ? eventSettings.manuallyEnabledEvents.includes(sourceEventId)
+    : null;
+
   const outcome = await createLocalDraft(context.repositories, {
     profileId: context.profileId,
     timezone: context.timezone,
     config: parsed.data,
+    sourceEventId,
+    sourceEventManuallyEnabled,
   });
 
   if (!outcome.ok) {

@@ -8,18 +8,20 @@ import type {
 import type { FDraftLocalDatabase } from "./database";
 
 /**
- * A draft written before `sourceEventId`/`rewardsGrantedAt` existed has
- * neither property at all (Dexie/IndexedDB don't enforce a schema on
- * non-indexed fields — see `schema.ts`'s note on `matchMethod` for the
- * same situation) — normalize to their sensible defaults at the one
- * chokepoint every read passes through, so nothing downstream ever has to
- * treat `undefined` as a third state alongside `string | null`.
+ * A draft written before `sourceEventId`/`rewardsGrantedAt`/
+ * `sourceEventManuallyEnabled` existed has none of those properties at all
+ * (Dexie/IndexedDB don't enforce a schema on non-indexed fields — see
+ * `schema.ts`'s note on `matchMethod` for the same situation) — normalize
+ * to their sensible defaults at the one chokepoint every read passes
+ * through, so nothing downstream ever has to treat `undefined` as a third
+ * state alongside `string | null`/`boolean | null`.
  */
 function normalizeDraft(draft: DraftRecord): DraftRecord {
   return {
     ...draft,
     sourceEventId: draft.sourceEventId ?? null,
     rewardsGrantedAt: draft.rewardsGrantedAt ?? null,
+    sourceEventManuallyEnabled: draft.sourceEventManuallyEnabled ?? null,
   };
 }
 

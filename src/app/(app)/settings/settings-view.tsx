@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { DataBackupSection } from "./data-backup-section";
 import { DefaultPageSection } from "./default-page-section";
 import { EventSwitcherSection } from "./event-switcher-section";
+import { JanuaryManifestSection } from "./january-manifest-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
 import { UpdatesSection } from "./updates-section";
@@ -101,6 +102,8 @@ export function SettingsView() {
       <MetadataSection />
 
       <EventSwitcherSection />
+
+      <JanuaryManifestSection />
 
       <UpdatesSection />
 

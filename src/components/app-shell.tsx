@@ -3,6 +3,8 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
+import { refreshJanuaryManifest } from "@/application/events/january-manifest-service";
+import { EventIntroDialog } from "@/components/events/event-intro-dialog";
 import { Header } from "@/components/layout/header";
 import { FirstRunScreen } from "@/components/profiles/first-run-screen";
 import { ProfilePicker } from "@/components/profiles/profile-picker";
@@ -14,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/updates/update-dialog";
 import { UpdateProvider } from "@/components/updates/update-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
+import { LocalStorageEventManifestCacheStore } from "@/infrastructure/events/event-manifest-cache-store";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
 /**
@@ -28,7 +31,8 @@ import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/per
  *  - otherwise -> the real app, immediately, no extra screen in the way.
  */
 function AppShellContent({ children }: { children: ReactNode }) {
-  const { activeProfile, profiles, initError, retryInit } = useProfileContext();
+  const { activeProfile, profiles, initError, retryInit, repositories } =
+    useProfileContext();
 
   // Only once a real profile is active — never on the bare first-run
   // screen (see docs/product-spec.md, "BROWSER STORAGE PERSISTENCE":
@@ -39,6 +43,22 @@ function AppShellContent({ children }: { children: ReactNode }) {
     if (!activeProfile) return;
     void new BrowserPersistentStorageRequester().requestOnce();
   }, [activeProfile]);
+
+  // Once per app session, independent of which (if any) profile is active
+  // — films/their metadata are installation-wide, not per-profile (see
+  // `film-repository.ts`), and re-running this on every profile switch
+  // would be wasteful for a question that has nothing to do with which
+  // profile is active (same rationale as the update checker). Never
+  // blocks render and never throws — see `refreshJanuaryManifest`'s own
+  // doc comment (docs/updates, "Remote manifest failure must NEVER
+  // prevent FDraft starting").
+  useEffect(() => {
+    void refreshJanuaryManifest({
+      cacheStore: new LocalStorageEventManifestCacheStore(),
+      films: repositories.films,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (initError) {
     // IndexedDB itself failed to open — Firefox private browsing, Safari
@@ -97,6 +117,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     // `{children}` (the routed page) rather than inside any one page, so
     // navigating between pages never resets it — only a hard reload does.
     <WatchUndoProvider key={activeProfile.id}>
+      <EventIntroDialog key={activeProfile.id} />
       <div className="flex min-h-full flex-col">
         <Header activeProfile={activeProfile} profiles={profiles} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">

@@ -3,6 +3,9 @@ import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
+import { isEventAvailable } from "@/domain/events/event-availability";
+import type { EventDefinition } from "@/domain/events/event-definition";
+import { EVENT_DEFINITIONS } from "@/domain/events/event-registry";
 import type { Clock } from "@/domain/time/clock";
 import { SystemClock } from "@/domain/time/clock";
 import type { DraftRepository } from "@/repositories/draft-repository";
@@ -19,26 +22,120 @@ type EventOptInRepos = {
   points: PointsRepository;
 };
 
+/**
+ * Which event a click of the Settings "Events" toggle actually opts into —
+ * the naturally-available one, if any (see `isEventAvailable`), otherwise
+ * the first one that allows manual activation. No event name/id appears
+ * here; this is data-driven from `EVENT_DEFINITIONS` alone, so a second
+ * future event slots in without touching this function. `null` only when
+ * the registry has nothing eligible at all (empty, or every entry forbids
+ * manual activation while none is naturally available).
+ *
+ * `requestedEventId`, when given, opts into THAT specific event instead of
+ * auto-picking one (see docs/product-spec.md, event system Phase 10 audit:
+ * every registered event currently allows manual activation, so the
+ * auto-pick fallback below always resolves to the first entry in
+ * `EVENT_DEFINITIONS` — meaning Halloween/The Watchlist Frontier/Signal
+ * from Beyond were completely unreachable through Settings' own "Opt In"
+ * button, which displays a SPECIFIC event's name but, without this
+ * parameter, always activated whichever event this function auto-picked
+ * instead — silently diverging from what was shown). Still resolves
+ * `manuallyEnabled` the same way: `false` only if the requested event is
+ * naturally available right now, `true` otherwise — and `null` (fails
+ * safely, same as an empty registry) for a stale/unknown id or one that
+ * isn't naturally available and doesn't allow manual activation.
+ */
+function resolveEventToOptInto(
+  now: Date,
+  timezone: string,
+  requestedEventId?: string,
+): { event: EventDefinition; manuallyEnabled: boolean } | null {
+  if (requestedEventId) {
+    const requested = EVENT_DEFINITIONS.find(
+      (event) => event.id === requestedEventId,
+    );
+    if (!requested) {
+      return null;
+    }
+    const naturallyAvailable = isEventAvailable(
+      requested.availability,
+      now,
+      timezone,
+    );
+    if (!naturallyAvailable && !requested.manualActivationAllowed) {
+      return null;
+    }
+    return { event: requested, manuallyEnabled: !naturallyAvailable };
+  }
+
+  const naturallyAvailable = EVENT_DEFINITIONS.find((event) =>
+    isEventAvailable(event.availability, now, timezone),
+  );
+  if (naturallyAvailable) {
+    return { event: naturallyAvailable, manuallyEnabled: false };
+  }
+  const manualCandidate = EVENT_DEFINITIONS.find(
+    (event) => event.manualActivationAllowed,
+  );
+  return manualCandidate
+    ? { event: manualCandidate, manuallyEnabled: true }
+    : null;
+}
+
 export type BeginEventOptInResult =
-  { needsSayGoodbye: false } | { needsSayGoodbye: true; activeDraftId: string };
+  | { needsSayGoodbye: false; eventId: string | null }
+  | {
+      needsSayGoodbye: true;
+      activeDraftId: string;
+      eventId: string;
+      manuallyEnabled: boolean;
+    };
 
 /**
  * The entry point for "opt into full event participation" (see
- * docs/product-spec.md, event system Phase 3, "SAY GOODBYE"): never
- * immediately overwrites an active draft. With no active draft, this
- * applies the opt-in immediately — the existing, unchanged path. With one,
- * it applies NOTHING yet and reports back which draft the Say Goodbye
- * screen needs to show; the opt-in itself only completes once the caller
+ * docs/product-spec.md, event system Phase 3, "SAY GOODBYE" and Phase 5):
+ * never immediately overwrites an active draft. With no active draft,
+ * this applies the opt-in immediately — the existing, unchanged path
+ * (still a no-op if the registry has nothing eligible, exactly as before
+ * any real event existed). With one, it applies NOTHING yet and reports
+ * back which draft the Say Goodbye screen needs to show, and which event
+ * opting in resolved to; the opt-in itself only completes once the caller
  * runs `confirmSayGoodbye`.
+ *
+ * `eventId`, when given, targets that SPECIFIC event (see
+ * `resolveEventToOptInto`'s doc comment) — every caller that already
+ * displays a specific event's name next to its own "Opt In" button (the
+ * Settings available-event notice, the event introduction modal) passes
+ * its id here, rather than trusting auto-pick to land on the same one it
+ * displayed. Omitted only for the generic "Events" switch, which has no
+ * specific event in mind and keeps the existing auto-pick behaviour.
  */
 export async function beginEventOptIn(
   repos: EventOptInRepos,
-  params: { profileId: string },
+  params: { profileId: string; timezone: string; eventId?: string },
+  deps: { clock?: Clock } = {},
 ): Promise<BeginEventOptInResult> {
+  const clock = deps.clock ?? new SystemClock();
+  const candidate = resolveEventToOptInto(
+    clock.now(),
+    params.timezone,
+    params.eventId,
+  );
   const hasActiveDraft = await repos.drafts.hasActiveDraft(params.profileId);
+
   if (!hasActiveDraft) {
-    await applyEventOptIn(repos, params);
-    return { needsSayGoodbye: false };
+    if (candidate) {
+      await applyEventOptIn(repos, {
+        profileId: params.profileId,
+        eventId: candidate.event.id,
+        manuallyEnabled: candidate.manuallyEnabled,
+      });
+    }
+    return { needsSayGoodbye: false, eventId: candidate?.event.id ?? null };
+  }
+
+  if (!candidate) {
+    return { needsSayGoodbye: false, eventId: null };
   }
 
   const activeDraft = await repos.drafts.getActiveOrExpiredDraft(
@@ -47,18 +144,29 @@ export async function beginEventOptIn(
   // hasActiveDraft just confirmed a status:"active" draft exists for this
   // profile, so getActiveOrExpiredDraft (which also considers "expired")
   // is guaranteed to find at least that one.
-  return { needsSayGoodbye: true, activeDraftId: activeDraft!.id };
+  return {
+    needsSayGoodbye: true,
+    activeDraftId: activeDraft!.id,
+    eventId: candidate.event.id,
+    manuallyEnabled: candidate.manuallyEnabled,
+  };
 }
 
 /** The actual event-settings mutation "opting in" performs — shared by the no-active-draft path above and `confirmSayGoodbye` below, so there is exactly one place this write happens. */
 export async function applyEventOptIn(
   repos: { settings: SettingsRepository },
-  params: { profileId: string },
+  params: { profileId: string; eventId: string; manuallyEnabled: boolean },
 ): Promise<void> {
   const current = await getEventSettings(repos, params.profileId);
   await setEventSettings(repos, params.profileId, {
     ...current,
     eventsEnabled: true,
+    activeEvent: params.eventId,
+    manuallyEnabledEvents:
+      params.manuallyEnabled &&
+      !current.manuallyEnabledEvents.includes(params.eventId)
+        ? [...current.manuallyEnabledEvents, params.eventId]
+        : current.manuallyEnabledEvents,
   });
 }
 
@@ -71,7 +179,12 @@ export async function applyEventOptIn(
  */
 export async function confirmSayGoodbye(
   repos: EventOptInRepos,
-  params: { profileId: string; draftId: string },
+  params: {
+    profileId: string;
+    draftId: string;
+    eventId: string;
+    manuallyEnabled: boolean;
+  },
   deps: { clock?: Clock } = {},
 ): Promise<void> {
   const clock = deps.clock ?? new SystemClock();
@@ -80,5 +193,9 @@ export async function confirmSayGoodbye(
     { profileId: params.profileId, draftId: params.draftId },
     { clock },
   );
-  await applyEventOptIn(repos, { profileId: params.profileId });
+  await applyEventOptIn(repos, {
+    profileId: params.profileId,
+    eventId: params.eventId,
+    manuallyEnabled: params.manuallyEnabled,
+  });
 }

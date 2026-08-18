@@ -160,6 +160,7 @@ describe("markLocalFilmWatched", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -198,6 +199,114 @@ describe("markLocalFilmWatched", () => {
     expect(item?.watchedHistoryId).not.toBeNull();
   });
 
+  it("completes the ACTIVE draft's item, not a discarded draft's permanently-incomplete item for the same watchlist entry (see event system Phase 3, SAY GOODBYE)", async () => {
+    db = new FDraftLocalDatabase(`mark-watched-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entry = await seedFilmAndEntry(repos);
+
+    // A draft the profile said goodbye to — its item for this same
+    // watchlist entry stays incomplete forever (see
+    // settleAndDiscardLocalDraft), unlike a normally archived draft.
+    const discardedDraft: DraftRecord = {
+      id: "draft-discarded",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "discarded",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      deadlineAt: "2026-02-01T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: "2026-01-05T00:00:00.000Z",
+      freeformAchievedRank: null,
+      sourceEventId: null,
+      sourceEventManuallyEnabled: null,
+      rewardsGrantedAt: "2026-01-05T00:00:00.000Z",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-05T00:00:00.000Z",
+    };
+    await repos.drafts.createDraft(discardedDraft);
+    await repos.drafts.createItems([
+      {
+        id: "item-discarded",
+        draftId: discardedDraft.id,
+        filmId: entry.filmId,
+        watchlistEntryId: entry.id,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    // The real active draft — created AFTER the discard, referencing the
+    // very same watchlist entry (the profile's watchlist wasn't touched
+    // by the discard, so a new draft can freely draw from it again).
+    const activeDraft: DraftRecord = {
+      id: "draft-active",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "active",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-01-06T00:00:00.000Z",
+      deadlineAt: "2026-02-06T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: null,
+      freeformAchievedRank: null,
+      sourceEventId: "f-you-its-january",
+      sourceEventManuallyEnabled: false,
+      rewardsGrantedAt: null,
+      createdAt: "2026-01-06T00:00:00.000Z",
+      updatedAt: "2026-01-06T00:00:00.000Z",
+    };
+    await repos.drafts.createDraft(activeDraft);
+    await repos.drafts.createItems([
+      {
+        id: "item-active",
+        draftId: activeDraft.id,
+        filmId: entry.filmId,
+        watchlistEntryId: entry.id,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        createdAt: "2026-01-06T00:00:00.000Z",
+      },
+    ]);
+
+    const outcome = await markLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      watchlistEntryId: entry.id,
+      profileTimezone: "UTC",
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.draftItemId).toBe("item-active");
+      expect(outcome.draftId).toBe("draft-active");
+    }
+
+    const activeItem = await repos.drafts.getItemById("item-active");
+    expect(activeItem?.isCompleted).toBe(true);
+    const discardedItem = await repos.drafts.getItemById("item-discarded");
+    expect(discardedItem?.isCompleted).toBe(false); // untouched
+  });
+
   it("archives the draft when marking watched completes its last remaining item (completed early)", async () => {
     db = new FDraftLocalDatabase(`mark-watched-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
@@ -219,6 +328,7 @@ describe("markLocalFilmWatched", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -278,6 +388,7 @@ describe("markLocalFilmWatched", () => {
       completedAt: "2025-02-01T00:00:00.000Z",
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2025-01-01T00:00:00.000Z",
       updatedAt: "2025-01-01T00:00:00.000Z",
@@ -437,6 +548,7 @@ describe("undoLocalFilmWatched", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -519,6 +631,7 @@ describe("undoLocalFilmWatched", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -579,6 +692,91 @@ describe("undoLocalFilmWatched", () => {
     expect(reenteredWatchlist?.isActive).toBe(true);
   });
 
+  it("audit fix: undoing an early-completion also reverses the reward it granted, so a later re-completion does not award it twice", async () => {
+    db = new FDraftLocalDatabase(`undo-watched-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entry = await seedFilmAndEntry(repos);
+
+    const draft: DraftRecord = {
+      id: "draft-1",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "active",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      deadlineAt: "2026-02-01T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: null,
+      freeformAchievedRank: null,
+      sourceEventId: null,
+      sourceEventManuallyEnabled: null,
+      rewardsGrantedAt: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await repos.drafts.createDraft(draft);
+    await repos.drafts.createItems([
+      {
+        id: "item-1",
+        draftId: draft.id,
+        filmId: entry.filmId,
+        watchlistEntryId: entry.id,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    const firstOutcome = await markLocalFilmWatched(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        watchlistEntryId: entry.id,
+        profileTimezone: "UTC",
+      },
+      { archiveIfResolved: archiveLocalDraftIfResolved },
+    );
+    const firstRecord = recordFromOutcome(firstOutcome);
+    expect(firstRecord.draftArchivedByThisAction).toBe(true);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+
+    const undoResult = await undoLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      record: firstRecord,
+    });
+    expect(undoResult).toEqual({ ok: true });
+    // The reward that archival granted must be reversed, not just the
+    // draft's own rewardsGrantedAt flag cleared.
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(0);
+    const revertedDraft = await repos.drafts.getById(PROFILE_ID, draft.id);
+    expect(revertedDraft?.rewardsGrantedAt).toBeNull();
+
+    // Re-completing the exact same draft must award the reward exactly
+    // once more — not stack on top of a reward that was never reversed.
+    const secondOutcome = await markLocalFilmWatched(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        watchlistEntryId: entry.id,
+        profileTimezone: "UTC",
+      },
+      { archiveIfResolved: archiveLocalDraftIfResolved },
+    );
+    const secondRecord = recordFromOutcome(secondOutcome);
+    expect(secondRecord.draftArchivedByThisAction).toBe(true);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+  });
+
   it("does not revert a draft item that was completed by a different action than the one recorded", async () => {
     db = new FDraftLocalDatabase(`undo-watched-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
@@ -600,6 +798,7 @@ describe("undoLocalFilmWatched", () => {
       completedAt: null,
       freeformAchievedRank: null,
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",

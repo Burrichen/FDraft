@@ -178,6 +178,7 @@ export async function migrateFromSupabaseExport(
       // The Supabase-era data model predates the event system entirely —
       // every migrated draft is, by definition, a normal one.
       sourceEventId: null,
+      sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       createdAt: draft.created_at,
       updatedAt: draft.updated_at,

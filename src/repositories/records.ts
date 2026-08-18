@@ -190,6 +190,18 @@ export interface DraftRecord {
   /** The event that generated this draft, if any (see docs/product-spec.md, upcoming event system) — `null` for a normal, non-event draft. Never set or read by anything shipped so far; Phase 1 plumbing only. */
   sourceEventId: string | null;
   /**
+   * Whether `sourceEventId` was manually enabled (see
+   * `EventSettings.manuallyEnabledEvents`) at the moment THIS draft was
+   * created, captured once and never recomputed (see docs/product-spec.md,
+   * event system Phase 10: "the reward destination must be based on the
+   * persisted activation context of that draft, not whatever the user's
+   * current settings happen to be at completion time"). `null` for a
+   * normal, non-event draft, OR for a draft created before this field
+   * existed — `resolveDraftCompletionReward` falls back to re-deriving it
+   * from current settings only in that legacy case.
+   */
+  sourceEventManuallyEnabled: boolean | null;
+  /**
    * ISO 8601 timestamp of when this draft's completion rewards were
    * granted, or `null` if they never have been — the persisted guard
    * against granting the same draft's rewards twice (e.g. a retried or

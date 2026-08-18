@@ -308,12 +308,16 @@ export const backupDraftSchema = z.object({
   timezone: z.string().trim().min(1).max(100),
   completedAt: nullableIsoDateTimeSchema,
   freeformAchievedRank: freeformRankSchema,
-  // Both `.default(null)` — a backup exported before these fields existed
-  // has neither key at all; defaulting here means it still restores
-  // instead of failing to parse (see the other pre-existing-field notes in
-  // this file, e.g. `matchMethod`'s comment above).
+  // All three `.default(null)` — a backup exported before these fields
+  // existed has none of these keys at all; defaulting here means it still
+  // restores instead of failing to parse (see the other pre-existing-field
+  // notes in this file, e.g. `matchMethod`'s comment above).
   sourceEventId: nullableIdSchema.default(null),
   rewardsGrantedAt: nullableIsoDateTimeSchema.default(null),
+  // See docs/product-spec.md, event system Phase 10 — a backup exported
+  // before this field existed defaults to `null`, the same "re-derive from
+  // current settings" legacy fallback `resolveDraftCompletionReward` uses.
+  sourceEventManuallyEnabled: z.boolean().nullable().default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

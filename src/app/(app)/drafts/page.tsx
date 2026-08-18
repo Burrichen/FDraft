@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { expireLocalDraftIfDue } from "@/application/drafts/local-draft-service";
+import { getEventSettings } from "@/application/events/event-settings-store";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
 import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
@@ -16,6 +17,7 @@ import {
   PostmortemItem,
   type PostmortemItemView,
 } from "@/components/drafts/postmortem-item";
+import { EventPresentationBadge } from "@/components/events/event-presentation-badge";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
@@ -74,7 +76,15 @@ export default function DraftsPage() {
           }
         }
       }
-      if (!draftRecord) return { draft: null } as const;
+      const eventSettings = await getEventSettings(
+        repositories,
+        activeProfile.id,
+      );
+      if (!draftRecord)
+        return {
+          draft: null,
+          eventVisualsEnabled: eventSettings.eventVisualsEnabled,
+        } as const;
 
       let status = draftRecord.status;
       if (status === "active") {
@@ -130,7 +140,13 @@ export default function DraftsPage() {
         };
       });
 
-      return { draft, items, filmCards, answeredItemIds } as const;
+      return {
+        draft,
+        items,
+        filmCards,
+        answeredItemIds,
+        eventVisualsEnabled: eventSettings.eventVisualsEnabled,
+      } as const;
     }, [activeProfile?.id, repositories]);
 
   // Keeps `filmCards`/`items` genuinely fresh after every mark-watched or
@@ -202,7 +218,8 @@ export default function DraftsPage() {
     );
   }
 
-  const { draft, items, filmCards, answeredItemIds } = data;
+  const { draft, items, filmCards, answeredItemIds, eventVisualsEnabled } =
+    data;
   const deadlineLabel = new Date(draft.deadlineAt).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -233,8 +250,12 @@ export default function DraftsPage() {
     return (
       <div className="max-w-2xl space-y-6">
         <div>
-          <h1 className="page-heading">
+          <h1 className="page-heading flex flex-wrap items-center gap-2">
             {DIFFICULTIES[draft.difficulty].label} draft — expired
+            <EventPresentationBadge
+              sourceEventId={draft.sourceEventId}
+              eventVisualsEnabled={eventVisualsEnabled}
+            />
           </h1>
           <p className="page-subtitle">
             {watchedFilms.length}/{items.length} films completed · deadline was{" "}
@@ -309,8 +330,12 @@ export default function DraftsPage() {
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="page-heading">
+          <h1 className="page-heading flex flex-wrap items-center gap-2">
             {DIFFICULTIES[draft.difficulty].label} draft
+            <EventPresentationBadge
+              sourceEventId={draft.sourceEventId}
+              eventVisualsEnabled={eventVisualsEnabled}
+            />
           </h1>
           <p className="page-subtitle">
             {unresolvedChallengeCount > 0

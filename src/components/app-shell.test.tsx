@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/app-shell";
 import { ProfileService } from "@/application/profiles/profile-service";
 
@@ -12,10 +12,22 @@ import { ProfileService } from "@/application/profiles/profile-service";
  * local profile exists yet.
  */
 describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
+  // AppShell fires a one-shot January manifest refresh on mount (see
+  // `january-manifest-service.ts`) — stubbed here so this suite never
+  // makes a real network call; the fallback behaviour that stub exercises
+  // is itself covered by `january-manifest-service.test.ts`.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("no network in tests")),
+    );
+  });
+
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("first launch: shows the first-run screen, never a login page", async () => {

@@ -2,7 +2,10 @@ import {
   fetchLocalChallengeCandidates,
   fetchLocalChallengeWatchedFilms,
 } from "@/application/drafts/local-fetch-context";
-import { awardDraftCompletionReward } from "@/application/events/draft-completion-reward";
+import {
+  awardDraftCompletionReward,
+  resolveDraftCompletionReward,
+} from "@/application/events/draft-completion-reward";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
 import {
   attemptChosenChallenges,
@@ -25,6 +28,8 @@ import {
 } from "@/domain/drafts/difficulty";
 import { calculateFreeformRank } from "@/domain/drafts/freeform";
 import type { DraftConfigInput } from "@/domain/drafts/schemas";
+import { resolveEligibleCandidates } from "@/domain/events/event-eligibility";
+import { getEventDefinition } from "@/domain/events/event-registry";
 import { GENERIC_POINT_CURRENCY } from "@/domain/events/point-currency";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { createDefaultRng, type Rng } from "@/domain/shared/rng";
@@ -40,6 +45,7 @@ import type {
   DraftRecord,
   PostmortemResponseType,
 } from "@/repositories/records";
+import type { SettingsRepository } from "@/repositories/settings-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 
 type DraftRepos = {
@@ -52,6 +58,8 @@ type LifecycleRepos = {
   drafts: DraftRepository;
   watchlist: WatchlistRepository;
   history: HistoryRepository;
+  points: PointsRepository;
+  settings: SettingsRepository;
 };
 
 export type CreateLocalDraftErrorCode =
@@ -100,8 +108,20 @@ export async function createLocalDraft(
     profileId: string;
     timezone: string;
     config: DraftConfigInput;
-    /** The event that generated this draft, if any — `undefined`/omitted for a normal draft (see `DraftRecord.sourceEventId`). No caller passes this yet; the event system that will hasn't shipped. */
+    /** The event that generated this draft, if any — `undefined`/omitted for a normal draft (see `DraftRecord.sourceEventId`). When set, the candidate pool is narrowed through that event's own `eligibilityRules` first (see `resolveEligibleCandidates`). */
     sourceEventId?: string | null;
+    /**
+     * Whether `sourceEventId` was manually enabled at this exact moment
+     * (see `DraftRecord.sourceEventManuallyEnabled`) — the caller (which
+     * already reads `EventSettings` to resolve `sourceEventId` itself)
+     * captures this once, here, so a later settings change can never
+     * retroactively change which currency this draft's eventual completion
+     * awards. Ignored entirely when `sourceEventId` is absent; omitted for
+     * a call site that hasn't been updated for this falls back to `null`,
+     * which `resolveDraftCompletionReward` treats as "re-derive from
+     * current settings," the exact pre-Phase-10 behaviour.
+     */
+    sourceEventManuallyEnabled?: boolean | null;
   },
   deps: { idGenerator?: IdGenerator; clock?: Clock; rng?: Rng } = {},
 ): Promise<CreateLocalDraftOutcome> {
@@ -119,8 +139,8 @@ export async function createLocalDraft(
     };
   }
 
-  const candidates = await fetchLocalChallengeCandidates(repos, profileId);
-  if (candidates.length === 0) {
+  const rawCandidates = await fetchLocalChallengeCandidates(repos, profileId);
+  if (rawCandidates.length === 0) {
     return {
       ok: false,
       error: "empty_watchlist",
@@ -128,6 +148,22 @@ export async function createLocalDraft(
         "Your watchlist is empty — import some films before creating a draft.",
     };
   }
+
+  // Event-owned drafts (see docs/product-spec.md, event system Phase 6)
+  // narrow the candidate pool through their own `eligibilityRules` —
+  // entirely data-driven, no event id/name checked here (see
+  // `resolveEligibleCandidates`). A normal, non-event draft, or an event
+  // with no eligibility restriction configured (e.g. Halloween today —
+  // no curated data exists for it yet), gets the exact same unrestricted
+  // pool as before this existed. A restriction that filters the pool
+  // down to fewer films than the draft needs surfaces through the same
+  // `not_enough_films` check just below — no separate error path needed.
+  const event = params.sourceEventId
+    ? getEventDefinition(params.sourceEventId)
+    : null;
+  const candidates = event
+    ? resolveEligibleCandidates(rawCandidates, event.eligibilityRules)
+    : rawCandidates;
 
   const freeform = isFreeform(config.difficulty);
   const totalFilms = freeform
@@ -184,6 +220,9 @@ export async function createLocalDraft(
     completedAt: null,
     freeformAchievedRank: null,
     sourceEventId: params.sourceEventId ?? null,
+    sourceEventManuallyEnabled: params.sourceEventId
+      ? (params.sourceEventManuallyEnabled ?? null)
+      : null,
     rewardsGrantedAt: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -479,11 +518,6 @@ export async function archiveLocalDraftIfResolved(
   // button discards it (see `settleAndDiscardLocalDraft`) — without it, a
   // discarded draft could be resurrected back to `"archived"` the moment
   // this function's own `updateDraft` call below ran.
-  //
-  // This guard is also where a future event-reward step would hang its own
-  // idempotency check (`draft.rewardsGrantedAt`) before this function's own
-  // `updateDraft` call below sets `status: "archived"` — no such step
-  // exists yet, and this function does not touch `rewardsGrantedAt` today.
   const items = await repos.drafts.listItemsForDraft(params.draftId);
   const unresolvedItems = items.filter(
     (item): item is DraftItemRecord => !item.isCompleted,
@@ -513,6 +547,21 @@ export async function archiveLocalDraftIfResolved(
     freeformAchievedRank,
     updatedAt: clock.now().toISOString(),
   });
+
+  // Every real completion is rewarded through the one central path — see
+  // `resolveDraftCompletionReward` (decides which currency, based on this
+  // draft's `sourceEventId`, with no event-specific conditional living
+  // here) and `awardDraftCompletionReward` (the manual-event downgrade
+  // rule and the `rewardsGrantedAt` idempotency guard).
+  const reward = await resolveDraftCompletionReward(repos, {
+    profileId: params.profileId,
+    draft,
+  });
+  await awardDraftCompletionReward(
+    repos,
+    { profileId: params.profileId, draftId: params.draftId, reward },
+    { clock },
+  );
   return true;
 }
 
@@ -539,7 +588,7 @@ export async function archiveLocalDraftIfResolved(
  * it grants no event-specific currency, only marks the timestamp.
  */
 export async function settleAndDiscardLocalDraft(
-  repos: LifecycleRepos & { points: PointsRepository },
+  repos: LifecycleRepos,
   params: { profileId: string; draftId: string },
   deps: { clock?: Clock } = {},
 ): Promise<boolean> {

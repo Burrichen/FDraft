@@ -1,11 +1,17 @@
 import { formatInTimeZone } from "date-fns-tz";
+import {
+  resolveDraftCompletionReward,
+  resolveEffectiveRewardCurrency,
+} from "@/application/events/draft-completion-reward";
 import type { IdGenerator } from "@/domain/shared/id";
 import { defaultIdGenerator } from "@/domain/shared/id";
 import type { Clock } from "@/domain/time/clock";
 import { SystemClock } from "@/domain/time/clock";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
+import type { PointsRepository } from "@/repositories/points-repository";
 import type { WatchlistEntryRecord } from "@/repositories/records";
+import type { SettingsRepository } from "@/repositories/settings-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 import type { archiveLocalDraftIfResolved } from "@/application/drafts/local-draft-service";
 
@@ -73,6 +79,8 @@ export async function markLocalFilmWatched(
     watchlist: WatchlistRepository;
     drafts: DraftRepository;
     history: HistoryRepository;
+    points: PointsRepository;
+    settings: SettingsRepository;
   },
   params: {
     profileId: string;
@@ -180,6 +188,8 @@ export async function undoLocalFilmWatched(
     watchlist: WatchlistRepository;
     drafts: DraftRepository;
     history: HistoryRepository;
+    points: PointsRepository;
+    settings: SettingsRepository;
   },
   params: { profileId: string; record: WatchSessionUndoRecord },
   deps: { clock?: Clock } = {},
@@ -227,15 +237,47 @@ export async function undoLocalFilmWatched(
           record.draftId,
         );
         if (draft && draft.status === "archived") {
+          // Undoing the completion that archived this draft must also undo
+          // the reward that archival granted — merely clearing
+          // `rewardsGrantedAt` below would let a later re-completion award
+          // it a SECOND time without ever reversing the first (a genuine
+          // duplicate-reward bug: watch → auto-archive → reward → undo →
+          // re-watch → reward again, for one real completion). Recomputes
+          // the exact reward via `resolveDraftCompletionReward` — safe to
+          // recompute here because it resolves the SAME currency this
+          // draft was originally granted regardless of any settings change
+          // since (see the event system's persisted-activation-context
+          // rule, `DraftRecord.sourceEventManuallyEnabled`) — then reverses
+          // exactly that amount, clamped so a balance can never go
+          // negative. `resolveEffectiveRewardCurrency` re-applies the SAME
+          // manual-event downgrade `awardDraftCompletionReward` used when
+          // granting it, so a manually-enabled event's Lifetime-Points
+          // grant is reversed from `lifetime`, never its own (never
+          // actually credited) currency.
+          if (draft.rewardsGrantedAt) {
+            const reward = await resolveDraftCompletionReward(repos, {
+              profileId: params.profileId,
+              draft,
+            });
+            if (reward.amount !== 0) {
+              const currency = resolveEffectiveRewardCurrency(reward);
+              const currentTotal = await repos.points.getBalance(
+                params.profileId,
+                currency,
+              );
+              await repos.points.setBalance({
+                profileId: params.profileId,
+                currency,
+                total: Math.max(0, currentTotal - reward.amount),
+                updatedAt: now,
+              });
+            }
+          }
           await repos.drafts.updateDraft({
             ...draft,
             status: "active",
             completedAt: null,
             freeformAchievedRank: null,
-            // Undoing the completion that archived this draft must also
-            // undo any reward that archival granted — otherwise a later
-            // re-completion would find `rewardsGrantedAt` already set and
-            // skip granting it again.
             rewardsGrantedAt: null,
             updatedAt: now,
           });
@@ -258,19 +300,25 @@ async function completeMatchingActiveDraftItem(
     now: Date;
   },
 ): Promise<string | null> {
-  const items = await repos.drafts.findItemsByWatchlistEntryId(
-    params.watchlistEntryId,
-  );
-  const incompleteItem = items.find((item) => !item.isCompleted);
-  if (!incompleteItem) {
+  const draft = await repos.drafts.getActiveOrExpiredDraft(params.profileId);
+  if (!draft || draft.status !== "active") {
     return null;
   }
 
-  const draft = await repos.drafts.getById(
-    params.profileId,
-    incompleteItem.draftId,
+  // Scoped to THIS profile's one active draft, not just "the first
+  // incomplete item anywhere" — a discarded draft (see event system
+  // Phase 3, "SAY GOODBYE") keeps its own unresolved items permanently
+  // incomplete, and can reference the very same watchlist entries a new
+  // draft was just created from. Without this scoping, `.find()` could
+  // match that stale, forever-incomplete item instead of the real active
+  // draft's one, silently failing to complete anything here.
+  const items = await repos.drafts.findItemsByWatchlistEntryId(
+    params.watchlistEntryId,
   );
-  if (!draft || draft.status !== "active") {
+  const incompleteItem = items.find(
+    (item) => !item.isCompleted && item.draftId === draft.id,
+  );
+  if (!incompleteItem) {
     return null;
   }
 
