@@ -47,6 +47,8 @@ export function NewDraftForm({
           repositories,
           profileId: activeProfile!.id,
           timezone: activeProfile!.timezone,
+          franchiseChronologicalOrder:
+            activeProfile?.settings.franchiseChronologicalOrder ?? false,
         },
         prevState,
         formData,

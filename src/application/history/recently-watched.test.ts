@@ -59,6 +59,71 @@ describe("listRecentlyWatchedFilms", () => {
     expect(await listRecentlyWatchedFilms(repos, PROFILE_ID)).toEqual([]);
   });
 
+  it("never includes a film merely because it appears in a draft — an empty history stays empty even with an active, unresolved draft", async () => {
+    db = new FDraftLocalDatabase(`recently-watched-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilm(repos, { id: "film-1", title: "Still Unwatched" });
+    await repos.watchlist.createEntry({
+      id: "entry-1",
+      profileId: PROFILE_ID,
+      filmId: "film-1",
+      dateAdded: "2026-01-01",
+      position: 0,
+      isActive: true,
+      selectionWeight: 1,
+      importSource: null,
+      importId: null,
+      removedAt: null,
+      removedReason: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const draft: DraftRecord = {
+      id: "draft-1",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "active",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-08-01T00:00:00.000Z",
+      deadlineAt: "2026-08-31T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: null,
+      freeformAchievedRank: null,
+      customName: null,
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    };
+    await repos.drafts.createDraft(draft);
+    // Merely drafted, never watched — no WatchedHistoryRecord exists for
+    // this film at all, exactly the "not actually watched" case the
+    // History page must never surface (see docs/product-spec.md, "HISTORY
+    // DATA INTEGRITY").
+    const item: DraftItemRecord = {
+      id: "item-1",
+      draftId: draft.id,
+      filmId: "film-1",
+      watchlistEntryId: "entry-1",
+      source: "random",
+      challengeId: null,
+      challengeAttemptId: null,
+      challengeDisplayValue: null,
+      orderIndex: 0,
+      isCompleted: false,
+      completedAt: null,
+      watchedHistoryId: null,
+      originFilmId: null,
+      substitutionReason: null,
+      createdAt: "2026-08-01T00:00:00.000Z",
+    };
+    await repos.drafts.createItems([item]);
+
+    expect(await listRecentlyWatchedFilms(repos, PROFILE_ID)).toEqual([]);
+  });
+
   it("returns however many exist when fewer than the limit", async () => {
     db = new FDraftLocalDatabase(`recently-watched-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
@@ -224,6 +289,7 @@ describe("listRecentlyWatchedFilms", () => {
       timezone: "UTC",
       completedAt: "2026-08-01T00:00:00.000Z",
       freeformAchievedRank: null,
+      customName: null,
       createdAt: "2026-07-01T00:00:00.000Z",
       updatedAt: "2026-08-01T00:00:00.000Z",
     };
@@ -241,6 +307,8 @@ describe("listRecentlyWatchedFilms", () => {
       isCompleted: true,
       completedAt: "2026-08-01T00:00:00.000Z",
       watchedHistoryId: history.id,
+      originFilmId: null,
+      substitutionReason: null,
       createdAt: "2026-07-01T00:00:00.000Z",
     };
     await repos.drafts.createItems([item]);

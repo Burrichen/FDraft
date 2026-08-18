@@ -105,7 +105,11 @@ export const draftDifficultySchema = z.enum([
 export const draftTimeModeSchema = z.enum(["calendar", "timer"]);
 export const draftStatusSchema = z.enum(["active", "expired", "archived"]);
 export const draftChallengeModeSchema = z.enum(["choose", "decide"]).nullable();
-export const draftItemSourceSchema = z.enum(["random", "challenge"]);
+export const draftItemSourceSchema = z.enum(["random", "challenge", "manual"]);
+export const draftItemSubstitutionReasonSchema = z.enum([
+  "franchise_order",
+  "missing_metadata",
+]);
 export const freeformRankSchema = z
   .enum(["below_baby", "baby", "easy", "medium", "hard", "hardcore"])
   .nullable();
@@ -147,6 +151,11 @@ export const profileSettingsSchema = z.object({
   // Watchlist for a missing or invalid value wherever this is READ, not
   // this schema.
   defaultPage: z.enum(["watchlist", "drafts", "history", "stats"]).optional(),
+  // Optional for the same reason — a backup exported before v1.0.2 has no
+  // such key; `resolveFranchiseChronologicalOrder()` (see
+  // `src/domain/profiles/profile.ts`) falls back to `false` wherever this
+  // is READ.
+  franchiseChronologicalOrder: z.boolean().optional(),
 });
 
 export const backupProfileSchema = z.object({
@@ -297,6 +306,10 @@ export const backupDraftSchema = z.object({
   timezone: z.string().trim().min(1).max(100),
   completedAt: nullableIsoDateTimeSchema,
   freeformAchievedRank: freeformRankSchema,
+  // A backup exported before v1.0.2 has no such key at all — defaults to
+  // `null`, the same "use the generated default name" every draft already
+  // had (see `src/domain/drafts/draft-name.ts`).
+  customName: nullableBoundedString(200).default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -314,6 +327,13 @@ export const backupDraftItemSchema = z.object({
   isCompleted: z.boolean(),
   completedAt: nullableIsoDateTimeSchema,
   watchedHistoryId: nullableIdSchema,
+  // Both default to `null` — a backup exported before v1.0.2 has neither
+  // key at all, meaning this item's film has never been substituted (see
+  // docs/updates, "SELECTION PROVENANCE").
+  originFilmId: nullableIdSchema.default(null),
+  substitutionReason: draftItemSubstitutionReasonSchema
+    .nullable()
+    .default(null),
   createdAt: isoDateTimeSchema,
 });
 

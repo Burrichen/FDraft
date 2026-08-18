@@ -26,7 +26,11 @@ async function seedProfile(databaseName: string) {
     createdAt: "2026-01-01T00:00:00.000Z",
     lastOpenedAt: "2026-01-01T00:00:00.000Z",
     timezone: "UTC",
-    settings: { reducedMotion: false, defaultPage: "watchlist" },
+    settings: {
+      reducedMotion: false,
+      defaultPage: "watchlist",
+      franchiseChronologicalOrder: false,
+    },
     dataVersion: 1,
   });
   await db.close();

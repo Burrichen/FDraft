@@ -1,6 +1,7 @@
 import type { BackupV1 } from "@/domain/backup/backup-schema";
 import { resolveMatchMethod } from "@/domain/metadata/match-method";
 import { resolveDefaultPage } from "@/domain/profiles/default-page";
+import { resolveFranchiseChronologicalOrder } from "@/domain/profiles/profile";
 import type { LocalProfile } from "@/domain/profiles/profile";
 import { resolveProfileTimezone } from "@/domain/profiles/timezone";
 import type {
@@ -203,6 +204,9 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
       settings: {
         ...backup.profile.settings,
         defaultPage: resolveDefaultPage(backup.profile.settings.defaultPage),
+        franchiseChronologicalOrder: resolveFranchiseChronologicalOrder(
+          backup.profile.settings.franchiseChronologicalOrder,
+        ),
       },
       dataVersion: currentSchemaVersion,
     };

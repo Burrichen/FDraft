@@ -25,7 +25,13 @@ function readOptionalString(
  * component instead of reading a session server-side.
  */
 export async function createDraftAction(
-  context: { repositories: Repositories; profileId: string; timezone: string },
+  context: {
+    repositories: Repositories;
+    profileId: string;
+    timezone: string;
+    /** "Franchises in chronological order" (see docs/updates) — the caller reads this off the active profile's own settings, the same convention `timezone` already follows. */
+    franchiseChronologicalOrder: boolean;
+  },
   _prevState: CreateDraftActionState,
   formData: FormData,
 ): Promise<CreateDraftActionState> {
@@ -62,6 +68,7 @@ export async function createDraftAction(
     profileId: context.profileId,
     timezone: context.timezone,
     config: parsed.data,
+    franchiseChronologicalOrder: context.franchiseChronologicalOrder,
   });
 
   if (!outcome.ok) {

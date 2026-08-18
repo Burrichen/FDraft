@@ -7,6 +7,31 @@ import type {
 } from "@/repositories/records";
 import type { FDraftLocalDatabase } from "./database";
 
+/**
+ * A draft written before `customName` existed has no such property at all
+ * (Dexie/IndexedDB don't enforce a schema on non-indexed fields — see
+ * `schema.ts`'s note on `matchMethod` for the same situation) —
+ * normalized to `null` (the same "use the generated default name" every
+ * draft already had) at the one chokepoint every read passes through, so
+ * nothing downstream ever has to treat `undefined` as a third state
+ * alongside `string | null`.
+ */
+function normalizeDraft(draft: DraftRecord): DraftRecord {
+  return {
+    ...draft,
+    customName: draft.customName ?? null,
+  };
+}
+
+/** Same backward-compatibility rationale as `normalizeDraft`, for the selection-provenance fields v1.0.2 added. */
+function normalizeDraftItem(item: DraftItemRecord): DraftItemRecord {
+  return {
+    ...item,
+    originFilmId: item.originFilmId ?? null,
+    substitutionReason: item.substitutionReason ?? null,
+  };
+}
+
 export class LocalDraftRepository implements DraftRepository {
   constructor(private readonly db: FDraftLocalDatabase) {}
 
@@ -22,7 +47,7 @@ export class LocalDraftRepository implements DraftRepository {
       return null;
     }
     drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return drafts[0];
+    return normalizeDraft(drafts[0]);
   }
 
   async getById(
@@ -30,7 +55,9 @@ export class LocalDraftRepository implements DraftRepository {
     draftId: string,
   ): Promise<DraftRecord | null> {
     const draft = await this.db.drafts.get(draftId);
-    return draft && draft.profileId === profileId ? draft : null;
+    return draft && draft.profileId === profileId
+      ? normalizeDraft(draft)
+      : null;
   }
 
   async listArchived(profileId: string): Promise<DraftRecord[]> {
@@ -38,7 +65,9 @@ export class LocalDraftRepository implements DraftRepository {
       .where("[profileId+status]")
       .equals([profileId, "archived"])
       .toArray();
-    return drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return drafts
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(normalizeDraft);
   }
 
   async listAllForProfile(profileId: string): Promise<DraftRecord[]> {
@@ -46,7 +75,9 @@ export class LocalDraftRepository implements DraftRepository {
       .where("profileId")
       .equals(profileId)
       .toArray();
-    return drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return drafts
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(normalizeDraft);
   }
 
   async hasActiveDraft(profileId: string): Promise<boolean> {
@@ -70,12 +101,14 @@ export class LocalDraftRepository implements DraftRepository {
       .where("draftId")
       .equals(draftId)
       .toArray();
-    return items.sort((a, b) => a.orderIndex - b.orderIndex);
+    return items
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map(normalizeDraftItem);
   }
 
   async getItemById(itemId: string): Promise<DraftItemRecord | null> {
     const item = await this.db.draftItems.get(itemId);
-    return item ?? null;
+    return item ? normalizeDraftItem(item) : null;
   }
 
   async createItems(items: DraftItemRecord[]): Promise<void> {
@@ -92,10 +125,11 @@ export class LocalDraftRepository implements DraftRepository {
   async findItemsByWatchlistEntryId(
     watchlistEntryId: string,
   ): Promise<DraftItemRecord[]> {
-    return this.db.draftItems
+    const items = await this.db.draftItems
       .where("watchlistEntryId")
       .equals(watchlistEntryId)
       .toArray();
+    return items.map(normalizeDraftItem);
   }
 
   async createChallengeAttempt(

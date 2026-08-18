@@ -29,6 +29,17 @@ export interface ProfileSettings {
   reducedMotion: boolean;
   /** Which page FDraft opens to for this profile — see docs/product-spec.md, "DEFAULT START PAGE SETTING". Always read through `resolveDefaultPage()` (never trusted directly), which is what makes an older profile record predating this field, or a stale value, fall back to Watchlist rather than breaking. */
   defaultPage: DefaultPage;
+  /**
+   * When true, a roll that lands on a later entry in a franchise/
+   * collection is replaced with the earliest eligible unwatched entry in
+   * that same franchise still on the watchlist (see
+   * `src/domain/watchlist/franchise-order.ts`) — off by default, since it
+   * changes what a draft actually contains. Read through
+   * `resolveFranchiseChronologicalOrder()`, never trusted directly, so a
+   * profile record predating this setting defaults to today's unchanged
+   * behaviour rather than `undefined`.
+   */
+  franchiseChronologicalOrder: boolean;
 }
 
 export interface LocalProfile {
@@ -44,7 +55,13 @@ export interface LocalProfile {
 export const DEFAULT_PROFILE_SETTINGS: ProfileSettings = {
   reducedMotion: false,
   defaultPage: DEFAULT_PAGE_FALLBACK,
+  franchiseChronologicalOrder: false,
 };
+
+/** A profile record predating this setting has no such property at all — resolves to the required default (`false`, unchanged drafting behaviour) rather than `undefined`. Every reader must route through this, never the stored value directly. */
+export function resolveFranchiseChronologicalOrder(value: unknown): boolean {
+  return typeof value === "boolean" ? value : false;
+}
 
 export interface CreateProfileParams {
   displayName: string;

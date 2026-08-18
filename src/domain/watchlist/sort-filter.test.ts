@@ -8,6 +8,7 @@ import {
   filterWatchlistFilms,
   isDefaultWatchlistFilterState,
   isWatchlistSortOption,
+  searchWatchlistFilms,
   sortWatchlistFilms,
   type FilterableWatchlistFilm,
   type SortableWatchlistFilm,
@@ -340,5 +341,38 @@ describe("collectAvailableDecades", () => {
       { releaseYear: null },
     ];
     expect(collectAvailableDecades(films)).toEqual(["1990s", "2020s"]);
+  });
+});
+
+describe("searchWatchlistFilms", () => {
+  const films = [
+    { title: "Mission: Impossible" },
+    { title: "Mission: Impossible II" },
+    { title: "The Matrix" },
+  ];
+
+  it("matches titles case-insensitively as a substring", () => {
+    expect(searchWatchlistFilms(films, "mission").map((f) => f.title)).toEqual([
+      "Mission: Impossible",
+      "Mission: Impossible II",
+    ]);
+    expect(searchWatchlistFilms(films, "MATRIX").map((f) => f.title)).toEqual([
+      "The Matrix",
+    ]);
+  });
+
+  it("returns every film, unmodified, for a blank or whitespace-only query", () => {
+    expect(searchWatchlistFilms(films, "")).toEqual(films);
+    expect(searchWatchlistFilms(films, "   ")).toEqual(films);
+  });
+
+  it("returns an empty array when nothing matches", () => {
+    expect(searchWatchlistFilms(films, "nonexistent")).toEqual([]);
+  });
+
+  it("never mutates the input array", () => {
+    const copy = [...films];
+    searchWatchlistFilms(films, "mission");
+    expect(films).toEqual(copy);
   });
 });
