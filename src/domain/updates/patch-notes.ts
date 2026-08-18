@@ -22,6 +22,25 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.0.4",
+    nickname: "God Mode",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          'Added a profile-specific "Admin Mode" setting for temporary/testing use — it will eventually be removed.',
+          "When Admin Mode is on, an active draft can be regenerated from the Draft page, deleting it with no points awarded and reverting any films watched to complete it.",
+        ],
+      },
+      {
+        heading: "Changed",
+        items: [
+          "Trimmed some explanatory subtitle copy on the Stats and History pages.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.0.3",
     nickname: "Now Updating",
     sections: [

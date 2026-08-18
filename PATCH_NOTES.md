@@ -1,5 +1,16 @@
 # Patch Notes
 
+### v1.0.4 — God Mode
+
+#### Added
+
+- Added a profile-specific "Admin Mode" setting for temporary/testing use — it will eventually be removed.
+- When Admin Mode is on, an active draft can be regenerated from the Draft page, deleting it with no points awarded and reverting any films watched to complete it.
+
+#### Changed
+
+- Trimmed some explanatory subtitle copy on the Stats and History pages.
+
 ### v1.0.3 — Now Updating
 
 #### Added

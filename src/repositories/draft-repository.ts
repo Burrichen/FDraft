@@ -29,6 +29,17 @@ export interface DraftRepository {
   hasActiveDraft(profileId: string): Promise<boolean>;
   createDraft(draft: DraftRecord): Promise<void>;
   updateDraft(draft: DraftRecord): Promise<void>;
+  /**
+   * Permanently removes this draft and everything scoped to it — items,
+   * challenge attempts, challenge interactions, and postmortem responses
+   * (see docs/updates, v1.0.4 "God Mode", "REGENERATE DRAFT") — mirroring
+   * the cascading delete `DataErasureRepository.eraseProfileCompletely`
+   * already does per-profile, scoped to one draft instead. Never touches
+   * `selectionWeightAdjustments`: those are a longer-lived,
+   * watchlist-entry-level signal from postmortem responses, not state
+   * that belongs to any one draft.
+   */
+  deleteDraft(draftId: string): Promise<void>;
 
   listItemsForDraft(draftId: string): Promise<DraftItemRecord[]>;
   getItemById(itemId: string): Promise<DraftItemRecord | null>;

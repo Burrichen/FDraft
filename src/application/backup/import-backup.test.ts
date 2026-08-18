@@ -32,6 +32,7 @@ async function seedProfile(repos: Repositories, profileId: string) {
       reducedMotion: false,
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
+      adminMode: false,
     },
     dataVersion: 1,
   });

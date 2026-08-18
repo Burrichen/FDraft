@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  abandonLocalDraft,
   addManualFilmToLocalDraft,
   archiveLocalDraftIfResolved,
   createLocalDraft,
@@ -9,6 +10,7 @@ import {
   setLocalDraftCustomName,
   submitLocalPostmortemResponse,
 } from "@/application/drafts/local-draft-service";
+import { markLocalFilmWatched } from "@/application/watchlist/local-watchlist-service";
 import { createSeededRng } from "@/domain/shared/rng";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -1373,6 +1375,223 @@ describe("rerollLocalDraftItemForMissingMetadata", () => {
     expect(outcome).toEqual({
       ok: false,
       error: "nothing_available",
+      message: expect.any(String),
+    });
+  });
+});
+
+describe("abandonLocalDraft", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("deletes an active draft and all of its own rows, with no stale state left behind", async () => {
+    db = new FDraftLocalDatabase(`abandon-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+    });
+    expect(outcome).toEqual({
+      ok: true,
+      result: { revertedWatchlistEntryIds: [] },
+    });
+
+    expect(await repos.drafts.getById(PROFILE_ID, created.draftId)).toBeNull();
+    expect(await repos.drafts.listItemsForDraft(created.draftId)).toEqual([]);
+    expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
+  });
+
+  it("reverts a watch this draft caused, but never touches an unrelated watched film", async () => {
+    db = new FDraftLocalDatabase(`abandon-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 4);
+
+    // A film watched entirely independently of the draft below — must
+    // still be watched after the draft is abandoned.
+    const independentWatch = await markLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      watchlistEntryId: entryIds[3],
+      profileTimezone: "UTC",
+    });
+    if (!independentWatch.ok) throw new Error("unreachable");
+
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    expect(items).toHaveLength(3);
+
+    // Watch exactly one of the three drafted films through the normal
+    // flow — this both marks it watched AND completes its draft item.
+    const watched = await markLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      watchlistEntryId: items[0].watchlistEntryId!,
+      profileTimezone: "UTC",
+    });
+    if (!watched.ok) throw new Error("unreachable");
+    expect(watched.draftItemId).toBe(items[0].id);
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+    });
+    expect(outcome).toEqual({
+      ok: true,
+      result: { revertedWatchlistEntryIds: [items[0].watchlistEntryId] },
+    });
+
+    // The film watched to complete the draft is back on the watchlist,
+    // and the watched-history event that draft caused is gone.
+    const revertedEntry = await repos.watchlist.getEntryById(
+      PROFILE_ID,
+      items[0].watchlistEntryId!,
+    );
+    expect(revertedEntry?.isActive).toBe(true);
+    expect(revertedEntry?.removedReason).toBeNull();
+    const remainingHistory = await repos.history.listWatchedHistory(PROFILE_ID);
+    expect(
+      remainingHistory.some((h) => h.id === watched.watchedHistoryId),
+    ).toBe(false);
+
+    // The film watched independently of this draft is completely
+    // unaffected — never unwatched, its history entry never removed.
+    const independentEntry = await repos.watchlist.getEntryById(
+      PROFILE_ID,
+      entryIds[3],
+    );
+    expect(independentEntry?.isActive).toBe(false);
+    expect(independentEntry?.removedReason).toBe("watched");
+    expect(
+      remainingHistory.some((h) => h.id === independentWatch.watchedHistoryId),
+    ).toBe(true);
+
+    // Every other film that was simply never watched is untouched too —
+    // still active, still on the watchlist, ready to be drafted again.
+    for (const entryId of entryIds.slice(0, 3)) {
+      if (entryId === items[0].watchlistEntryId) continue;
+      const entry = await repos.watchlist.getEntryById(PROFILE_ID, entryId);
+      expect(entry?.isActive).toBe(true);
+    }
+  });
+
+  it("allows a fresh draft to be created normally afterward", async () => {
+    db = new FDraftLocalDatabase(`abandon-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    // Without abandoning first, a second draft is correctly refused.
+    const blocked = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+    });
+    expect(blocked).toEqual({
+      ok: false,
+      error: "already_active",
+      message: expect.any(String),
+    });
+
+    await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+    });
+
+    const recreated = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+    });
+    expect(recreated.ok).toBe(true);
+  });
+
+  it("fails with not_found for an unknown draft id", async () => {
+    db = new FDraftLocalDatabase(`abandon-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: "nonexistent",
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "not_found",
+      message: expect.any(String),
+    });
+  });
+
+  it("fails with not_active for an expired draft", async () => {
+    db = new FDraftLocalDatabase(`abandon-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 3,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    await repos.drafts.updateDraft({ ...draft!, status: "expired" });
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "not_active",
       message: expect.any(String),
     });
   });

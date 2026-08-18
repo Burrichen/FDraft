@@ -29,6 +29,7 @@ async function seedFullProfile(
       reducedMotion: true,
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
+      adminMode: false,
     },
     dataVersion: 1,
   });

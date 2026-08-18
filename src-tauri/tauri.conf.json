@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FDraft",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "identifier": "com.burrichen.fdraft",
   "build": {
     "frontendDist": "../out",

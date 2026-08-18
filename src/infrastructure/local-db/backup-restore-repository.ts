@@ -1,7 +1,10 @@
 import type { BackupV1 } from "@/domain/backup/backup-schema";
 import { resolveMatchMethod } from "@/domain/metadata/match-method";
 import { resolveDefaultPage } from "@/domain/profiles/default-page";
-import { resolveFranchiseChronologicalOrder } from "@/domain/profiles/profile";
+import {
+  resolveAdminMode,
+  resolveFranchiseChronologicalOrder,
+} from "@/domain/profiles/profile";
 import type { LocalProfile } from "@/domain/profiles/profile";
 import { resolveProfileTimezone } from "@/domain/profiles/timezone";
 import type {
@@ -207,6 +210,10 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
         franchiseChronologicalOrder: resolveFranchiseChronologicalOrder(
           backup.profile.settings.franchiseChronologicalOrder,
         ),
+        // Same normalization — a backup made before v1.0.4 has no
+        // `adminMode` key at all, resolved to `false` rather than
+        // restoring `undefined`.
+        adminMode: resolveAdminMode(backup.profile.settings.adminMode),
       },
       dataVersion: currentSchemaVersion,
     };

@@ -40,6 +40,18 @@ export interface ProfileSettings {
    * behaviour rather than `undefined`.
    */
   franchiseChronologicalOrder: boolean;
+  /**
+   * Unlocks temporary/testing-only actions (currently: "Regenerate
+   * Draft" on the Draft page — see docs/updates, v1.0.4 "God Mode") —
+   * per-profile, not installation-level, since it's meant to be switched
+   * on briefly for one profile's own testing rather than affecting every
+   * profile on the device. Off by default; a profile record predating
+   * this setting resolves to `false` via `resolveAdminMode()`, never
+   * trusted directly. This setting itself, and everything it unlocks, is
+   * intended to be removed once it's no longer needed for testing — see
+   * its own Settings copy.
+   */
+  adminMode: boolean;
 }
 
 export interface LocalProfile {
@@ -56,10 +68,16 @@ export const DEFAULT_PROFILE_SETTINGS: ProfileSettings = {
   reducedMotion: false,
   defaultPage: DEFAULT_PAGE_FALLBACK,
   franchiseChronologicalOrder: false,
+  adminMode: false,
 };
 
 /** A profile record predating this setting has no such property at all — resolves to the required default (`false`, unchanged drafting behaviour) rather than `undefined`. Every reader must route through this, never the stored value directly. */
 export function resolveFranchiseChronologicalOrder(value: unknown): boolean {
+  return typeof value === "boolean" ? value : false;
+}
+
+/** Same rationale as `resolveFranchiseChronologicalOrder` — a profile record predating this setting resolves to `false` (Admin Mode off) rather than `undefined`. */
+export function resolveAdminMode(value: unknown): boolean {
   return typeof value === "boolean" ? value : false;
 }
 

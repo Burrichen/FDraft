@@ -24,6 +24,7 @@ import {
   PostmortemItem,
   type PostmortemItemView,
 } from "@/components/drafts/postmortem-item";
+import { RegenerateDraftButton } from "@/components/drafts/regenerate-draft-button";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
@@ -31,6 +32,7 @@ import { challengeRegistry } from "@/domain/challenges/catalogue";
 import { FREEFORM_BATCH_SIZE, isFreeform } from "@/domain/drafts/difficulty";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
+import { resolveAdminMode } from "@/domain/profiles/profile";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { GenerateBatchButton } from "./generate-batch-button";
 
@@ -244,6 +246,7 @@ export default function DraftsPage() {
     timeStyle: "short",
   });
   const freeform = isFreeform(draft.difficulty);
+  const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
 
   async function handleReroll(draftItemId: string) {
     if (!activeProfile) return;
@@ -257,6 +260,18 @@ export default function DraftsPage() {
       return;
     }
     await reloadSilently();
+  }
+
+  function handleRegenerated(revertedWatchlistEntryIds: string[]) {
+    // Each reverted entry's watch has already been undone server-side by
+    // `abandonLocalDraft` — any pending session "Undo" record for it now
+    // points at a draft item that no longer exists, so it's cleared here
+    // rather than left to surface a confusing/no-op Undo button (see
+    // `components/watch-undo/watch-undo-provider.tsx`).
+    for (const entryId of revertedWatchlistEntryIds) {
+      watchUndo.clearUndo(entryId);
+    }
+    void reload();
   }
 
   if (draft.status === "expired") {
@@ -379,13 +394,21 @@ export default function DraftsPage() {
             deadline {deadlineLabel}
           </p>
         </div>
-        {freeform && draft.status === "active" ? (
-          <GenerateBatchButton
-            draftId={draft.id}
-            batchSize={FREEFORM_BATCH_SIZE}
-            onGenerated={reload}
-          />
-        ) : null}
+        <div className="flex items-center gap-2">
+          {freeform && draft.status === "active" ? (
+            <GenerateBatchButton
+              draftId={draft.id}
+              batchSize={FREEFORM_BATCH_SIZE}
+              onGenerated={reload}
+            />
+          ) : null}
+          {adminModeEnabled && draft.status === "active" ? (
+            <RegenerateDraftButton
+              draftId={draft.id}
+              onRegenerated={handleRegenerated}
+            />
+          ) : null}
+        </div>
       </div>
 
       <DraftTimeProgress progress={timeProgress} />
