@@ -22,8 +22,28 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.0.3",
+    nickname: "Now Updating",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          "A startup popup now appears when a new version is found automatically, showing that version's own patch notes with the option to update now, be reminded later, or stop seeing these popups.",
+          "Manual and automatic update checks now both show the newer version's patch notes, not just its bare version number.",
+          'Added a "Show a popup when a new update is found automatically" setting, so the startup popup can be turned back on after opting out.',
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          'Automatic update checks now actually run on startup — previously a check that ran once (on first install, or from a manual check) silently blocked every other automatic check for the next 6 hours, so a genuinely new release often only ever turned up via the manual "Check for Updates" button.',
+        ],
+      },
+    ],
+  },
+  {
     version: "1.0.2",
-    nickname: "Green Pen",
+    nickname: "The Green Pen Patch",
     sections: [
       {
         heading: "Added",

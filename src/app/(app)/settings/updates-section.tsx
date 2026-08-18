@@ -21,6 +21,8 @@ export function UpdatesSection() {
     currentVersion,
     autoCheckEnabled,
     setAutoCheckEnabled,
+    startupPromptsEnabled,
+    setStartupPromptsEnabled,
     checkNow,
   } = useUpdateContext();
 
@@ -50,6 +52,24 @@ export function UpdatesSection() {
                 type="checkbox"
                 checked={autoCheckEnabled}
                 onChange={(event) => setAutoCheckEnabled(event.target.checked)}
+                className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <Label
+                htmlFor="startup-update-prompts"
+                className="text-foreground text-sm"
+              >
+                Show a popup when a new update is found automatically
+              </Label>
+              <input
+                id="startup-update-prompts"
+                type="checkbox"
+                checked={startupPromptsEnabled}
+                onChange={(event) =>
+                  setStartupPromptsEnabled(event.target.checked)
+                }
                 className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
               />
             </div>
