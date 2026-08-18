@@ -60,6 +60,21 @@ jobs:
 
       - run: pnpm run sync-desktop-version
 
+      # The updater reads THIS text, not whatever the release page shows
+      # after a manual edit — see the script's own doc comment for why
+      # that distinction is the whole reason the in-app update dialog
+      # used to show generic installer boilerplate instead of real patch
+      # notes.
+      - name: Generate release body from PATCH_NOTES
+        id: patch-notes
+        shell: bash
+        run: |
+          {
+            echo "body<<PATCH_NOTES_EOF"
+            pnpm exec tsx scripts/generate-release-body.ts
+            echo "PATCH_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,9 +84,6 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "FDraft ${{ github.ref_name }}"
-          releaseBody: |
-            See the assets below to download and install this version.
-
-            For a fresh install, download the `FDraft_*_Setup.exe` file.
+          releaseBody: ${{ steps.patch-notes.outputs.body }}
           releaseDraft: true
           prerelease: false

@@ -8,6 +8,10 @@ import {
 } from "@/components/drafts/challenge-browser";
 import { ChallengeModeToggle } from "@/components/drafts/challenge-mode-toggle";
 import { DifficultyPicker } from "@/components/drafts/difficulty-picker";
+import {
+  DraftSourceToggle,
+  type DraftSource,
+} from "@/components/drafts/draft-source-toggle";
 import { LinkedSliders } from "@/components/drafts/linked-sliders";
 import { TimeModeToggle } from "@/components/drafts/time-mode-toggle";
 import { useProfileContext } from "@/components/profiles/profile-provider";
@@ -56,6 +60,7 @@ export function NewDraftForm({
     INITIAL_STATE,
   );
   const [difficulty, setDifficulty] = useState<DraftDifficulty | null>(null);
+  const [source, setSource] = useState<DraftSource>("random");
   const [timeMode, setTimeMode] = useState<DraftTimeMode>("calendar");
   const [split, setSplit] = useState<DraftSplit | null>(null);
   const [challengeMode, setChallengeMode] =
@@ -94,10 +99,18 @@ export function NewDraftForm({
   const readyToSubmit =
     !!activeProfile &&
     !!difficulty &&
-    (freeform ||
+    (source === "diy" ||
+      freeform ||
       challengeCount === 0 ||
       challengeMode === "decide" ||
       chosenChallengeIds.length === challengeCount);
+
+  function handleContinueToDiy() {
+    if (!difficulty) return;
+    router.push(
+      `/drafts/new/diy?difficulty=${encodeURIComponent(difficulty)}&timeMode=${encodeURIComponent(timeMode)}`,
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-8">
@@ -112,7 +125,16 @@ export function NewDraftForm({
         />
       </section>
 
-      {difficulty && !freeform && split ? (
+      {difficulty ? (
+        <section className="space-y-3">
+          <h2 className="text-foreground text-lg font-bold">
+            How do you want to build this draft?
+          </h2>
+          <DraftSourceToggle value={source} onChange={setSource} />
+        </section>
+      ) : null}
+
+      {difficulty && source === "random" && !freeform && split ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">
             How do you want the list to be made?
@@ -125,7 +147,7 @@ export function NewDraftForm({
         </section>
       ) : null}
 
-      {difficulty && freeform ? (
+      {difficulty && source === "random" && freeform ? (
         <section className="space-y-2">
           <h2 className="text-foreground text-lg font-bold">Freeform</h2>
           <p className="text-muted-foreground text-sm">
@@ -137,7 +159,7 @@ export function NewDraftForm({
         </section>
       ) : null}
 
-      {difficulty && !freeform && challengeCount > 0 ? (
+      {difficulty && source === "random" && !freeform && challengeCount > 0 ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">Challenge films</h2>
           <ChallengeModeToggle
@@ -165,7 +187,7 @@ export function NewDraftForm({
         </section>
       ) : null}
 
-      {difficulty ? (
+      {difficulty && source === "random" ? (
         <>
           <input type="hidden" name="difficulty" value={difficulty} />
           <input type="hidden" name="timeMode" value={timeMode} />
@@ -208,8 +230,16 @@ export function NewDraftForm({
         <p className="text-destructive text-sm">{state.error}</p>
       ) : null}
 
-      <Button type="submit" disabled={!readyToSubmit || isPending}>
-        {isPending ? "Creating draft…" : "Create draft"}
+      <Button
+        type={source === "diy" ? "button" : "submit"}
+        disabled={!readyToSubmit || isPending}
+        onClick={source === "diy" ? handleContinueToDiy : undefined}
+      >
+        {source === "diy"
+          ? "Continue"
+          : isPending
+            ? "Creating draft…"
+            : "Create draft"}
       </Button>
     </form>
   );

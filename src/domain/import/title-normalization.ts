@@ -65,3 +65,42 @@ export function titleSimilarity(a: string, b: string): number {
   }
   return (2 * intersection) / (tokensA.size + tokensB.size);
 }
+
+const ARTICLE_TOKENS = new Set(["the", "a", "an"]);
+
+/** True when every token of `smaller` appears in `larger`, `larger` has at least one extra token, and at least one of those extra tokens is NOT simply a leading article. */
+function isSuspiciousSuperset(
+  smaller: ReadonlySet<string>,
+  larger: ReadonlySet<string>,
+): boolean {
+  if (smaller.size === 0 || smaller.size >= larger.size) {
+    return false;
+  }
+  for (const token of smaller) {
+    if (!larger.has(token)) return false;
+  }
+  const extraTokens = [...larger].filter((token) => !smaller.has(token));
+  return !extraTokens.every((token) => ARTICLE_TOKENS.has(token));
+}
+
+/**
+ * True when one title's word-token set is a STRICT subset of the
+ * other's, and the extra tokens the longer title carries are not simply
+ * a leading article — see docs/updates, v1.1.0, "DRAFT CANDIDATE
+ * INTEGRITY", "METADATA ENTITY MISMATCHES". This is exactly the shape of
+ * "Creating The Queen's Gambit" containing every one of "The Queen's
+ * Gambit"'s own words plus more: a documentary/making-of/behind-the-
+ * scenes companion piece, not the same work, and a high Dice-coefficient
+ * `titleSimilarity` score alone can't tell the two apart. Deliberately
+ * NOT flagged: "Matrix" as a subset of "The Matrix" (the only extra token
+ * is the article "the") — an ordinary leading-article difference the
+ * matcher must keep accepting.
+ */
+export function hasSuspiciousTitleContainment(a: string, b: string): boolean {
+  const tokensA = new Set(tokenize(normalizeFilmTitle(a)));
+  const tokensB = new Set(tokenize(normalizeFilmTitle(b)));
+  return (
+    isSuspiciousSuperset(tokensA, tokensB) ||
+    isSuspiciousSuperset(tokensB, tokensA)
+  );
+}

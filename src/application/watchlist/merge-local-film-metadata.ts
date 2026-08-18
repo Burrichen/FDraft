@@ -28,6 +28,10 @@ export interface MergedFilmMetadata {
   watchCount: number | null;
   fansCount: number | null;
   listAppearances: number | null;
+  /** See `FilmMetadataRecord.releaseDate`'s doc comment — deliberately excluded from `hasNoUsableMetadata`'s check below: a film can have full, genuinely usable metadata without a known release date. */
+  releaseDate: string | null;
+  releaseStatus: string | null;
+  providerTitle: string | null;
 }
 
 const EMPTY_MERGED_METADATA: MergedFilmMetadata = {
@@ -45,7 +49,28 @@ const EMPTY_MERGED_METADATA: MergedFilmMetadata = {
   watchCount: null,
   fansCount: null,
   listAppearances: null,
+  releaseDate: null,
+  releaseStatus: null,
+  providerTitle: null,
 };
+
+/** The fields `hasNoUsableMetadata` actually checks — display-relevant fields only. `releaseDate`/`releaseStatus`/`providerTitle` are eligibility/validation-only signals, not "usable metadata" in the sense that feature cares about (a film can be fully watchable/displayable without a known release date). */
+const USABLE_METADATA_KEYS: (keyof MergedFilmMetadata)[] = [
+  "posterUrl",
+  "runtimeMinutes",
+  "genres",
+  "directors",
+  "countries",
+  "languages",
+  "collectionId",
+  "collectionName",
+  "collectionOrder",
+  "averageRating",
+  "popularity",
+  "watchCount",
+  "fansCount",
+  "listAppearances",
+];
 
 /**
  * Whether a film genuinely has no usable metadata at all — every field
@@ -58,9 +83,7 @@ const EMPTY_MERGED_METADATA: MergedFilmMetadata = {
  * case a reroll exists for.
  */
 export function hasNoUsableMetadata(metadata: MergedFilmMetadata): boolean {
-  return (
-    Object.keys(EMPTY_MERGED_METADATA) as (keyof MergedFilmMetadata)[]
-  ).every((key) => metadata[key] === null);
+  return USABLE_METADATA_KEYS.every((key) => metadata[key] === null);
 }
 
 export function mergeLocalFilmMetadata(
@@ -93,6 +116,12 @@ export function mergeLocalFilmMetadata(
     if (merged.fansCount === null) merged.fansCount = record.fansCount;
     if (merged.listAppearances === null)
       merged.listAppearances = record.listAppearances;
+    if (merged.releaseDate === null)
+      merged.releaseDate = record.releaseDate ?? null;
+    if (merged.releaseStatus === null)
+      merged.releaseStatus = record.releaseStatus ?? null;
+    if (merged.providerTitle === null)
+      merged.providerTitle = record.providerTitle ?? null;
   }
   return merged;
 }

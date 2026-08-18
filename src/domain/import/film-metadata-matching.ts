@@ -1,4 +1,7 @@
-import { titleSimilarity } from "./title-normalization";
+import {
+  hasSuspiciousTitleContainment,
+  titleSimilarity,
+} from "./title-normalization";
 
 /**
  * Provider-agnostic candidate scoring and selection — the piece that was
@@ -131,6 +134,28 @@ function combinedConfidence(
   return titleSim * 0.55 + yearConf * 0.45;
 }
 
+/**
+ * True when the import's title and this candidate's title (or original
+ * title) are in a "documentary/making-of ABOUT the other" relationship —
+ * see `hasSuspiciousTitleContainment`'s own doc comment. Checked
+ * separately from the Dice-coefficient `titleSimilarity` score above:
+ * "Creating The Queen's Gambit" scores 0.89 against "The Queen's Gambit"
+ * by word overlap alone, high enough to auto-match when combined with an
+ * exact year — this is the check that keeps that from happening (see
+ * docs/updates, v1.1.0, "DRAFT CANDIDATE INTEGRITY").
+ */
+function hasSuspiciousContainment<TId>(
+  candidate: FilmMetadataSearchCandidate<TId>,
+  input: { title: string },
+): boolean {
+  return (
+    hasSuspiciousTitleContainment(input.title, candidate.title) ||
+    (candidate.originalTitle
+      ? hasSuspiciousTitleContainment(input.title, candidate.originalTitle)
+      : false)
+  );
+}
+
 export function scoreCandidate<TId>(
   candidate: FilmMetadataSearchCandidate<TId>,
   input: { title: string; releaseYear: number | null },
@@ -142,16 +167,27 @@ export function scoreCandidate<TId>(
       : 0,
   );
   const yConf = yearConfidence(candidate.releaseYear, input.releaseYear);
+  let confidence = combinedConfidence(
+    titleSim,
+    yConf,
+    input.releaseYear !== null,
+    candidate.releaseYear !== null,
+  );
+
+  // Never let a suspicious containment relationship auto-match, no
+  // matter how well year evidence otherwise supports it — capped just
+  // under the threshold so it still surfaces via `ambiguous` (if a better
+  // candidate exists) or `not-found` (if it doesn't), for a human to
+  // resolve on the Unresolved Metadata screen instead.
+  if (hasSuspiciousContainment(candidate, input)) {
+    confidence = Math.min(confidence, MATCH_CONFIDENCE_THRESHOLD - 0.01);
+  }
+
   return {
     candidate,
     titleSimilarity: titleSim,
     yearConfidence: yConf,
-    confidence: combinedConfidence(
-      titleSim,
-      yConf,
-      input.releaseYear !== null,
-      candidate.releaseYear !== null,
-    ),
+    confidence,
   };
 }
 

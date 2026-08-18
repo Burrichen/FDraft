@@ -117,10 +117,10 @@ Real, distributable installers only ever come from the [GitHub Actions release w
 
 1. Make your changes, merge them.
 2. `pnpm format && pnpm lint && pnpm typecheck && pnpm test`.
-3. Bump `version` in `package.json` — the one source of truth (`pnpm run sync-desktop-version` copies it everywhere else it needs to live).
+3. Bump `version` in `package.json` — the one source of truth (`pnpm run sync-desktop-version` copies it everywhere else it needs to live) — and add this version's entry to `src/domain/updates/patch-notes.ts` (newest first) plus the matching section in `PATCH_NOTES.md`. The release workflow generates the GitHub Release body straight from `PATCH_NOTES`' newest entry (`scripts/generate-release-body.ts`) and fails the build if it doesn't match `package.json`'s version — this is also what the in-app update dialog actually shows people, not whatever the release page happens to say, so it has to exist before you tag.
 4. Commit, then `git tag v1.1.0` (must match `package.json`'s version) and `git push --tags`.
-5. GitHub Actions builds the signed Windows installer and opens a **draft** GitHub Release.
-6. Add short, user-friendly release notes to the draft (this is what FDraft's update dialog shows people) and publish it.
+5. GitHub Actions builds the signed Windows installer and opens a **draft** GitHub Release, its body already filled in from step 3.
+6. Review the draft (edit it if you want to add extra color) and publish it.
 7. Installed copies with "Automatically check for updates" on pick it up on their next launch.
 
 #### Release secrets (one-time setup)

@@ -22,6 +22,28 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.1.0",
+    nickname: "Pick Your Own",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          'Added "Build My Own Draft" as a new option when starting a draft — pick every film yourself from your watchlist instead of a random roll, with an optional "Need ideas?" panel (highest rated, longest on your watchlist) that only ever suggests films, never selects one for you.',
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          "Unreleased films could occasionally be drafted; they're now checked against their actual release date/status and excluded until they're out.",
+          "A later entry in a film series (e.g. a sequel) could be drafted ahead of an earlier entry you hadn't watched yet; the earlier entry is now correctly preferred.",
+          "A small number of drafted films showed a poster, runtime, or genres belonging to a different, similarly-titled film; this metadata mismatch is now detected and the film is skipped instead.",
+          'Manually-added films showed up as "Random" in Draft History; they\'re now labeled "Manual".',
+          "The startup update popup was redesigned with clearer FDraft-specific copy, and no longer shows generic installer/download instructions when a release's notes aren't usable.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.0.4",
     nickname: "God Mode",
     sections: [

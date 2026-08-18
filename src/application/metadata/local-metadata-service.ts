@@ -202,6 +202,8 @@ function emptyOutcome(): MetadataDownloadOutcome {
 const UNRESOLVED_REASON_MESSAGES: Record<string, string> = {
   ambiguous: "Could not confidently choose between multiple results.",
   "not-found": "No confident match was found for this title.",
+  provider_identifier_conflict:
+    "This provider film is already matched to a different local film — needs manual review.",
   "rate-limited": "The metadata provider rate-limited this request.",
   "provider-error": "The metadata provider returned an unexpected error.",
   "invalid-api-key":
@@ -291,6 +293,37 @@ async function downloadForFilms(
           }
           case "matched": {
             const now = deps.clock.now().toISOString();
+
+            // Same "never let two local films silently share one provider
+            // identity" guard `manuallyMatchFilm` already enforces on the
+            // manual path — extended here so the automatic enrichment
+            // queue can't quietly create the same contamination (see
+            // docs/updates, v1.1.0, "DRAFT CANDIDATE INTEGRITY" —
+            // "metadata entity mismatches").
+            const externalId = outcome.result.externalIds?.[outcome.providerId];
+            const conflicting = externalId
+              ? await repos.films.findMetadataByExternalId(
+                  outcome.providerId,
+                  externalId,
+                )
+              : null;
+            if (conflicting && conflicting.filmId !== film.id) {
+              await repos.unresolvedMetadata.upsert(
+                buildUnresolvedRecord(
+                  film,
+                  outcome.providerId,
+                  "unresolved",
+                  "provider_identifier_conflict",
+                  now,
+                  deps.idGenerator,
+                ),
+              );
+              ambiguous++;
+              completed++;
+              retryableFilmIds.push(film.id);
+              break;
+            }
+
             const record: FilmMetadataRecord = {
               id: deps.idGenerator.generate(),
               filmId: film.id,
@@ -310,6 +343,9 @@ async function downloadForFilms(
               fansCount: outcome.result.fansCount ?? null,
               listAppearances: outcome.result.listAppearances ?? null,
               externalIds: outcome.result.externalIds ?? null,
+              releaseDate: outcome.result.releaseDate ?? null,
+              releaseStatus: outcome.result.releaseStatus ?? null,
+              providerTitle: outcome.result.providerTitle ?? null,
               raw:
                 (outcome.result.raw as Record<string, unknown> | undefined) ??
                 null,

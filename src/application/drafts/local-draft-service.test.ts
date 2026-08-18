@@ -4,6 +4,7 @@ import {
   addManualFilmToLocalDraft,
   archiveLocalDraftIfResolved,
   createLocalDraft,
+  createLocalDraftFromSelection,
   expireLocalDraftIfDue,
   generateLocalFreeformBatch,
   rerollLocalDraftItemForMissingMetadata,
@@ -93,6 +94,9 @@ async function seedFranchiseFilm(
     listAppearances: null,
     externalIds: null,
     raw: null,
+    releaseDate: null,
+    releaseStatus: null,
+    providerTitle: null,
     matchMethod: "automatic",
     lastEnrichedAt: "2026-01-01T00:00:00.000Z",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -873,6 +877,60 @@ describe("createLocalDraft — franchise chronological order", () => {
       collectionId: "mission-impossible",
       selectionWeight: 1_000_000,
     });
+    // mi1 is BOTH a previously-watched entry (an earlier collection
+    // member the profile has already seen — see docs/updates, v1.1.0,
+    // "DRAFT CANDIDATE INTEGRITY": the baseline eligibility rule added
+    // there would otherwise exclude mi3 outright as an "unstarted later
+    // series entry", which is exactly what should happen by default —
+    // and unrelatedly re-added to the watchlist for a rewatch), so
+    // there's still a genuinely eligible mi3 for the opt-in setting to
+    // substitute away from.
+    await repos.history.addWatchedHistory({
+      id: "watched-mi1",
+      profileId: PROFILE_ID,
+      filmId: "mi1-original-watch",
+      watchlistEntryId: null,
+      source: "app_watchlist_action",
+      watchedDate: "2020-01-01",
+      createdAt: "2020-01-01T00:00:00.000Z",
+    });
+    await repos.films.create({
+      id: "mi1-original-watch",
+      title: "mi1",
+      releaseYear: 1996,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2020-01-01T00:00:00.000Z",
+      updatedAt: "2020-01-01T00:00:00.000Z",
+    });
+    await repos.films.upsertMetadata({
+      id: "mi1-original-watch-meta",
+      filmId: "mi1-original-watch",
+      provider: "tmdb",
+      posterUrl: null,
+      runtimeMinutes: null,
+      genres: null,
+      directors: null,
+      countries: null,
+      languages: null,
+      collectionId: "mission-impossible",
+      collectionName: null,
+      collectionOrder: null,
+      averageRating: null,
+      popularity: null,
+      watchCount: null,
+      fansCount: null,
+      listAppearances: null,
+      externalIds: null,
+      releaseDate: null,
+      releaseStatus: null,
+      providerTitle: null,
+      raw: null,
+      matchMethod: "automatic",
+      lastEnrichedAt: "2020-01-01T00:00:00.000Z",
+      createdAt: "2020-01-01T00:00:00.000Z",
+      updatedAt: "2020-01-01T00:00:00.000Z",
+    });
     await seedFranchiseFilm(repos, {
       filmId: "mi1",
       entryId: "entry-mi1",
@@ -904,6 +962,53 @@ describe("createLocalDraft — franchise chronological order", () => {
     expect(items[0].filmId).toBe("mi1");
     expect(items[0].originFilmId).toBe("mi3");
     expect(items[0].substitutionReason).toBe("franchise_order");
+  });
+
+  it("baseline eligibility (unconditional): a later, unstarted series entry is never drafted even with the setting OFF — the earliest unwatched entry is selected directly instead", async () => {
+    db = new FDraftLocalDatabase(`franchise-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    // The exact scenario the setting being off-by-default used to leave
+    // unprotected (see docs/updates, v1.1.0, "DRAFT CANDIDATE INTEGRITY"
+    // — the "Evangelion 2.0" bug report): mi1 hasn't been watched and is
+    // still sitting right there on the watchlist, so mi3 must never be
+    // the one that ends up in the draft, regardless of the opt-in
+    // "Franchises in chronological order?" setting.
+    await seedFranchiseFilm(repos, {
+      filmId: "mi3",
+      entryId: "entry-mi3",
+      releaseYear: 2006,
+      collectionId: "mission-impossible",
+      selectionWeight: 1_000_000,
+    });
+    await seedFranchiseFilm(repos, {
+      filmId: "mi1",
+      entryId: "entry-mi1",
+      releaseYear: 1996,
+      collectionId: "mission-impossible",
+      selectionWeight: 1,
+    });
+
+    const outcome = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 1,
+          challengeCount: 0,
+        },
+        // franchiseChronologicalOrder omitted — defaults to off.
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(1);
+    expect(items[0].filmId).toBe("mi1");
   });
 
   it("ON: never substitutes when the earlier entry is already watched (inactive) — general eligibility still applies", async () => {
@@ -946,6 +1051,9 @@ describe("createLocalDraft — franchise chronological order", () => {
       listAppearances: null,
       externalIds: null,
       raw: null,
+      releaseDate: null,
+      releaseStatus: null,
+      providerTitle: null,
       matchMethod: "automatic",
       lastEnrichedAt: "2026-01-01T00:00:00.000Z",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -984,6 +1092,287 @@ describe("createLocalDraft — franchise chronological order", () => {
     const items = await repos.drafts.listItemsForDraft(outcome.draftId);
     expect(items[0].filmId).toBe("mi3");
     expect(items[0].originFilmId).toBeNull();
+  });
+});
+
+describe("createLocalDraftFromSelection", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("creates an active draft from exactly the selected films, tagged as manual, in the given order", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 5);
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby",
+      timeMode: "timer",
+      watchlistEntryIds: [
+        entryIds[3],
+        entryIds[1],
+        entryIds[4],
+        entryIds[0],
+        entryIds[2],
+      ],
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
+    expect(draft?.status).toBe("active");
+    expect(draft?.difficulty).toBe("baby");
+    expect(draft?.totalFilms).toBe(5);
+    expect(draft?.randomFilmCount).toBe(0);
+    expect(draft?.challengeFilmCount).toBe(0);
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(5);
+    expect(items.every((item) => item.source === "manual")).toBe(true);
+    expect(items.every((item) => !item.isCompleted)).toBe(true);
+    expect(items.map((item) => item.watchlistEntryId)).toEqual([
+      entryIds[3],
+      entryIds[1],
+      entryIds[4],
+      entryIds[0],
+      entryIds[2],
+    ]);
+  });
+
+  it("allows any positive count for a Freeform DIY draft — no fixed target", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 3);
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "freeform",
+      timeMode: "timer",
+      watchlistEntryIds: [entryIds[0]],
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
+    expect(draft?.totalFilms).toBe(1);
+  });
+
+  it("rejects a selection that doesn't exactly match the difficulty's film count", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 5);
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby", // needs 5
+      timeMode: "timer",
+      watchlistEntryIds: entryIds.slice(0, 3),
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "invalid_selection_count",
+      message: expect.any(String),
+    });
+  });
+
+  it("rejects an empty Freeform selection", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "freeform",
+      timeMode: "timer",
+      watchlistEntryIds: [],
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "invalid_selection_count",
+      message: expect.any(String),
+    });
+  });
+
+  it("rejects a duplicate entry in the selection", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 5);
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby",
+      timeMode: "timer",
+      watchlistEntryIds: [
+        entryIds[0],
+        entryIds[0],
+        entryIds[1],
+        entryIds[2],
+        entryIds[3],
+      ],
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "duplicate_selection",
+      message: expect.any(String),
+    });
+  });
+
+  it("rejects a selection containing an ineligible film (e.g. not on the active watchlist)", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 4);
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby", // needs 5, but only 4 exist — one id is invented
+      timeMode: "timer",
+      watchlistEntryIds: [...entryIds, "not-a-real-entry"],
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "entry_not_eligible",
+      message: expect.any(String),
+    });
+  });
+
+  it("rejects a candidate that fails the same eligibility rules a random roll would (e.g. an unstarted later series entry)", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFranchiseFilm(repos, {
+      filmId: "mi1",
+      entryId: "entry-mi1",
+      releaseYear: 1996,
+      collectionId: "mission-impossible",
+    });
+    await seedFranchiseFilm(repos, {
+      filmId: "mi3",
+      entryId: "entry-mi3",
+      releaseYear: 2006,
+      collectionId: "mission-impossible",
+    });
+
+    const outcome = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "freeform",
+      timeMode: "timer",
+      // Hand-picking mi3 directly must be refused exactly like a random
+      // roll would be — mi1 hasn't been watched and is right there.
+      watchlistEntryIds: ["entry-mi3"],
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "entry_not_eligible",
+      message: expect.any(String),
+    });
+  });
+
+  it("refuses to create a second DIY draft while one is already active", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 10);
+
+    const first = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby",
+      timeMode: "timer",
+      watchlistEntryIds: entryIds.slice(0, 5),
+    });
+    expect(first.ok).toBe(true);
+
+    const second = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby",
+      timeMode: "timer",
+      watchlistEntryIds: entryIds.slice(5, 10),
+    });
+    expect(second).toEqual({
+      ok: false,
+      error: "already_active",
+      message: expect.any(String),
+    });
+  });
+
+  it("a DIY draft can be regenerated (Admin Mode) exactly like any other draft", async () => {
+    db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 3);
+
+    const created = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "freeform",
+      timeMode: "timer",
+      watchlistEntryIds: entryIds,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+    });
+    expect(outcome).toEqual({
+      ok: true,
+      result: { revertedWatchlistEntryIds: [] },
+    });
+    expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
+  });
+
+  it("survives an app restart/reload — a fresh database connection to the same profile still sees the DIY draft and its items", async () => {
+    const dbName = `diy-${crypto.randomUUID()}`;
+    db = new FDraftLocalDatabase(dbName);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 5);
+
+    const created = await createLocalDraftFromSelection(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      difficulty: "baby",
+      timeMode: "timer",
+      watchlistEntryIds: [
+        entryIds[2],
+        entryIds[0],
+        entryIds[4],
+        entryIds[1],
+        entryIds[3],
+      ],
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    await db.close();
+
+    // A fresh `FDraftLocalDatabase` opened against the same name is exactly
+    // what a new app session does on restart — no data is carried over in
+    // memory, only what was actually persisted.
+    db = new FDraftLocalDatabase(dbName);
+    const reloadedRepos = createLocalRepositories(db);
+
+    const draft = await reloadedRepos.drafts.getById(
+      PROFILE_ID,
+      created.draftId,
+    );
+    expect(draft?.status).toBe("active");
+    expect(draft?.totalFilms).toBe(5);
+
+    const items = await reloadedRepos.drafts.listItemsForDraft(created.draftId);
+    expect(items.every((item) => item.source === "manual")).toBe(true);
+    expect(items.map((item) => item.watchlistEntryId)).toEqual([
+      entryIds[2],
+      entryIds[0],
+      entryIds[4],
+      entryIds[1],
+      entryIds[3],
+    ]);
   });
 });
 

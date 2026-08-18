@@ -277,3 +277,42 @@ describe("pickBestMatch", () => {
     }
   });
 });
+
+describe("scoreCandidate / pickBestMatch — suspicious title containment (metadata entity mismatch)", () => {
+  it("never confidently auto-matches a 'making of'/documentary-about candidate, even with an exact year", () => {
+    const score = scoreCandidate(
+      candidate({
+        id: 1,
+        title: "Creating The Queen's Gambit",
+        releaseYear: 2020,
+      }),
+      { title: "The Queen's Gambit", releaseYear: 2020 },
+    );
+    expect(score.confidence).toBeLessThan(MATCH_CONFIDENCE_THRESHOLD);
+  });
+
+  it("pickBestMatch reports not-found rather than matching the documentary when it's the only candidate", () => {
+    const result = pickBestMatch(
+      [
+        candidate({
+          id: 1,
+          title: "Creating The Queen's Gambit",
+          releaseYear: 2020,
+        }),
+      ],
+      { title: "The Queen's Gambit", releaseYear: 2020 },
+    );
+    expect(result.status).toBe("not-found");
+  });
+
+  it("still auto-matches a genuine leading-article difference at high confidence", () => {
+    const score = scoreCandidate(
+      candidate({ id: 1, title: "The Matrix", releaseYear: 1999 }),
+      {
+        title: "Matrix",
+        releaseYear: 1999,
+      },
+    );
+    expect(score.confidence).toBeGreaterThanOrEqual(MATCH_CONFIDENCE_THRESHOLD);
+  });
+});

@@ -134,6 +134,9 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
         ...metadata,
         id: idGenerator.generate(),
         filmId: newFilmId,
+        releaseDate: metadata.releaseDate ?? null,
+        releaseStatus: metadata.releaseStatus ?? null,
+        providerTitle: metadata.providerTitle ?? null,
         matchMethod: resolveMatchMethod(metadata.matchMethod),
       });
     }

@@ -116,8 +116,29 @@ describe("UpdateDialog", () => {
       ).toBeInTheDocument(),
     );
     expect(
-      screen.getByText("No patch notes are available for this version."),
+      screen.getByText("A new version of FDraft is ready to install."),
     ).toBeInTheDocument();
+  });
+
+  it("degrades gracefully instead of showing generic installer/asset-download copy", async () => {
+    vi.mocked(getVersion).mockResolvedValue("1.0.2");
+    vi.mocked(check).mockResolvedValue({
+      version: "1.0.3",
+      currentVersion: "1.0.2",
+      body: "See the assets below to download and install this version.\n\nFor a fresh install, download the `FDraft_*_Setup.exe` file.",
+    } as never);
+    renderDialog();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("New Update Available: 1.0.3"),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText("A new version of FDraft is ready to install."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/see the assets below/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/setup\.exe/i)).not.toBeInTheDocument();
   });
 
   it("lists skipped intermediate releases under 'Also includes changes from'", async () => {
