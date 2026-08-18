@@ -6,6 +6,7 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AdminModeSection } from "./admin-mode-section";
 import { DataBackupSection } from "./data-backup-section";
 import { DefaultPageSection } from "./default-page-section";
 import { FranchiseOrderSection } from "./franchise-order-section";
@@ -105,6 +106,8 @@ export function SettingsView() {
       <UpdatesSection />
 
       <DataBackupSection />
+
+      <AdminModeSection />
     </div>
   );
 }

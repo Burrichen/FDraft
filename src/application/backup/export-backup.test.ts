@@ -26,6 +26,7 @@ async function seedFullProfile(repos: Repositories) {
       reducedMotion: true,
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
+      adminMode: false,
     },
     dataVersion: 1,
   });
@@ -323,6 +324,7 @@ describe("buildProfileBackup", () => {
         reducedMotion: false,
         defaultPage: "watchlist",
         franchiseChronologicalOrder: false,
+        adminMode: false,
       },
       dataVersion: 1,
     });

@@ -28,6 +28,7 @@ import {
   hasNoUsableMetadata,
   mergeLocalFilmMetadata,
 } from "@/application/watchlist/merge-local-film-metadata";
+import { undoLocalFilmWatched } from "@/application/watchlist/local-watchlist-service";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { createDefaultRng, type Rng } from "@/domain/shared/rng";
 import { pickRandomFilms } from "@/domain/watchlist/random-pick";
@@ -571,6 +572,93 @@ export async function archiveLocalDraftIfResolved(
     updatedAt: clock.now().toISOString(),
   });
   return true;
+}
+
+export type AbandonLocalDraftErrorCode = "not_found" | "not_active";
+export interface AbandonLocalDraftResult {
+  /**
+   * Watchlist entries reactivated by reverting a watch this draft caused
+   * — the caller (Draft page) also clears any pending session "Undo"
+   * record for each of these, since it would otherwise point at a
+   * now-deleted draft item (see `components/watch-undo/
+   * watch-undo-provider.tsx`).
+   */
+  revertedWatchlistEntryIds: string[];
+}
+export type AbandonLocalDraftOutcome =
+  | { ok: true; result: AbandonLocalDraftResult }
+  | { ok: false; error: AbandonLocalDraftErrorCode; message: string };
+
+/**
+ * "Regenerate Draft" (Admin Mode only — see docs/updates, v1.0.4 "God
+ * Mode", "REGENERATE DRAFT"): permanently abandons the profile's current
+ * ACTIVE draft, awarding nothing — FDraft has no points/score/"Lifetime"
+ * system to suppress in the first place, so there is nothing beyond
+ * deleting the draft's own rows and reverting the watches it caused.
+ *
+ * For every item this draft already completed, reverts EXACTLY the watch
+ * that completed it via `undoLocalFilmWatched` — the same, already
+ * carefully-guarded mechanism the film card's own "Undo" button uses —
+ * rather than re-deriving watched-state rollback rules here. A film
+ * watched independently of this draft is never touched: only an
+ * active (unwatched) watchlist entry can be rolled into a draft in the
+ * first place, so a draft item's `watchedHistoryId` can only ever be the
+ * watch that completed IT, never a pre-existing watch. `undoLocalFilmWatched`
+ * re-confirms this itself before touching anything (only reactivates an
+ * entry that is currently `isActive: false` with `removedReason:
+ * "watched"`, and only reverts the exact item/watched-history pairing
+ * named). `draftArchivedByThisAction` is always passed as `false` here:
+ * the draft is about to be hard-deleted, not reverted back to "active".
+ *
+ * Only ever offered for a genuinely `active` draft (the Draft page never
+ * shows "Regenerate Draft" for an expired or archived one) — checked
+ * again here regardless, matching every other lifecycle function in this
+ * file's own defense-in-depth.
+ */
+export async function abandonLocalDraft(
+  repos: LifecycleRepos,
+  params: { profileId: string; draftId: string },
+  deps: { clock?: Clock } = {},
+): Promise<AbandonLocalDraftOutcome> {
+  const draft = await repos.drafts.getById(params.profileId, params.draftId);
+  if (!draft) {
+    return { ok: false, error: "not_found", message: "Draft not found." };
+  }
+  if (draft.status !== "active") {
+    return {
+      ok: false,
+      error: "not_active",
+      message: "Only an active draft can be regenerated.",
+    };
+  }
+
+  const items = await repos.drafts.listItemsForDraft(draft.id);
+  const revertedWatchlistEntryIds: string[] = [];
+  for (const item of items) {
+    if (!item.isCompleted || !item.watchedHistoryId || !item.watchlistEntryId) {
+      continue;
+    }
+    await undoLocalFilmWatched(
+      repos,
+      {
+        profileId: params.profileId,
+        record: {
+          watchlistEntryId: item.watchlistEntryId,
+          filmId: item.filmId,
+          watchedHistoryId: item.watchedHistoryId,
+          draftItemId: item.id,
+          draftId: draft.id,
+          draftArchivedByThisAction: false,
+        },
+      },
+      deps,
+    );
+    revertedWatchlistEntryIds.push(item.watchlistEntryId);
+  }
+
+  await repos.drafts.deleteDraft(draft.id);
+
+  return { ok: true, result: { revertedWatchlistEntryIds } };
 }
 
 export interface SubmitLocalPostmortemResponseResult {

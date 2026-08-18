@@ -14,6 +14,7 @@ function profile(id: string): LocalProfile {
       reducedMotion: false,
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
+      adminMode: false,
     },
     dataVersion: 1,
   };

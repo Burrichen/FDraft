@@ -156,6 +156,10 @@ export const profileSettingsSchema = z.object({
   // `src/domain/profiles/profile.ts`) falls back to `false` wherever this
   // is READ.
   franchiseChronologicalOrder: z.boolean().optional(),
+  // Optional for the same reason — a backup exported before v1.0.4 has no
+  // such key; `resolveAdminMode()` falls back to `false` wherever this is
+  // READ.
+  adminMode: z.boolean().optional(),
 });
 
 export const backupProfileSchema = z.object({

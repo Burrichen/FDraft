@@ -30,6 +30,7 @@ async function seedProfile(databaseName: string) {
       reducedMotion: false,
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
+      adminMode: false,
     },
     dataVersion: 1,
   });

@@ -142,10 +142,6 @@ export default function DraftHistoryPage() {
     <div className="space-y-8">
       <div>
         <h1 className="page-heading">Draft history</h1>
-        <p className="page-subtitle">
-          Films you&apos;ve actually watched, and your past Monthly Watchlist
-          Drafts.
-        </p>
       </div>
 
       <RecentlyWatchedSection films={data.recentlyWatched} />

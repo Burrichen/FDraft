@@ -189,6 +189,7 @@ describe("cross-profile isolation (real fake-indexeddb, two profiles, one shared
         reducedMotion: false,
         defaultPage: "watchlist" as const,
         franchiseChronologicalOrder: false,
+        adminMode: false,
       },
       dataVersion: 1,
     };

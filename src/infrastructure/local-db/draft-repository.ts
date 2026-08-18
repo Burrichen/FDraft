@@ -96,6 +96,35 @@ export class LocalDraftRepository implements DraftRepository {
     await this.db.drafts.put(draft);
   }
 
+  async deleteDraft(draftId: string): Promise<void> {
+    await this.db.transaction(
+      "rw",
+      [
+        this.db.drafts,
+        this.db.draftItems,
+        this.db.draftChallengeAttempts,
+        this.db.draftChallengeInteractions,
+        this.db.draftPostmortemResponses,
+      ],
+      async () => {
+        await this.db.draftItems.where("draftId").equals(draftId).delete();
+        await this.db.draftChallengeAttempts
+          .where("draftId")
+          .equals(draftId)
+          .delete();
+        await this.db.draftChallengeInteractions
+          .where("draftId")
+          .equals(draftId)
+          .delete();
+        await this.db.draftPostmortemResponses
+          .where("draftId")
+          .equals(draftId)
+          .delete();
+        await this.db.drafts.delete(draftId);
+      },
+    );
+  }
+
   async listItemsForDraft(draftId: string): Promise<DraftItemRecord[]> {
     const items = await this.db.draftItems
       .where("draftId")

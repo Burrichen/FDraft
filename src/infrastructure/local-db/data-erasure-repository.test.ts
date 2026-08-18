@@ -23,6 +23,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         reducedMotion: false,
         defaultPage: "watchlist" as const,
         franchiseChronologicalOrder: false,
+        adminMode: false,
       },
       dataVersion: 1,
     };
@@ -189,6 +190,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         reducedMotion: false,
         defaultPage: "watchlist",
         franchiseChronologicalOrder: false,
+        adminMode: false,
       },
       dataVersion: 1,
     });
