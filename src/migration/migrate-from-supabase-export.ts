@@ -97,6 +97,11 @@ export async function migrateFromSupabaseExport(
       fansCount: metadata.fans_count,
       listAppearances: metadata.list_appearances,
       externalIds: metadata.external_ids,
+      // The Supabase-era data model predates all three of these fields —
+      // nothing to backfill them from.
+      releaseDate: null,
+      releaseStatus: null,
+      providerTitle: null,
       raw: metadata.raw,
       // The Supabase-era data model predates this field entirely — every
       // one of these was, in fact, an automatic match.

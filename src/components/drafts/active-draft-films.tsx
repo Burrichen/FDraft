@@ -70,6 +70,10 @@ export function ActiveDraftFilms({
             </li>
           ))}
         </ul>
+      ) : films.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          This draft doesn&apos;t have any films yet.
+        </p>
       ) : (
         <p className="text-muted-foreground text-sm">
           Every film here has been watched.

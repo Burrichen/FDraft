@@ -87,6 +87,12 @@ export interface FilmMetadataRecord {
   fansCount: number | null;
   listAppearances: number | null;
   externalIds: Record<string, unknown> | null;
+  /** ISO calendar date (`YYYY-MM-DD`), or `null` if the provider never reported one. See `FilmMetadataResult.releaseDate`'s doc comment for why this exists alongside `FilmRecord.releaseYear`. */
+  releaseDate: string | null;
+  /** The provider's own release-status string (e.g. "Released"), or `null` if unknown. */
+  releaseStatus: string | null;
+  /** The provider's own matched title, verbatim, or `null` for a record predating this field. See `FilmMetadataResult.providerTitle`'s doc comment. */
+  providerTitle: string | null;
   raw: Record<string, unknown> | null;
   /** "automatic" (the enrichment queue's own confidence-scored pick) or "manual" (a user's deliberate choice on the Unresolved Metadata screen) — see `src/domain/metadata/match-method.ts`. */
   matchMethod: MetadataMatchMethod;

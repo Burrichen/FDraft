@@ -3,6 +3,10 @@ import type {
   ChallengeCandidateFilm,
   ChallengeWatchedFilmRecord,
 } from "@/domain/challenges/types";
+import {
+  evaluateCandidateEligibility,
+  type CandidateEligibilityFilm,
+} from "@/domain/watchlist/candidate-eligibility";
 import type { FilmRepository } from "@/repositories/film-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
@@ -17,9 +21,25 @@ import type { WatchlistRepository } from "@/repositories/watchlist-repository";
  * `attemptChosenChallenges`) needed zero changes to work against this —
  * proof that Phase 1's "flat, provider-neutral shape, not a raw DB row"
  * decision paid off exactly as intended for this migration.
+ *
+ * As of v1.1.0 ("DRAFT CANDIDATE INTEGRITY"), this is also the ONE place
+ * `evaluateCandidateEligibility` runs — every candidate returned here has
+ * already passed the unreleased/later-series-entry/metadata-identity
+ * checks, so every caller (random rolls, Freeform batches, missing-
+ * metadata rerolls, and the DIY selection screen) benefits without
+ * re-implementing the checks itself. `ChallengeCandidateFilm`'s own shape
+ * is deliberately left untouched — the extra fields the eligibility check
+ * needs (`releaseDate`/`releaseStatus`/`providerTitle`) are read here and
+ * discarded once each candidate has been judged, not threaded through to
+ * every existing challenge-family function that already destructures this
+ * type.
  */
 export async function fetchLocalChallengeCandidates(
-  repos: { watchlist: WatchlistRepository; films: FilmRepository },
+  repos: {
+    watchlist: WatchlistRepository;
+    films: FilmRepository;
+    history: HistoryRepository;
+  },
   profileId: string,
 ): Promise<ChallengeCandidateFilm[]> {
   const entries = await repos.watchlist.listActiveEntries(profileId);
@@ -30,7 +50,10 @@ export async function fetchLocalChallengeCandidates(
     entries.map((entry) => entry.filmId),
   );
 
-  return entries.map((entry, index) => {
+  const watchedReleaseYearsByCollectionId =
+    await buildWatchedReleaseYearsByCollectionId(repos, profileId);
+
+  const candidatesWithEligibility = entries.map((entry, index) => {
     const film = films[index];
     const metadata = mergeLocalFilmMetadata(
       metadataByFilmId.get(entry.filmId) ?? [],
@@ -57,8 +80,71 @@ export async function fetchLocalChallengeCandidates(
       fansCount: metadata.fansCount,
       listAppearances: metadata.listAppearances,
     };
-    return candidate;
+    const eligibilityFilm: CandidateEligibilityFilm = {
+      title: candidate.title,
+      releaseYear: candidate.releaseYear,
+      releaseDate: metadata.releaseDate,
+      releaseStatus: metadata.releaseStatus,
+      collectionId: metadata.collectionId,
+      providerTitle: metadata.providerTitle,
+    };
+    return { candidate, eligibilityFilm };
   });
+
+  // The "later series entry" check needs every OTHER pool member's
+  // release year per collection — computed from the full, unfiltered set
+  // so one ineligible film's presence can't hide behind another's.
+  const poolReleaseYearsByCollectionId = new Map<string, number[]>();
+  for (const { eligibilityFilm } of candidatesWithEligibility) {
+    if (!eligibilityFilm.collectionId || eligibilityFilm.releaseYear === null) {
+      continue;
+    }
+    const years =
+      poolReleaseYearsByCollectionId.get(eligibilityFilm.collectionId) ?? [];
+    years.push(eligibilityFilm.releaseYear);
+    poolReleaseYearsByCollectionId.set(eligibilityFilm.collectionId, years);
+  }
+
+  const now = new Date();
+  return candidatesWithEligibility
+    .filter(({ eligibilityFilm }) => {
+      const result = evaluateCandidateEligibility(eligibilityFilm, {
+        now,
+        watchedReleaseYearsByCollectionId,
+        poolReleaseYearsByCollectionId,
+      });
+      return result.eligible;
+    })
+    .map(({ candidate }) => candidate);
+}
+
+/** Every collectionId this profile has watched an entry in, mapped to those entries' release years — the "has an earlier entry already been watched" half of the later-series-entry check. */
+async function buildWatchedReleaseYearsByCollectionId(
+  repos: {
+    films: FilmRepository;
+    history: HistoryRepository;
+  },
+  profileId: string,
+): Promise<Map<string, number[]>> {
+  const historyEntries = await repos.history.listWatchedHistory(profileId);
+  const filmIds = [...new Set(historyEntries.map((entry) => entry.filmId))];
+  const films = await Promise.all(
+    filmIds.map((filmId) => repos.films.getById(filmId)),
+  );
+  const metadataByFilmId = await repos.films.getMetadataForFilms(filmIds);
+
+  const byCollectionId = new Map<string, number[]>();
+  filmIds.forEach((filmId, index) => {
+    const film = films[index];
+    const metadata = mergeLocalFilmMetadata(metadataByFilmId.get(filmId) ?? []);
+    if (!metadata.collectionId || film?.releaseYear == null) {
+      return;
+    }
+    const years = byCollectionId.get(metadata.collectionId) ?? [];
+    years.push(film.releaseYear);
+    byCollectionId.set(metadata.collectionId, years);
+  });
+  return byCollectionId;
 }
 
 export async function fetchLocalChallengeWatchedFilms(

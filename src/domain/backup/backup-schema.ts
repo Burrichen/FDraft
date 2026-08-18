@@ -205,6 +205,13 @@ export const backupFilmMetadataSchema = z.object({
   fansCount: z.number().int().nonnegative().nullable(),
   listAppearances: z.number().int().nonnegative().nullable(),
   externalIds: jsonObjectSchema.nullable(),
+  // Optional for the same reason as `matchMethod` below — a backup
+  // exported before v1.1.0 has no such keys at all; reads fall back to
+  // `null`, never `undefined` (see docs/updates, v1.1.0, "DRAFT CANDIDATE
+  // INTEGRITY").
+  releaseDate: nullableBoundedString(20).optional(),
+  releaseStatus: nullableBoundedString(100).optional(),
+  providerTitle: nullableBoundedString(500).optional(),
   raw: jsonObjectSchema.nullable(),
   // Optional — a backup exported before this field existed has no such
   // key at all, and must still validate; `resolveMatchMethod()` (see

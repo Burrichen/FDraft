@@ -39,9 +39,11 @@ import type { DraftRepository } from "@/repositories/draft-repository";
 import type { FilmRepository } from "@/repositories/film-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
 import type {
+  DraftDifficulty,
   DraftItemRecord,
   DraftPostmortemResponseRecord,
   DraftRecord,
+  DraftTimeMode,
   PostmortemResponseType,
 } from "@/repositories/records";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
@@ -323,6 +325,172 @@ export async function createLocalDraft(
   }
 
   return { ok: true, draftId, challengeWarning };
+}
+
+export type CreateLocalDraftFromSelectionErrorCode =
+  | "already_active"
+  | "invalid_selection_count"
+  | "duplicate_selection"
+  | "entry_not_eligible";
+export type CreateLocalDraftFromSelectionOutcome =
+  | { ok: true; draftId: string }
+  | {
+      ok: false;
+      error: CreateLocalDraftFromSelectionErrorCode;
+      message: string;
+    };
+
+/**
+ * "DIY Draft" (see docs/updates, v1.1.0, "NEW DRAFTING MODE — DIY
+ * DRAFT"): creates a normal active draft from a user-picked list of
+ * watchlist entries instead of a random roll. Deliberately a separate,
+ * small function rather than a fork of `createLocalDraft`'s own body —
+ * that function's internals (weighted random picks, franchise-order
+ * substitution, the challenge engine) don't apply here at all — but it
+ * reuses every SHARED piece that isn't roll-specific: the same
+ * `DraftRecord`/`DraftItemRecord` shapes, the same `calculateDraftDeadline`,
+ * the same `getFilmCount`/`isFreeform` sizing rules (never a
+ * DIY-specific film count), and the same eligibility-filtered candidate
+ * pool every other draft-generation path uses (see
+ * `local-fetch-context.ts`) — a film that couldn't be randomly drafted
+ * (unreleased, an unstarted later series entry, a metadata identity
+ * mismatch) can't be manually selected into one either.
+ *
+ * Every resulting item is `source: "manual"` — the exact same tag
+ * `addManualFilmToLocalDraft` already uses for a single film added to an
+ * in-progress draft — so nothing downstream needs a new concept of "a
+ * DIY draft" at all: it's just an ordinary draft whose items all happen
+ * to be manual, which every existing draft-lifecycle function (watched-
+ * state tracking, `archiveLocalDraftIfResolved`, `abandonLocalDraft`,
+ * Draft History) already handles with zero changes.
+ */
+export async function createLocalDraftFromSelection(
+  repos: DraftRepos,
+  params: {
+    profileId: string;
+    timezone: string;
+    difficulty: DraftDifficulty;
+    timeMode: DraftTimeMode;
+    watchlistEntryIds: string[];
+  },
+  deps: { idGenerator?: IdGenerator; clock?: Clock } = {},
+): Promise<CreateLocalDraftFromSelectionOutcome> {
+  const idGenerator = deps.idGenerator ?? defaultIdGenerator;
+  const clock = deps.clock ?? new SystemClock();
+  const { profileId, timezone, difficulty, watchlistEntryIds } = params;
+
+  if (await repos.drafts.hasActiveDraft(profileId)) {
+    return {
+      ok: false,
+      error: "already_active",
+      message:
+        "You already have an active draft. Finish or expire it before starting another.",
+    };
+  }
+
+  const uniqueEntryIds = new Set(watchlistEntryIds);
+  if (uniqueEntryIds.size !== watchlistEntryIds.length) {
+    return {
+      ok: false,
+      error: "duplicate_selection",
+      message: "The same film was selected more than once.",
+    };
+  }
+
+  const freeform = isFreeform(difficulty);
+  const requiredCount = freeform ? null : getFilmCount(difficulty);
+  if (
+    freeform
+      ? watchlistEntryIds.length === 0
+      : watchlistEntryIds.length !== requiredCount
+  ) {
+    return {
+      ok: false,
+      error: "invalid_selection_count",
+      message: freeform
+        ? "Select at least one film to build a Freeform DIY draft."
+        : `Select exactly ${requiredCount} films for a ${difficulty} DIY draft.`,
+    };
+  }
+
+  // The same eligibility-filtered pool every other draft path draws
+  // from — a film that isn't a currently-eligible candidate (someone
+  // else's watchlist entry, already watched, unreleased, an unstarted
+  // later series entry, a metadata identity mismatch) can't be
+  // hand-picked into a draft either.
+  const eligibleCandidates = await fetchLocalChallengeCandidates(
+    repos,
+    profileId,
+  );
+  const eligibleByEntryId = new Map(
+    eligibleCandidates.map((candidate) => [
+      candidate.watchlistEntryId,
+      candidate,
+    ]),
+  );
+  for (const entryId of watchlistEntryIds) {
+    if (!eligibleByEntryId.has(entryId)) {
+      return {
+        ok: false,
+        error: "entry_not_eligible",
+        message:
+          "One of the selected films is no longer eligible — refresh and try again.",
+      };
+    }
+  }
+
+  const now = clock.now();
+  const deadlineAt = calculateDraftDeadline({
+    timeMode: params.timeMode,
+    startedAt: now,
+    timezone,
+  });
+
+  const draftId = idGenerator.generate();
+  const draft: DraftRecord = {
+    id: draftId,
+    profileId,
+    difficulty,
+    timeMode: params.timeMode,
+    status: "active",
+    totalFilms: watchlistEntryIds.length,
+    randomFilmCount: 0,
+    challengeFilmCount: 0,
+    challengeMode: null,
+    startedAt: now.toISOString(),
+    deadlineAt: deadlineAt.toISOString(),
+    timezone,
+    completedAt: null,
+    freeformAchievedRank: null,
+    customName: null,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+  await repos.drafts.createDraft(draft);
+
+  const items: DraftItemRecord[] = watchlistEntryIds.map((entryId, index) => {
+    const candidate = eligibleByEntryId.get(entryId)!;
+    return {
+      id: idGenerator.generate(),
+      draftId,
+      filmId: candidate.filmId,
+      watchlistEntryId: entryId,
+      source: "manual",
+      challengeId: null,
+      challengeAttemptId: null,
+      challengeDisplayValue: null,
+      orderIndex: index,
+      isCompleted: false,
+      completedAt: null,
+      watchedHistoryId: null,
+      originFilmId: null,
+      substitutionReason: null,
+      createdAt: now.toISOString(),
+    };
+  });
+  await repos.drafts.createItems(items);
+
+  return { ok: true, draftId };
 }
 
 interface PersistOutcome {
@@ -835,15 +1003,22 @@ export async function generateLocalFreeformBatch(
       .map((item) => item.watchlistEntryId)
       .filter((id): id is string => id !== null),
   );
-  const activeEntries = await repos.watchlist.listActiveEntries(
+  // Routed through the same eligibility-checked candidate pool every
+  // other draft path uses (see `local-fetch-context.ts`, "DRAFT
+  // CANDIDATE INTEGRITY") — previously read `listActiveEntries` directly
+  // with no metadata access at all, so an unreleased film or an
+  // unstarted later series entry could enter a Freeform batch with
+  // nothing to stop it.
+  const eligibleCandidates = await fetchLocalChallengeCandidates(
+    repos,
     params.profileId,
   );
-  const candidates = activeEntries
-    .filter((entry) => !usedEntryIds.has(entry.id))
-    .map((entry) => ({
-      id: entry.id,
-      weight: entry.selectionWeight,
-      filmId: entry.filmId,
+  const candidates = eligibleCandidates
+    .filter((candidate) => !usedEntryIds.has(candidate.watchlistEntryId))
+    .map((candidate) => ({
+      id: candidate.watchlistEntryId,
+      weight: candidate.selectionWeight,
+      filmId: candidate.filmId,
     }));
 
   if (candidates.length === 0) {

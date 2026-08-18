@@ -31,8 +31,26 @@ describe("parseReleaseNotes", () => {
   });
 
   it("falls back to no title and the raw body when the heading convention isn't followed", () => {
-    const body = "See the assets below to download and install this version.";
+    const body = "Just a plain, hand-written release description.";
     expect(parseReleaseNotes(body)).toEqual({ title: null, notes: body });
+  });
+
+  it("treats the old generic installer boilerplate as no notes at all, not real content", () => {
+    const body =
+      "See the assets below to download and install this version.\n\nFor a fresh install, download the `FDraft_*_Setup.exe` file.";
+    expect(parseReleaseNotes(body)).toEqual({ title: null, notes: null });
+  });
+
+  it("strips installer boilerplate even when it's the only thing left after a real heading", () => {
+    const body = [
+      "### v1.2.0 — Placeholder",
+      "",
+      "See the assets below to download and install this version.",
+    ].join("\n");
+    expect(parseReleaseNotes(body)).toEqual({
+      title: "Placeholder",
+      notes: null,
+    });
   });
 
   it("returns nulls for an empty or missing body", () => {

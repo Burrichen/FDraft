@@ -344,6 +344,10 @@ function HistoricalDraftFilmGroup({
                     Challenge:{" "}
                     {challengeDefinition?.name ?? entry.item.challengeId}
                   </Badge>
+                ) : entry.item.source === "manual" ? (
+                  <Badge variant="outline" className="shrink-0 text-[0.65rem]">
+                    Manual
+                  </Badge>
                 ) : (
                   <Badge variant="outline" className="shrink-0 text-[0.65rem]">
                     Random

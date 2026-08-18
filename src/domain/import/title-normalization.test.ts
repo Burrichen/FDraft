@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasSuspiciousTitleContainment,
   normalizeFilmTitle,
   stripLeadingArticle,
   titleSimilarity,
@@ -96,5 +97,46 @@ describe("titleSimilarity", () => {
     const score = titleSimilarity("The Thing", "The Thing from Another World");
     expect(score).toBeGreaterThan(0.3);
     expect(score).toBeLessThan(1);
+  });
+});
+
+describe("hasSuspiciousTitleContainment", () => {
+  it("flags a documentary/making-of title that contains the real title plus extra words", () => {
+    expect(
+      hasSuspiciousTitleContainment(
+        "The Queen's Gambit",
+        "Creating The Queen's Gambit",
+      ),
+    ).toBe(true);
+  });
+
+  it("is symmetric — order of arguments doesn't matter", () => {
+    expect(
+      hasSuspiciousTitleContainment(
+        "Creating The Queen's Gambit",
+        "The Queen's Gambit",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag a plain leading-article difference", () => {
+    expect(hasSuspiciousTitleContainment("Matrix", "The Matrix")).toBe(false);
+    expect(hasSuspiciousTitleContainment("The Matrix", "Matrix")).toBe(false);
+  });
+
+  it("flags a sequel/subtitle relationship the same way — these must not auto-match either", () => {
+    expect(
+      hasSuspiciousTitleContainment("Blade Runner", "Blade Runner 2049"),
+    ).toBe(true);
+  });
+
+  it("does not flag identical titles", () => {
+    expect(hasSuspiciousTitleContainment("Inception", "Inception")).toBe(false);
+  });
+
+  it("does not flag genuinely unrelated titles (no containment relationship)", () => {
+    expect(hasSuspiciousTitleContainment("Inception", "The Notebook")).toBe(
+      false,
+    );
   });
 });

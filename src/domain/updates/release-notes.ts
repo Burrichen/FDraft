@@ -14,16 +14,29 @@
  * `PATCH_NOTES.md` and the in-app Patch Notes viewer): a first line like
  * `### v1.0.3 — Now Updating`. Any release published without that
  * convention — or with no body at all — degrades gracefully: no title,
- * and the raw body (if any) is shown as-is.
+ * and the raw body (if any) is shown as-is, UNLESS that raw body is
+ * recognizably the generic installer boilerplate `tauri-action` used to
+ * bake into every release before v1.1.0 (see docs/updates, v1.1.0,
+ * "UPDATE POPUP FIXES") — that text describes downloading a `.exe` from
+ * a GitHub releases page, which makes no sense inside an in-app updater
+ * flow that already handles the download itself, so it's treated as "no
+ * notes" rather than shown verbatim.
  */
 export interface ParsedReleaseNotes {
   /** The nickname after the version, e.g. "Now Updating" — `null` if the body doesn't start with FDraft's own heading convention. */
   title: string | null;
-  /** The body with the leading heading line (if matched) stripped — `null` if there is nothing left to show. */
+  /** The body with the leading heading line (if matched) stripped — `null` if there is nothing left to show, or if it was only ever generic installer instructions. */
   notes: string | null;
 }
 
 const HEADING_PATTERN = /^#{0,6}\s*v?\d+(?:\.\d+){1,2}\s*(?:[—-]\s*(.+))?\s*$/;
+
+/** Matches fragments of the old static `releaseBody` — see `.github/workflows/release.yml`'s history and `scripts/generate-release-body.ts`'s doc comment. */
+const GENERIC_INSTALLER_PATTERNS = [/see the assets below/i, /setup\.exe/i];
+
+function isGenericInstallerBoilerplate(text: string): boolean {
+  return GENERIC_INSTALLER_PATTERNS.some((pattern) => pattern.test(text));
+}
 
 export function parseReleaseNotes(
   body: string | null | undefined,
@@ -44,12 +57,20 @@ export function parseReleaseNotes(
   const firstLine = lines[firstContentIndex]?.trim() ?? "";
   const match = HEADING_PATTERN.exec(firstLine);
   if (!match || !match[1]) {
-    return { title: null, notes: body.trim() };
+    const trimmed = body.trim();
+    return {
+      title: null,
+      notes: isGenericInstallerBoilerplate(trimmed) ? null : trimmed,
+    };
   }
 
   const rest = lines
     .slice(firstContentIndex + 1)
     .join("\n")
     .trim();
-  return { title: match[1].trim(), notes: rest.length > 0 ? rest : null };
+  return {
+    title: match[1].trim(),
+    notes:
+      rest.length > 0 && !isGenericInstallerBoilerplate(rest) ? rest : null,
+  };
 }

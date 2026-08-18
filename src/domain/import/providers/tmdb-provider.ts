@@ -84,6 +84,10 @@ interface TmdbCrewMember {
 interface TmdbMovieDetails {
   id: number;
   imdb_id: string | null;
+  title: string;
+  release_date?: string;
+  /** TMDB's own lifecycle status, e.g. "Released", "Post Production", "Planned". */
+  status?: string;
   runtime: number | null;
   poster_path: string | null;
   genres: { id: number; name: string }[];
@@ -124,6 +128,11 @@ function asFiniteNumber(value: unknown): number | null {
 /** Same defensive purpose as `asFiniteNumber`, for the array fields — a malformed non-array response must fail this one field, not throw and abort the whole lookup. */
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? value : [];
+}
+
+/** Same defensive purpose as `asFiniteNumber`, for a plain non-empty string field. */
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 /** `"2017-04-26"` -> `2017`. `undefined`/empty (upcoming or unknown release) -> `null`, never invented. */
@@ -285,6 +294,9 @@ export function createTmdbProvider({
         tmdb: String(details.id),
         ...(details.imdb_id ? { imdb: details.imdb_id } : {}),
       },
+      releaseDate: asNonEmptyString(details.release_date),
+      releaseStatus: asNonEmptyString(details.status),
+      providerTitle: asNonEmptyString(details.title),
       raw: details,
     };
   }

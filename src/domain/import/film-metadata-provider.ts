@@ -35,6 +35,26 @@ export interface FilmMetadataResult {
   fansCount?: number | null;
   listAppearances?: number | null;
   externalIds?: Record<string, string> | null;
+  /**
+   * ISO calendar date (`YYYY-MM-DD`), or `null` when the provider hasn't
+   * reported one (upcoming/unknown release) — the release-eligibility
+   * check (`src/domain/watchlist/candidate-eligibility.ts`) is the reason
+   * this exists: `releaseYear` alone can't tell "definitely already out"
+   * from "release year not yet known", see docs/updates, v1.1.0, "DRAFT
+   * CANDIDATE INTEGRITY".
+   */
+  releaseDate?: string | null;
+  /** The provider's own release-status string (e.g. TMDB's "Released" / "Post Production" / "Planned"), when it has one — used alongside `releaseDate` for the same eligibility check. */
+  releaseStatus?: string | null;
+  /**
+   * The provider's own title for the matched entity, verbatim — kept
+   * specifically so a later consistency check (same file as above) can
+   * compare it against the imported film's own title and catch a
+   * matched-the-wrong-entity case (e.g. a documentary ABOUT a show
+   * matched in place of the show itself) even after the fact, without a
+   * second network round-trip.
+   */
+  providerTitle?: string | null;
   /** Full raw provider payload, kept for fields not yet modeled and for debugging. */
   raw?: unknown;
 }
