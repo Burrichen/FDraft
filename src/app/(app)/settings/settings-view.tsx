@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DataBackupSection } from "./data-backup-section";
 import { DefaultPageSection } from "./default-page-section";
+import { FranchiseOrderSection } from "./franchise-order-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
 import { UpdatesSection } from "./updates-section";
@@ -96,6 +97,8 @@ export function SettingsView() {
       </Card>
 
       <DefaultPageSection />
+
+      <FranchiseOrderSection />
 
       <MetadataSection />
 

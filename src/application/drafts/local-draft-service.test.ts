@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  addManualFilmToLocalDraft,
   archiveLocalDraftIfResolved,
   createLocalDraft,
   expireLocalDraftIfDue,
   generateLocalFreeformBatch,
+  rerollLocalDraftItemForMissingMetadata,
+  setLocalDraftCustomName,
   submitLocalPostmortemResponse,
 } from "@/application/drafts/local-draft-service";
 import { createSeededRng } from "@/domain/shared/rng";
@@ -46,6 +49,68 @@ async function seedActiveFilms(repos: Repositories, count: number) {
     entryIds.push(entryId);
   }
   return entryIds;
+}
+
+/** Seeds one active watchlist film with real collection/franchise metadata — for franchise-ordering tests, unlike `seedActiveFilms`'s films, which carry no metadata at all. */
+async function seedFranchiseFilm(
+  repos: Repositories,
+  params: {
+    filmId: string;
+    entryId: string;
+    releaseYear: number;
+    collectionId: string | null;
+    selectionWeight?: number;
+  },
+) {
+  await repos.films.create({
+    id: params.filmId,
+    title: params.filmId,
+    releaseYear: params.releaseYear,
+    letterboxdSlug: params.filmId,
+    letterboxdUri: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  await repos.films.upsertMetadata({
+    id: `${params.filmId}-meta`,
+    filmId: params.filmId,
+    provider: "tmdb",
+    posterUrl: null,
+    runtimeMinutes: null,
+    genres: null,
+    directors: null,
+    countries: null,
+    languages: null,
+    collectionId: params.collectionId,
+    collectionName: null,
+    collectionOrder: null,
+    averageRating: null,
+    popularity: null,
+    watchCount: null,
+    fansCount: null,
+    listAppearances: null,
+    externalIds: null,
+    raw: null,
+    matchMethod: "automatic",
+    lastEnrichedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  await repos.watchlist.createEntry({
+    id: params.entryId,
+    profileId: PROFILE_ID,
+    filmId: params.filmId,
+    dateAdded: "2026-01-01",
+    position: 0,
+    isActive: true,
+    selectionWeight: params.selectionWeight ?? 1,
+    importSource: null,
+    importId: null,
+    removedAt: null,
+    removedReason: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
 }
 
 describe("createLocalDraft", () => {
@@ -261,6 +326,7 @@ describe("expireLocalDraftIfDue", () => {
       timezone: "UTC",
       completedAt: null,
       freeformAchievedRank: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
@@ -394,6 +460,7 @@ describe("submitLocalPostmortemResponse + archiveLocalDraftIfResolved", () => {
       timezone: "UTC",
       completedAt: null,
       freeformAchievedRank: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
@@ -410,6 +477,8 @@ describe("submitLocalPostmortemResponse + archiveLocalDraftIfResolved", () => {
       isCompleted: false,
       completedAt: null,
       watchedHistoryId: null,
+      originFilmId: null,
+      substitutionReason: null,
       createdAt: "2026-01-01T00:00:00.000Z",
     }));
     await repos.drafts.createItems(items);
@@ -701,6 +770,609 @@ describe("generateLocalFreeformBatch", () => {
     expect(outcome).toEqual({
       ok: false,
       error: "not_freeform",
+      message: expect.any(String),
+    });
+  });
+});
+
+describe("createLocalDraft — franchise chronological order", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("OFF (default): never substitutes, regardless of which franchise entry the normal roll lands on", async () => {
+    db = new FDraftLocalDatabase(`franchise-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFranchiseFilm(repos, {
+      filmId: "mi1",
+      entryId: "entry-mi1",
+      releaseYear: 1996,
+      collectionId: "mission-impossible",
+    });
+    await seedFranchiseFilm(repos, {
+      filmId: "mi3",
+      entryId: "entry-mi3",
+      releaseYear: 2006,
+      collectionId: "mission-impossible",
+    });
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+      // franchiseChronologicalOrder omitted — defaults to off.
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(1);
+    expect(items[0].originFilmId).toBeNull();
+    expect(items[0].substitutionReason).toBeNull();
+  });
+
+  it("ON: a later franchise entry is always replaced by the earliest available unwatched entry in the same franchise", async () => {
+    db = new FDraftLocalDatabase(`franchise-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFranchiseFilm(repos, {
+      filmId: "mi1",
+      entryId: "entry-mi1",
+      releaseYear: 1996,
+      collectionId: "mission-impossible",
+    });
+    await seedFranchiseFilm(repos, {
+      filmId: "mi3",
+      entryId: "entry-mi3",
+      releaseYear: 2006,
+      collectionId: "mission-impossible",
+    });
+
+    // Deterministic regardless of which of the two candidates the plain
+    // roll happens to land on: with only these two films in the same
+    // franchise and a single random slot, the earliest (mi1) must always
+    // be what ends up in the draft — either because it was rolled
+    // directly, or because franchise ordering substituted it in for mi3.
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+      franchiseChronologicalOrder: true,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(1);
+    expect(items[0].filmId).toBe("mi1");
+    expect(items[0].source).toBe("random");
+  });
+
+  it("ON: when the substitution actually happens, records the originally-rolled film and the reason for the UI to explain later", async () => {
+    db = new FDraftLocalDatabase(`franchise-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    // A heavily skewed weight makes the later film overwhelmingly likely
+    // to be what the plain roll lands on first, so this test can assert
+    // on the substitution's own provenance fields specifically.
+    await seedFranchiseFilm(repos, {
+      filmId: "mi3",
+      entryId: "entry-mi3",
+      releaseYear: 2006,
+      collectionId: "mission-impossible",
+      selectionWeight: 1_000_000,
+    });
+    await seedFranchiseFilm(repos, {
+      filmId: "mi1",
+      entryId: "entry-mi1",
+      releaseYear: 1996,
+      collectionId: "mission-impossible",
+      selectionWeight: 1,
+    });
+
+    const outcome = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 1,
+          challengeCount: 0,
+        },
+        franchiseChronologicalOrder: true,
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(1);
+    expect(items[0].filmId).toBe("mi1");
+    expect(items[0].originFilmId).toBe("mi3");
+    expect(items[0].substitutionReason).toBe("franchise_order");
+  });
+
+  it("ON: never substitutes when the earlier entry is already watched (inactive) — general eligibility still applies", async () => {
+    db = new FDraftLocalDatabase(`franchise-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFranchiseFilm(repos, {
+      filmId: "mi3",
+      entryId: "entry-mi3",
+      releaseYear: 2006,
+      collectionId: "mission-impossible",
+    });
+    // mi1 exists but has already been watched — inactive, so it never
+    // enters the eligible candidate pool at all.
+    await repos.films.create({
+      id: "mi1",
+      title: "mi1",
+      releaseYear: 1996,
+      letterboxdSlug: "mi1",
+      letterboxdUri: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await repos.films.upsertMetadata({
+      id: "mi1-meta",
+      filmId: "mi1",
+      provider: "tmdb",
+      posterUrl: null,
+      runtimeMinutes: null,
+      genres: null,
+      directors: null,
+      countries: null,
+      languages: null,
+      collectionId: "mission-impossible",
+      collectionName: null,
+      collectionOrder: null,
+      averageRating: null,
+      popularity: null,
+      watchCount: null,
+      fansCount: null,
+      listAppearances: null,
+      externalIds: null,
+      raw: null,
+      matchMethod: "automatic",
+      lastEnrichedAt: "2026-01-01T00:00:00.000Z",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await repos.watchlist.createEntry({
+      id: "entry-mi1",
+      profileId: PROFILE_ID,
+      filmId: "mi1",
+      dateAdded: "2026-01-01",
+      position: 0,
+      isActive: false,
+      selectionWeight: 1,
+      importSource: null,
+      importId: null,
+      removedAt: "2026-01-01T00:00:00.000Z",
+      removedReason: "watched",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+      franchiseChronologicalOrder: true,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items[0].filmId).toBe("mi3");
+    expect(items[0].originFilmId).toBeNull();
+  });
+});
+
+describe("setLocalDraftCustomName", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("sets a custom name that a later read reflects", async () => {
+    db = new FDraftLocalDatabase(`custom-name-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 5);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 5,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    const outcome = await setLocalDraftCustomName(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      customName: "Horror Marathon",
+    });
+    expect(outcome).toEqual({ ok: true });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.customName).toBe("Horror Marathon");
+  });
+
+  it("clearing the custom name (null) restores the generated default", async () => {
+    db = new FDraftLocalDatabase(`custom-name-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 5);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 5,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+    await setLocalDraftCustomName(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      customName: "Horror Marathon",
+    });
+
+    await setLocalDraftCustomName(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      customName: null,
+    });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.customName).toBeNull();
+  });
+
+  it("an all-whitespace name is treated the same as clearing it", async () => {
+    db = new FDraftLocalDatabase(`custom-name-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 5);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 5,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    await setLocalDraftCustomName(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      customName: "   ",
+    });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.customName).toBeNull();
+  });
+
+  it("returns not_found for a draft that doesn't exist", async () => {
+    db = new FDraftLocalDatabase(`custom-name-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+
+    const outcome = await setLocalDraftCustomName(repos, {
+      profileId: PROFILE_ID,
+      draftId: "does-not-exist",
+      customName: "X",
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "not_found",
+      message: expect.any(String),
+    });
+  });
+});
+
+describe("addManualFilmToLocalDraft", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("adds the film as a manual item, growing draft capacity by one, without touching watched state", async () => {
+    db = new FDraftLocalDatabase(`manual-add-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 6);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 5,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+
+    const before = await repos.drafts.listItemsForDraft(created.draftId);
+    const unusedEntryId = entryIds.find(
+      (id) => !before.some((item) => item.watchlistEntryId === id),
+    )!;
+
+    const outcome = await addManualFilmToLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      watchlistEntryId: unusedEntryId,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const item = await repos.drafts.getItemById(outcome.draftItemId);
+    expect(item?.source).toBe("manual");
+    expect(item?.isCompleted).toBe(false);
+    expect(item?.watchedHistoryId).toBeNull();
+    expect(item?.watchlistEntryId).toBe(unusedEntryId);
+
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.totalFilms).toBe(6);
+    // Neither the random count nor anything reward/roll-shaped changed —
+    // this was never counted as a random pick.
+    expect(draft?.randomFilmCount).toBe(5);
+
+    const entry = await repos.watchlist.getEntryById(PROFILE_ID, unusedEntryId);
+    expect(entry?.isActive).toBe(true);
+  });
+
+  it("refuses a film already in the draft — no duplicates", async () => {
+    db = new FDraftLocalDatabase(`manual-add-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 5);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 5,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+
+    const outcome = await addManualFilmToLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      watchlistEntryId: entryIds[0],
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "already_in_draft",
+      message: expect.any(String),
+    });
+  });
+
+  it("refuses a watchlist entry that isn't active (e.g. already watched)", async () => {
+    db = new FDraftLocalDatabase(`manual-add-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 6);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 5,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const before = await repos.drafts.listItemsForDraft(created.draftId);
+    const unusedEntryId = entryIds.find(
+      (id) => !before.some((item) => item.watchlistEntryId === id),
+    )!;
+    const entry = await repos.watchlist.getEntryById(PROFILE_ID, unusedEntryId);
+    await repos.watchlist.updateEntry({
+      ...entry!,
+      isActive: false,
+      removedAt: "2026-01-01T00:00:00.000Z",
+      removedReason: "watched",
+    });
+
+    const outcome = await addManualFilmToLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      watchlistEntryId: unusedEntryId,
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "entry_not_eligible",
+      message: expect.any(String),
+    });
+  });
+
+  it("refuses to add to a non-active draft", async () => {
+    db = new FDraftLocalDatabase(`manual-add-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 6);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 5,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    await repos.drafts.updateDraft({ ...draft!, status: "archived" });
+    const before = await repos.drafts.listItemsForDraft(created.draftId);
+    const unusedEntryId = entryIds.find(
+      (id) => !before.some((item) => item.watchlistEntryId === id),
+    )!;
+
+    const outcome = await addManualFilmToLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      watchlistEntryId: unusedEntryId,
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "draft_not_active",
+      message: expect.any(String),
+    });
+  });
+});
+
+describe("rerollLocalDraftItemForMissingMetadata", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("replaces a metadata-less item's film in place, without changing draft capacity", async () => {
+    db = new FDraftLocalDatabase(`reroll-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    // seedActiveFilms's films carry no metadata at all.
+    await seedActiveFilms(repos, 6);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 5,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    const target = items[0];
+
+    const outcome = await rerollLocalDraftItemForMissingMetadata(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: target.id,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const updated = await repos.drafts.getItemById(target.id);
+    expect(updated?.filmId).toBe(outcome.newFilmId);
+    expect(updated?.filmId).not.toBe(target.filmId);
+    expect(updated?.originFilmId).toBe(target.filmId);
+    expect(updated?.substitutionReason).toBe("missing_metadata");
+    expect(updated?.orderIndex).toBe(target.orderIndex);
+    expect(updated?.watchedHistoryId).toBeNull();
+    expect(updated?.isCompleted).toBe(false);
+
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.totalFilms).toBe(5); // unchanged — a replacement, not an addition
+
+    // No duplicate: the new film doesn't collide with any other item.
+    const allItems = await repos.drafts.listItemsForDraft(created.draftId);
+    const filmIds = allItems.map((item) => item.filmId);
+    expect(new Set(filmIds).size).toBe(filmIds.length);
+  });
+
+  it("refuses to reroll an item whose film already has usable metadata", async () => {
+    db = new FDraftLocalDatabase(`reroll-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    // A non-null collectionId is enough real metadata to count as "has
+    // usable metadata" — the other fields being null doesn't matter.
+    await seedFranchiseFilm(repos, {
+      filmId: "has-metadata",
+      entryId: "entry-1",
+      releaseYear: 2020,
+      collectionId: "some-franchise",
+    });
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+
+    const outcome = await rerollLocalDraftItemForMissingMetadata(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: items[0].id,
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "has_metadata",
+      message: expect.any(String),
+    });
+  });
+
+  it("reports nothing_available when no other watchlist film can replace it", async () => {
+    db = new FDraftLocalDatabase(`reroll-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 1);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+
+    const outcome = await rerollLocalDraftItemForMissingMetadata(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: items[0].id,
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "nothing_available",
       message: expect.any(String),
     });
   });

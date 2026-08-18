@@ -253,19 +253,29 @@ async function completeMatchingActiveDraftItem(
     now: Date;
   },
 ): Promise<string | null> {
-  const items = await repos.drafts.findItemsByWatchlistEntryId(
-    params.watchlistEntryId,
-  );
-  const incompleteItem = items.find((item) => !item.isCompleted);
-  if (!incompleteItem) {
+  // Resolves the CURRENT active draft first, then looks for the matching
+  // item within it — rather than `findItemsByWatchlistEntryId`'s
+  // cross-draft scan (see docs/product-spec.md, "HISTORY DATA INTEGRITY").
+  // The same watchlist entry can appear as an incomplete item in more than
+  // one draft over time (e.g. a "wanted more time" postmortem response
+  // leaves an old, archived draft's item permanently `isCompleted: false`
+  // while the entry stays active and gets re-picked into a later draft) —
+  // matching by watchlistEntryId ALONE, with no draft scoping, could
+  // therefore find and "complete" the wrong (stale, already-archived)
+  // item instead of the one in today's active draft, silently leaving the
+  // real active item — and the draft it belongs to — never marked
+  // watched at all.
+  const draft = await repos.drafts.getActiveOrExpiredDraft(params.profileId);
+  if (!draft || draft.status !== "active") {
     return null;
   }
 
-  const draft = await repos.drafts.getById(
-    params.profileId,
-    incompleteItem.draftId,
+  const items = await repos.drafts.listItemsForDraft(draft.id);
+  const incompleteItem = items.find(
+    (item) =>
+      item.watchlistEntryId === params.watchlistEntryId && !item.isCompleted,
   );
-  if (!draft || draft.status !== "active") {
+  if (!incompleteItem) {
     return null;
   }
 

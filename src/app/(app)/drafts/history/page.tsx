@@ -11,7 +11,7 @@ import { RecentlyWatchedSection } from "@/components/drafts/recently-watched-sec
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Badge } from "@/components/ui/badge";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
-import { DIFFICULTIES } from "@/domain/drafts/difficulty";
+import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { FREEFORM_RANK_LABELS } from "@/domain/drafts/freeform";
 import {
   DEFAULT_HISTORICAL_DRAFT_SORT,
@@ -228,7 +228,7 @@ function HistoricalDraftEntry({
         <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 select-none">
           <div>
             <p className="text-foreground font-semibold">
-              {DIFFICULTIES[draft.difficulty].label} draft
+              {getDraftDisplayName(draft)}
               {draft.freeformAchievedRank ? (
                 <Badge variant="secondary" className="ml-2 align-middle">
                   Achieved: {FREEFORM_RANK_LABELS[draft.freeformAchievedRank]}

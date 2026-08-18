@@ -1,5 +1,6 @@
 import { Check, Film } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { AddToDraftButton } from "./add-to-draft-button";
 import { FilmMetadataLine } from "@/components/film-metadata-line";
 import { cn } from "@/lib/utils";
 import { useIsWatchedThisSession, WatchToggle } from "./watch-toggle";
@@ -11,6 +12,15 @@ interface FilmCardProps {
   onWatched?: (entryId: string) => void;
   /** "large" is used by the standalone random-film picker, which shows one film at a time. */
   size?: "default" | "large";
+  /**
+   * The Watchlist page's manual "Add to Draft" action (see docs/updates)
+   * — all three omitted entirely (rather than `null`) by any caller that
+   * doesn't offer it at all, e.g. the Random Film picker, which never
+   * renders `AddToDraftButton` in that case.
+   */
+  activeDraftId?: string | null;
+  isInActiveDraft?: boolean;
+  onAddedToDraft?: (entryId: string) => void;
 }
 
 /**
@@ -29,7 +39,14 @@ interface FilmCardProps {
  * user marks watched or undoes, with no parent-managed hidden/visible list
  * to keep in sync.
  */
-export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
+export function FilmCard({
+  film,
+  onWatched,
+  size = "default",
+  activeDraftId,
+  isInActiveDraft = false,
+  onAddedToDraft,
+}: FilmCardProps) {
   const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const genresToShow = size === "large" ? 4 : 2;
 
@@ -40,6 +57,15 @@ export function FilmCard({ film, onWatched, size = "default" }: FilmCardProps) {
         title={film.title}
         onMarkedWatched={() => onWatched?.(film.entryId)}
       />
+      {activeDraftId !== undefined && onAddedToDraft ? (
+        <AddToDraftButton
+          entryId={film.entryId}
+          title={film.title}
+          activeDraftId={activeDraftId}
+          isInDraft={isInActiveDraft}
+          onAdded={onAddedToDraft}
+        />
+      ) : null}
       <a
         href={film.letterboxdUri ?? undefined}
         target="_blank"

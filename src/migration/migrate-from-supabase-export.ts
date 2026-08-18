@@ -175,6 +175,10 @@ export async function migrateFromSupabaseExport(
       completedAt: draft.completed_at,
       freeformAchievedRank:
         draft.freeform_achieved_rank as DraftRecord["freeformAchievedRank"],
+      // The Supabase-era data model predates draft naming/franchise
+      // ordering entirely — every migrated draft uses the generated
+      // default name.
+      customName: null,
       createdAt: draft.created_at,
       updatedAt: draft.updated_at,
     };
@@ -195,6 +199,11 @@ export async function migrateFromSupabaseExport(
       isCompleted: item.is_completed,
       completedAt: item.completed_at,
       watchedHistoryId: item.watched_history_id,
+      // The Supabase-era data model predates selection provenance
+      // entirely — every migrated item's film has always been exactly
+      // what it is now.
+      originFilmId: null,
+      substitutionReason: null,
       createdAt: item.created_at,
     };
     await repos.drafts.createItems([record]);

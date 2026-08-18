@@ -19,7 +19,11 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       lastOpenedAt: "2026-01-01T00:00:00.000Z",
       timezone: "UTC",
-      settings: { reducedMotion: false, defaultPage: "watchlist" as const },
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist" as const,
+        franchiseChronologicalOrder: false,
+      },
       dataVersion: 1,
     };
     await repos.profiles.create({
@@ -85,6 +89,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         timezone: "UTC",
         completedAt: "2026-02-01T00:00:00.000Z",
         freeformAchievedRank: null,
+        customName: null,
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
       });
@@ -102,6 +107,8 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
           isCompleted: true,
           completedAt: "2026-01-15T00:00:00.000Z",
           watchedHistoryId: `history-${profileId}`,
+          originFilmId: null,
+          substitutionReason: null,
           createdAt: "2026-01-01T00:00:00.000Z",
         },
       ]);
@@ -178,7 +185,11 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       lastOpenedAt: "2026-01-01T00:00:00.000Z",
       timezone: "UTC",
-      settings: { reducedMotion: false, defaultPage: "watchlist" },
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist",
+        franchiseChronologicalOrder: false,
+      },
       dataVersion: 1,
     });
 

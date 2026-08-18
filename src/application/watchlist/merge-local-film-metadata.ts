@@ -47,6 +47,22 @@ const EMPTY_MERGED_METADATA: MergedFilmMetadata = {
   listAppearances: null,
 };
 
+/**
+ * Whether a film genuinely has no usable metadata at all — every field
+ * `mergeLocalFilmMetadata` can populate is null (see docs/updates,
+ * "MISSING-METADATA REROLL": "use the project's existing metadata
+ * structure to determine whether a film genuinely has no metadata rather
+ * than checking only one arbitrary field"). A film with, say, only a
+ * poster but nothing else still counts as having usable metadata — this
+ * is specifically for the "nothing came back from any provider at all"
+ * case a reroll exists for.
+ */
+export function hasNoUsableMetadata(metadata: MergedFilmMetadata): boolean {
+  return (
+    Object.keys(EMPTY_MERGED_METADATA) as (keyof MergedFilmMetadata)[]
+  ).every((key) => metadata[key] === null);
+}
+
 export function mergeLocalFilmMetadata(
   records: FilmMetadataRecord[],
 ): MergedFilmMetadata {

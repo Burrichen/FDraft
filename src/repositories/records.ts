@@ -18,7 +18,19 @@ export type DraftDifficulty =
 export type DraftTimeMode = "calendar" | "timer";
 export type DraftStatus = "active" | "expired" | "archived";
 export type DraftChallengeMode = "choose" | "decide";
-export type DraftItemSource = "random" | "challenge";
+export type DraftItemSource = "random" | "challenge" | "manual";
+/**
+ * Why a draft item's `filmId` differs from `originFilmId` (see
+ * `DraftItemRecord.originFilmId`) — `null` whenever it doesn't. FDraft
+ * v1.0.2 introduces exactly two ways an already-selected item can be
+ * substituted after the fact: an earlier, unwatched entry in the same
+ * franchise/collection replacing a later-in-series roll
+ * ("franchise_order"), or a completely absent metadata record forcing a
+ * fresh random pick ("missing_metadata"). A manually-added item is never
+ * a substitution — it has no `originFilmId` at all.
+ */
+export type DraftItemSubstitutionReason =
+  "franchise_order" | "missing_metadata";
 export type FreeformRank =
   "below_baby" | "baby" | "easy" | "medium" | "hard" | "hardcore";
 export type ChallengeAttemptStatus =
@@ -177,6 +189,16 @@ export interface DraftRecord {
   timezone: string;
   completedAt: string | null;
   freeformAchievedRank: FreeformRank | null;
+  /**
+   * A user-chosen title for this specific draft, or `null` to use the
+   * generated `<Month> <Difficulty> Draft` default (see
+   * `src/domain/drafts/draft-name.ts` — always read through
+   * `getDraftDisplayName()`, never this field directly, so the generated
+   * default logic lives in exactly one place). A pre-v1.0.2 record has no
+   * such property at all, which normalizes to `null` — the same "use the
+   * default" behaviour every draft already had.
+   */
+  customName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -194,6 +216,18 @@ export interface DraftItemRecord {
   isCompleted: boolean;
   completedAt: string | null;
   watchedHistoryId: string | null;
+  /**
+   * The film that occupied this slot before a substitution replaced it
+   * with `filmId` — `null` when this item's film has never changed since
+   * it was first selected (the overwhelmingly common case). See
+   * `DraftItemSubstitutionReason` for why the two only ever appear
+   * together. A pre-v1.0.2 record has neither property at all — always
+   * read through `LocalDraftRepository`'s normalization, never trusted
+   * raw.
+   */
+  originFilmId: string | null;
+  /** `null` whenever `originFilmId` is `null`. */
+  substitutionReason: DraftItemSubstitutionReason | null;
   createdAt: string;
 }
 
