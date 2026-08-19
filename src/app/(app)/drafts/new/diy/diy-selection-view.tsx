@@ -218,8 +218,13 @@ export function DiySelectionView() {
             aria-label="Eligible films"
             className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
           >
+            {/* `min-w-0` on each grid item overrides its automatic
+                minimum size — without it, a long `truncate`d title's
+                full, unwrapped (`white-space: nowrap`) width becomes
+                that item's floor, breaking out of its `minmax(0,1fr)`
+                track and forcing the whole page to scroll horizontally. */}
             {visibleFilms.map((film) => (
-              <li key={film.entryId}>
+              <li key={film.entryId} className="min-w-0">
                 <DiyFilmCard
                   film={film}
                   selected={selectedEntryIds.has(film.entryId)}

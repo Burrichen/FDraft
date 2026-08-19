@@ -44,7 +44,14 @@ export function DiyFilmCard({
       aria-pressed={selected}
       onClick={() => onToggle(film.entryId)}
       className={cn(
-        "group focus-visible:outline-ring relative flex h-full flex-col overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2",
+        // `w-full` is required here, not optional polish: unlike a `<div>`
+        // or `<a>`, a `<button>` doesn't stretch to fill its containing
+        // block just from `display: flex` — without it, this card sizes
+        // to its content's width instead of its grid cell's, and a long
+        // `truncate`d title (whose min-content width, under `white-space:
+        // nowrap`, is its full unwrapped length) blows out the card, the
+        // grid track, and ultimately the page into horizontal scroll.
+        "group focus-visible:outline-ring relative flex h-full w-full flex-col overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2",
         selected
           ? "border-primary bg-secondary"
           : "border-border bg-card hover:border-primary/50",

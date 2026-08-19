@@ -196,11 +196,35 @@ export async function createLocalDraft(
   const randomCount = freeform ? totalFilms : (config.randomCount ?? 0);
   const challengeCount = freeform ? 0 : (config.challengeCount ?? 0);
 
-  if (candidates.length < randomCount) {
+  // A film the user explicitly pre-picked for a deliberately-CHOSEN "diy"
+  // slot must survive to the challenge phase untouched — see docs/updates,
+  // v1.1.1, "DIY Challenge Film": "prevent challenge draft finalisation
+  // until a valid film has been chosen." Excluded here from both the
+  // random draw and franchise-order substitution's own candidate pool, so
+  // neither can silently consume it first purely by chance; it's added
+  // back for the challenge engine below via `remainingCandidates` (built
+  // from the full, unfiltered `candidates`). "Decide For Me"'s optional
+  // backups are deliberately NOT reserved — they're explicitly best-effort
+  // ("if one of your challenge slots happens to randomly land on...").
+  const reservedForDiyEntryIds =
+    !freeform &&
+    config.challengeMode === "choose" &&
+    config.diyFilmEntryIds?.length
+      ? new Set(config.diyFilmEntryIds)
+      : new Set<string>();
+  const randomDrawPool =
+    reservedForDiyEntryIds.size > 0
+      ? candidates.filter(
+          (candidate) =>
+            !reservedForDiyEntryIds.has(candidate.watchlistEntryId),
+        )
+      : candidates;
+
+  if (randomDrawPool.length < randomCount) {
     return {
       ok: false,
       error: "not_enough_films",
-      message: `This draft needs at least ${randomCount} active watchlist films for its random selection (you have ${candidates.length}).`,
+      message: `This draft needs at least ${randomCount} active watchlist films for its random selection (you have ${randomDrawPool.length}).`,
     };
   }
 
@@ -212,7 +236,7 @@ export async function createLocalDraft(
   });
 
   const rolledRandomPickIds = pickRandomFilms(
-    candidates.map((candidate) => ({
+    randomDrawPool.map((candidate) => ({
       id: candidate.watchlistEntryId,
       weight: candidate.selectionWeight,
     })),
@@ -224,7 +248,7 @@ export async function createLocalDraft(
   );
   const { finalPickIds: randomPickIds, substitutionByEntryId } =
     applyFranchiseChronologicalOrder({
-      candidates,
+      candidates: randomDrawPool,
       candidateByEntryId,
       rolledPickIds: rolledRandomPickIds,
       enabled: franchiseChronologicalOrder,

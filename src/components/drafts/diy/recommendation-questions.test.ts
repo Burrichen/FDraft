@@ -125,6 +125,15 @@ describe("RECOMMENDATION_QUESTIONS", () => {
       expect(result.map((f) => f.entryId)).toEqual(["short"]);
     });
 
+    it("boundary: 119 minutes qualifies, 120 minutes does not", () => {
+      const films = [
+        makeFilm({ entryId: "119", runtimeMinutes: 119 }),
+        makeFilm({ entryId: "120", runtimeMinutes: 120 }),
+      ];
+      const result = question("something-short").recommend(films, NOW);
+      expect(result.map((f) => f.entryId)).toEqual(["119"]);
+    });
+
     it("excludes films with no trustworthy runtime at all", () => {
       const films = [
         makeFilm({ entryId: "unknown", runtimeMinutes: null }),

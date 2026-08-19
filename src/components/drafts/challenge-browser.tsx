@@ -97,10 +97,10 @@ export function ChallengeBrowser({
 
   function removeSlot(index: number) {
     onChange(selectedChallengeIds.filter((_, i) => i !== index));
-    // The parent form is responsible for re-clamping `diyChallengeFilmEntryIds`
-    // to the new diy-slot count whenever `selectedChallengeIds` changes —
-    // see `new-draft-form.tsx`'s effect — so removing a "diy" slot here
-    // doesn't need its own special case.
+    // The parent form derives a clamped `diyChallengeFilmEntryIds` at
+    // render time from the new diy-slot count whenever `selectedChallengeIds`
+    // changes — see `new-draft-form.tsx`'s `diyFilmEntryIdsCap` — so
+    // removing a "diy" slot here doesn't need its own special case.
   }
 
   function toggleDiyFilm(entryId: string) {

@@ -410,6 +410,45 @@ describe("createLocalDraft — DIY Challenge Film", () => {
     expect(outcome.challengeWarning).toMatch(/couldn't be filled/);
   });
 
+  it("reserves a chosen diy slot's pre-picked film from the random draw and franchise substitution, even when the random draw would otherwise exhaust the pool", async () => {
+    db = new FDraftLocalDatabase(`diy-challenge-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    // 6 films total, 1 reserved for the diy slot, randomCount set to
+    // exactly the other 5 — with the reservation working, the random draw
+    // has no choice but to use exactly the 5 non-reserved films,
+    // deterministically leaving the reserved film for the challenge phase
+    // regardless of rng. Without the reservation, the random draw would
+    // pull from all 6 and could easily consume the "reserved" film first.
+    const entryIds = await seedActiveFilms(repos, 6);
+    const reservedEntryId = entryIds[5];
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 5,
+        challengeCount: 1,
+        challengeMode: "choose",
+        chosenChallengeIds: ["diy"],
+        diyFilmEntryIds: [reservedEntryId],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    const randomItems = items.filter((item) => item.source === "random");
+    expect(randomItems).toHaveLength(5);
+    expect(
+      randomItems.some((item) => item.watchlistEntryId === reservedEntryId),
+    ).toBe(false);
+
+    const diyItem = items.find((item) => item.challengeId === "diy");
+    expect(diyItem?.watchlistEntryId).toBe(reservedEntryId);
+  });
+
   it("a diy challenge item behaves exactly like any other draft item afterward — watch/undo, history, Admin Mode regeneration", async () => {
     db = new FDraftLocalDatabase(`diy-challenge-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
