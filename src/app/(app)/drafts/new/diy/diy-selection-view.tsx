@@ -7,30 +7,16 @@ import { toast } from "sonner";
 import { createLocalDraftFromSelection } from "@/application/drafts/local-draft-service";
 import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
 import { AsyncDataError } from "@/components/async-data-error";
-import { DiyFilmCard } from "@/components/drafts/diy/diy-film-card";
+import { DiyFilmBrowser } from "@/components/drafts/diy/diy-film-browser";
 import { RecommendationSidebar } from "@/components/drafts/diy/recommendation-sidebar";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/empty-state";
-import { Input } from "@/components/ui/input";
-import { SortFilterControl } from "@/components/watchlist/sort-filter-control";
 import {
   getDifficulty,
   isDraftDifficulty,
   isFreeform,
 } from "@/domain/drafts/difficulty";
-import {
-  collectAvailableDecades,
-  collectAvailableGenres,
-  DEFAULT_WATCHLIST_FILTERS,
-  filterWatchlistFilms,
-  isDefaultWatchlistFilterState,
-  searchWatchlistFilms,
-  sortWatchlistFilms,
-  type WatchlistFilterState,
-} from "@/domain/watchlist/sort-filter";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { Film } from "lucide-react";
 
 /**
  * The DIY Draft selection screen (see docs/updates, v1.1.0, "NEW
@@ -67,33 +53,12 @@ export function DiySelectionView() {
     return { eligibleFilms, now: new Date() };
   }, [activeProfile?.id, repositories]);
 
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<WatchlistFilterState>(
-    DEFAULT_WATCHLIST_FILTERS,
-  );
-  const [sort, setSort] =
-    useState<Parameters<typeof sortWatchlistFilms>[1]>("date_added_desc");
   const [selectedEntryIds, setSelectedEntryIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
   const [isCreating, setIsCreating] = useState(false);
 
   const films = useMemo(() => data?.eligibleFilms ?? [], [data]);
-  const availableGenres = useMemo(() => collectAvailableGenres(films), [films]);
-  const availableDecades = useMemo(
-    () => collectAvailableDecades(films),
-    [films],
-  );
-  const visibleFilms = useMemo(() => {
-    const searched = searchWatchlistFilms(films, search);
-    const filtered = filterWatchlistFilms(
-      searched.map((film) => ({ ...film, hasMetadata: true })),
-      filters,
-    );
-    return sortWatchlistFilms(filtered, sort);
-  }, [films, search, filters, sort]);
-  const hasActiveNarrowing =
-    !isDefaultWatchlistFilterState(filters) || search.trim().length > 0;
 
   function handleToggle(entryId: string) {
     setSelectedEntryIds((current) => {
@@ -169,71 +134,12 @@ export function DiySelectionView() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="relative min-w-48 flex-1 sm:max-w-xs">
-          <Input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by title…"
-            aria-label="Search your watchlist by title"
-          />
-        </div>
-        <SortFilterControl
-          sort={sort}
-          filters={filters}
-          availableGenres={availableGenres}
-          availableDecades={availableDecades}
-          onSortChange={setSort}
-          onFiltersChange={setFilters}
-        />
-      </div>
-
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_260px]">
-        {visibleFilms.length === 0 ? (
-          <EmptyState
-            icon={Film}
-            title="No films match"
-            description={
-              hasActiveNarrowing
-                ? "Try a different search, or loosen/reset the filters above."
-                : "Your watchlist doesn't have any eligible films right now."
-            }
-            action={
-              hasActiveNarrowing ? (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setFilters(DEFAULT_WATCHLIST_FILTERS);
-                    setSearch("");
-                  }}
-                >
-                  Clear search &amp; filters
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <ul
-            aria-label="Eligible films"
-            className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
-          >
-            {/* `min-w-0` on each grid item overrides its automatic
-                minimum size — without it, a long `truncate`d title's
-                full, unwrapped (`white-space: nowrap`) width becomes
-                that item's floor, breaking out of its `minmax(0,1fr)`
-                track and forcing the whole page to scroll horizontally. */}
-            {visibleFilms.map((film) => (
-              <li key={film.entryId} className="min-w-0">
-                <DiyFilmCard
-                  film={film}
-                  selected={selectedEntryIds.has(film.entryId)}
-                  onToggle={handleToggle}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        <DiyFilmBrowser
+          films={films}
+          selectedEntryIds={selectedEntryIds}
+          onToggle={handleToggle}
+        />
 
         <RecommendationSidebar
           films={films}

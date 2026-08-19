@@ -64,6 +64,12 @@ const METADATA_BY_TITLE: Record<
     releaseDate: "2013-01-01",
     releaseStatus: "Released",
   },
+  "Upcoming Sequel": {
+    runtimeMinutes: null,
+    averageRating: null,
+    releaseDate: null,
+    releaseStatus: "Planned",
+  },
 };
 
 test("DIY Draft 'Need ideas?' only recommends trustworthy-data films, stays in sync with the main grid, and holds layout at a narrow width with a long title", async ({
@@ -96,7 +102,7 @@ test("DIY Draft 'Need ideas?' only recommends trustworthy-data films, stays in s
   await page.getByRole("button", { name: "Profile menu" }).click();
   await page.getByRole("menuitem", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Download Missing Metadata" }).click();
-  await expect(page.getByText("6 matched.")).toBeVisible();
+  await expect(page.getByText("7 matched.")).toBeVisible();
 
   await page.getByRole("link", { name: "Drafts" }).click();
   await page.getByRole("button", { name: "Start a draft" }).click();
@@ -107,6 +113,11 @@ test("DIY Draft 'Need ideas?' only recommends trustworthy-data films, stays in s
   await expect(
     page.getByRole("heading", { name: "Build your own draft" }),
   ).toBeVisible();
+
+  // --- An unreleased/future title (v1.1.2, "Fix unreleased-film
+  // handling") must never appear anywhere — not the main grid, not any
+  // recommendation.
+  await expect(page.getByText("Upcoming Sequel")).toHaveCount(0);
 
   // --- Highest rated: excludes "No Data Film" (no rating), ranks the
   // long-titled film (4.9) first.
@@ -138,6 +149,7 @@ test("DIY Draft 'Need ideas?' only recommends trustworthy-data films, stays in s
   await expect(
     somethingRecent.locator("ul").getByRole("button").first(),
   ).toContainText("Brand New Release");
+  await expect(somethingRecent.getByText("Upcoming Sequel")).toHaveCount(0);
 
   // --- Take me back: oldest release year first.
   const takeMeBack = page

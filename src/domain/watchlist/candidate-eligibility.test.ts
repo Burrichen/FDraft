@@ -68,6 +68,48 @@ describe("evaluateCandidateEligibility — unreleased films", () => {
     );
     expect(result).toEqual({ eligible: true });
   });
+
+  it("accepts a film releasing exactly today", () => {
+    const result = evaluateCandidateEligibility(
+      film({ releaseDate: "2026-06-01" }),
+      EMPTY_CONTEXT,
+    );
+    expect(result).toEqual({ eligible: true });
+  });
+
+  it("rejects an unenriched future title using the Letterboxd release year alone (see docs/updates, v1.1.2, 'Fix unreleased-film handling')", () => {
+    // No provider metadata at all — the exact gap that let "The Batman:
+    // Part II (2028)" style entries leak through before this fix.
+    const result = evaluateCandidateEligibility(
+      film({ releaseYear: 2028, releaseDate: null, releaseStatus: null }),
+      EMPTY_CONTEXT,
+    );
+    expect(result).toEqual({ eligible: false, reason: "unreleased" });
+  });
+
+  it("does not treat a same-year release year alone as proof of being released — but doesn't reject it either", () => {
+    const result = evaluateCandidateEligibility(
+      film({ releaseYear: 2026, releaseDate: null, releaseStatus: null }),
+      EMPTY_CONTEXT,
+    );
+    expect(result).toEqual({ eligible: true });
+  });
+
+  it("a past release year with no other data stays eligible", () => {
+    const result = evaluateCandidateEligibility(
+      film({ releaseYear: 1990, releaseDate: null, releaseStatus: null }),
+      EMPTY_CONTEXT,
+    );
+    expect(result).toEqual({ eligible: true });
+  });
+
+  it("richer provider data (a past releaseDate) wins over a stale/wrong future releaseYear", () => {
+    const result = evaluateCandidateEligibility(
+      film({ releaseYear: 2028, releaseDate: "2020-01-01" }),
+      EMPTY_CONTEXT,
+    );
+    expect(result).toEqual({ eligible: true });
+  });
 });
 
 describe("evaluateCandidateEligibility — later series entries", () => {

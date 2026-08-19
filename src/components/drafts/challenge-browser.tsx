@@ -1,9 +1,10 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Film, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { DiyCompactFilmRow } from "@/components/drafts/diy/diy-compact-film-row";
+import { Button } from "@/components/ui/button";
+import { DiyFilmPickerSheet } from "@/components/drafts/diy/diy-film-picker-sheet";
 import type { DiySelectableFilmView } from "@/components/drafts/diy/diy-film-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,8 +30,16 @@ interface ChallengeBrowserProps {
   onManualGenreChange: (genre: string) => void;
   /** The same canonical eligible pool the DIY Draft screen uses — see `application/drafts/local-diy-candidates.ts` (v1.1.1, "DIY Challenge Film"). */
   diyEligibleFilms: DiySelectableFilmView[];
-  diyChallengeFilmEntryIds: string[];
-  onDiyChallengeFilmEntryIdsChange: (entryIds: string[]) => void;
+  /**
+   * One entry per "Pick Your Own" slot chosen so far (`diySlotsChosen`
+   * long once clamped) — index `i` is that slot's pick, `null` when it
+   * hasn't been chosen yet (see docs/updates, v1.1.2, "Redesign Challenge
+   * Films — Pick Your Own": each slot gets its own picker, not one shared
+   * list). Never has more entries than there are diy slots by the time it
+   * reaches this component — the parent form clamps it.
+   */
+  diyChallengeFilmEntryIds: (string | null)[];
+  onDiyChallengeFilmEntryIdsChange: (entryIds: (string | null)[]) => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -67,6 +76,7 @@ export function ChallengeBrowser({
   onDiyChallengeFilmEntryIdsChange,
 }: ChallengeBrowserProps) {
   const [search, setSearch] = useState("");
+  const [openSlotIndex, setOpenSlotIndex] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -103,17 +113,25 @@ export function ChallengeBrowser({
     // removing a "diy" slot here doesn't need its own special case.
   }
 
-  function toggleDiyFilm(entryId: string) {
-    if (diyChallengeFilmEntryIds.includes(entryId)) {
-      onDiyChallengeFilmEntryIdsChange(
-        diyChallengeFilmEntryIds.filter((id) => id !== entryId),
-      );
-      return;
+  const diyFilledCount = diyChallengeFilmEntryIds.filter(
+    (id) => id !== null,
+  ).length;
+
+  function handleConfirmDiySlot(slotIndex: number, entryId: string) {
+    const next = [...diyChallengeFilmEntryIds];
+    while (next.length <= slotIndex) {
+      next.push(null);
     }
-    if (diyChallengeFilmEntryIds.length >= diySlotsChosen) {
-      return;
+    next[slotIndex] = entryId;
+    onDiyChallengeFilmEntryIdsChange(next);
+  }
+
+  function handleClearDiySlot(slotIndex: number) {
+    const next = [...diyChallengeFilmEntryIds];
+    if (slotIndex < next.length) {
+      next[slotIndex] = null;
     }
-    onDiyChallengeFilmEntryIdsChange([...diyChallengeFilmEntryIds, entryId]);
+    onDiyChallengeFilmEntryIdsChange(next);
   }
 
   return (
@@ -181,26 +199,105 @@ export function ChallengeBrowser({
       {diySlotsChosen > 0 ? (
         <div className="space-y-1.5">
           <p className="text-foreground text-sm font-medium">
-            Pick Your Own — choose {diyChallengeFilmEntryIds.length} of{" "}
-            {diySlotsChosen} film{diySlotsChosen === 1 ? "" : "s"}
+            Pick Your Own — {diyFilledCount} of {diySlotsChosen} film
+            {diySlotsChosen === 1 ? "" : "s"} chosen
           </p>
           {diyEligibleFilms.length === 0 ? (
             <p className="text-muted-foreground text-xs">
               No eligible films on your watchlist right now.
             </p>
           ) : (
-            <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
-              {diyEligibleFilms.map((film) => (
-                <li key={film.entryId}>
-                  <DiyCompactFilmRow
-                    film={film}
-                    selected={diyChallengeFilmEntryIds.includes(film.entryId)}
-                    onToggle={toggleDiyFilm}
-                  />
-                </li>
-              ))}
+            <ul className="space-y-1.5">
+              {Array.from({ length: diySlotsChosen }, (_, slotIndex) => {
+                const entryId = diyChallengeFilmEntryIds[slotIndex] ?? null;
+                const film = entryId
+                  ? diyEligibleFilms.find((f) => f.entryId === entryId)
+                  : null;
+                const slotLabel = `Pick Your Own slot ${slotIndex + 1} of ${diySlotsChosen}`;
+                return (
+                  <li
+                    key={slotIndex}
+                    className="border-border flex items-center gap-2 rounded-md border p-2"
+                  >
+                    {film ? (
+                      <>
+                        <div className="bg-muted relative aspect-2/3 w-8 shrink-0 overflow-hidden rounded-sm">
+                          {film.posterUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- posters are external, remote URLs from third-party providers
+                            <img
+                              src={film.posterUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="text-muted-foreground flex h-full w-full items-center justify-center">
+                              <Film aria-hidden="true" className="size-3" />
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+                          {film.title}
+                          {film.releaseYear ? ` (${film.releaseYear})` : ""}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setOpenSlotIndex(slotIndex)}
+                        >
+                          Change
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleClearDiySlot(slotIndex)}
+                          aria-label={`Clear ${slotLabel}`}
+                        >
+                          <X aria-hidden="true" className="size-3.5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => setOpenSlotIndex(slotIndex)}
+                      >
+                        Choose a film for slot {slotIndex + 1}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
+          <DiyFilmPickerSheet
+            open={openSlotIndex !== null}
+            onOpenChange={(open) => {
+              if (!open) setOpenSlotIndex(null);
+            }}
+            films={diyEligibleFilms}
+            excludedEntryIds={
+              new Set(
+                diyChallengeFilmEntryIds.filter(
+                  (id, index): id is string =>
+                    id !== null && index !== openSlotIndex,
+                ),
+              )
+            }
+            selectedEntryId={
+              openSlotIndex !== null
+                ? (diyChallengeFilmEntryIds[openSlotIndex] ?? null)
+                : null
+            }
+            slotLabel={`Pick Your Own slot ${(openSlotIndex ?? 0) + 1} of ${diySlotsChosen}`}
+            onConfirm={(entryId) => {
+              if (openSlotIndex !== null) {
+                handleConfirmDiySlot(openSlotIndex, entryId);
+              }
+            }}
+          />
         </div>
       ) : null}
 

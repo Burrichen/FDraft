@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { createLocalDraft } from "@/application/drafts/local-draft-service";
 import { importLocalWatchlistCsv } from "@/application/import/local-import-service";
 import { getImportMetadataStatus } from "@/application/metadata/local-metadata-service";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -36,6 +37,7 @@ describe("importLocalWatchlistCsv", () => {
       filmsUpdated: 0,
       duplicatesSkipped: 0,
       alreadyWatchedSkipped: 0,
+      filmsRemoved: 0,
       unresolvedCount: 0,
       filmIds: expect.any(Array),
     });
@@ -74,6 +76,7 @@ describe("importLocalWatchlistCsv", () => {
       filmsUpdated: 0,
       duplicatesSkipped: 0,
       alreadyWatchedSkipped: 0,
+      filmsRemoved: 0,
       unresolvedCount: 0,
       filmIds: expect.any(Array),
     });
@@ -165,6 +168,7 @@ describe("importLocalWatchlistCsv", () => {
       filmsUpdated: 0,
       duplicatesSkipped: 1,
       alreadyWatchedSkipped: 0,
+      filmsRemoved: 0,
       unresolvedCount: 0,
       filmIds: expect.any(Array),
     });
@@ -308,5 +312,213 @@ describe("importLocalWatchlistCsv", () => {
 
     const status = await getImportMetadataStatus(repos, outcome.filmIds);
     expect(status).toEqual({ cached: 1, awaitingDownload: 1 });
+  });
+});
+
+describe("importLocalWatchlistCsv — mode: 'replace' (see docs/updates, v1.1.2, 'Re-import Letterboxd Watchlist')", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("deactivates an active entry whose film is absent from the new watchlist.csv", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+        "2026-01-02,Inception,2010,https://letterboxd.com/film/inception/",
+      ]),
+    });
+
+    const outcome = await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      mode: "replace",
+      // "Inception" removed from Letterboxd since the last export.
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+      ]),
+    });
+    expect(outcome.ok && outcome.filmsRemoved).toBe(1);
+
+    const active = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    expect(active).toHaveLength(1);
+    const remainingTitle = await repos.films.getById(active[0].filmId);
+    expect(remainingTitle?.title).toBe("Paddington 2");
+  });
+
+  it("never deactivates anything in the default 'merge' mode", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+        "2026-01-02,Inception,2010,https://letterboxd.com/film/inception/",
+      ]),
+    });
+
+    const outcome = await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      // No `mode` — defaults to "merge".
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+      ]),
+    });
+    expect(outcome.ok && outcome.filmsRemoved).toBe(0);
+
+    const active = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    expect(active).toHaveLength(2); // Inception stays, untouched
+  });
+
+  it("a replace-deactivated entry is removed using 'manual' (not 'watched'), so it's freely reactivatable by a later normal import", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Inception,2010,https://letterboxd.com/film/inception/",
+      ]),
+    });
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      mode: "replace",
+      watchlistCsv: csv([]),
+    });
+
+    const outcome = await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "c.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Inception,2010,https://letterboxd.com/film/inception/",
+      ]),
+    });
+    expect(outcome.ok && outcome.filmsUpdated).toBe(1); // reactivated, not skipped
+
+    const active = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    expect(active).toHaveLength(1);
+  });
+
+  it("preserves watched history and ratings untouched by a replace that drops a film from the active watchlist", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+      ]),
+      ratingsCsv: [
+        "Date,Name,Year,Letterboxd URI,Rating",
+        "2025-12-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/,4.5",
+      ].join("\n"),
+    });
+    const ratingsBefore = await repos.history.listRatings(PROFILE_ID);
+    expect(ratingsBefore).toHaveLength(1);
+
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      mode: "replace",
+      watchlistCsv: csv([]),
+    });
+
+    // The film dropped off the active watchlist entirely...
+    expect(await repos.watchlist.listActiveEntries(PROFILE_ID)).toHaveLength(0);
+    // ...but its rating (unrelated historical data) survives untouched.
+    const ratingsAfter = await repos.history.listRatings(PROFILE_ID);
+    expect(ratingsAfter).toEqual(ratingsBefore);
+  });
+
+  it("does not touch an entry that's already inactive for an unrelated reason (e.g. already watched)", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+      ]),
+    });
+    const [entry] = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    await repos.watchlist.updateEntry({
+      ...entry,
+      isActive: false,
+      removedAt: "2026-01-05T00:00:00.000Z",
+      removedReason: "watched",
+    });
+
+    const outcome = await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      mode: "replace",
+      watchlistCsv: csv([]),
+    });
+    expect(outcome.ok && outcome.filmsRemoved).toBe(0);
+  });
+
+  it("a failed (unparseable) replace import leaves the previous watchlist completely untouched", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+      ]),
+    });
+
+    const outcome = await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "bad.csv",
+      mode: "replace",
+      watchlistCsv: "not,a,valid,header",
+    });
+    expect(outcome.ok).toBe(false);
+
+    const active = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    expect(active).toHaveLength(1); // completely unaffected by the failed attempt
+  });
+
+  it("a draft's items survive a replace that removes their films from the active watchlist", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: csv([
+        "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+        "2026-01-02,Inception,2010,https://letterboxd.com/film/inception/",
+      ]),
+    });
+
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: { difficulty: "freeform", timeMode: "timer" },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const itemsBefore = await repos.drafts.listItemsForDraft(created.draftId);
+    expect(itemsBefore).toHaveLength(2);
+
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      mode: "replace",
+      watchlistCsv: csv([]), // both films dropped from the active watchlist
+    });
+
+    const draftAfter = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draftAfter).not.toBeNull();
+    const itemsAfter = await repos.drafts.listItemsForDraft(created.draftId);
+    expect(itemsAfter).toEqual(itemsBefore); // untouched — draft history is unrelated to watchlist membership
   });
 });

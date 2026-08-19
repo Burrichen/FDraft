@@ -22,6 +22,29 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.1.2",
+    nickname: "Second Take",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          'Added a "Re-import Letterboxd Watchlist" action in Settings — bring in a newer export and replace your watchlist membership, without touching your watched history, ratings, drafts, or settings. Requires confirmation, and leaves your current watchlist untouched if it fails or you cancel.',
+          '"Pick Your Own" Challenge Film now opens a proper full poster-grid picker (with search and sort/filter) instead of a cramped inline list — the same picker DIY Draft itself uses.',
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          "Future/unannounced films (e.g. an unreleased sequel) could still appear in DIY recommendations and draft candidates if they hadn't been enriched with metadata yet — release eligibility now also checks the film's own release year as a fallback.",
+          'A 0-minute runtime (how some providers mark an upcoming film with no known runtime yet) could wrongly qualify for "I want something short" or display as "0 min" — runtime is now only trusted when it\'s a genuine, positive value.',
+          "Build Your Own Draft could hide valid sequels/later franchise entries from its picker and search (e.g. only the first Mission: Impossible film would show up) — DIY selection no longer applies the random-draft rule that skips ahead of an unwatched earlier entry; that rule still applies to auto-generated drafts.",
+          '"I want something recent" no longer shows a redundant "Released in <year>" line — the year is already shown next to the title.',
+          "Movie posters in Build Your Own Draft could render with inconsistent spacing at narrower widths; the grid now keeps a consistent gap everywhere.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.1.1",
     nickname: "Take Your Pick",
     sections: [

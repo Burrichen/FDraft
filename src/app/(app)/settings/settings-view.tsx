@@ -12,6 +12,7 @@ import { DefaultPageSection } from "./default-page-section";
 import { FranchiseOrderSection } from "./franchise-order-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
+import { ReimportWatchlistSection } from "./reimport-watchlist-section";
 import { UpdatesSection } from "./updates-section";
 
 export function SettingsView() {
@@ -102,6 +103,8 @@ export function SettingsView() {
       <FranchiseOrderSection />
 
       <MetadataSection />
+
+      <ReimportWatchlistSection />
 
       <UpdatesSection />
 

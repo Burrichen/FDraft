@@ -72,7 +72,7 @@ export function NewDraftForm({
   const [chosenChallengeIds, setChosenChallengeIds] = useState<string[]>([]);
   const [manualGenre, setManualGenre] = useState("");
   const [diyChallengeFilmEntryIds, setDiyChallengeFilmEntryIds] = useState<
-    string[]
+    (string | null)[]
   >([]);
   const handledDraftId = useRef<string | null>(null);
 
@@ -105,6 +105,9 @@ export function NewDraftForm({
     0,
     diyFilmEntryIdsCap,
   );
+  const diyFilmEntryIdsChosenCount = clampedDiyChallengeFilmEntryIds.filter(
+    (id): id is string => id !== null,
+  ).length;
 
   function handleSelectDifficulty(id: DraftDifficulty) {
     setDifficulty(id);
@@ -128,7 +131,7 @@ export function NewDraftForm({
       challengeCount === 0 ||
       challengeMode === "decide" ||
       (chosenChallengeIds.length === challengeCount &&
-        clampedDiyChallengeFilmEntryIds.length === diySlotsChosen));
+        diyFilmEntryIdsChosenCount === diySlotsChosen));
 
   function handleContinueToDiy() {
     if (!difficulty) return;
@@ -295,14 +298,16 @@ export function NewDraftForm({
               {challengeMode === "choose" && manualGenre ? (
                 <input type="hidden" name="manualGenre" value={manualGenre} />
               ) : null}
-              {clampedDiyChallengeFilmEntryIds.map((entryId, index) => (
-                <input
-                  key={index}
-                  type="hidden"
-                  name="diyFilmEntryIds"
-                  value={entryId}
-                />
-              ))}
+              {clampedDiyChallengeFilmEntryIds
+                .filter((entryId): entryId is string => entryId !== null)
+                .map((entryId, index) => (
+                  <input
+                    key={index}
+                    type="hidden"
+                    name="diyFilmEntryIds"
+                    value={entryId}
+                  />
+                ))}
             </>
           ) : null}
         </>

@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { getImportMetadataStatus } from "@/application/metadata/local-metadata-service";
 import { importLocalWatchlistCsv } from "@/application/import/local-import-service";
+import { readImportFile } from "@/application/import/read-import-file";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { extractLetterboxdExportZip } from "@/domain/import/export-zip";
 
 interface ImportResult {
   filmsImported: number;
@@ -101,37 +101,17 @@ export function ImportView() {
     setIsImporting(true);
     setError(null);
     try {
-      const isZip =
-        file.name.toLowerCase().endsWith(".zip") ||
-        file.type === "application/zip";
-
-      let files: {
-        watchlistCsv: string;
-        ratingsCsv?: string | null;
-        watchedCsv?: string | null;
-        diaryCsv?: string | null;
-      };
-      let source: "csv" | "zip";
-
-      if (isZip) {
-        const buffer = new Uint8Array(await file.arrayBuffer());
-        const extracted = extractLetterboxdExportZip(buffer);
-        if (!extracted.ok) {
-          setError(extracted.reason);
-          return;
-        }
-        files = extracted.files;
-        source = "zip";
-      } else {
-        files = { watchlistCsv: await file.text() };
-        source = "csv";
+      const read = await readImportFile(file);
+      if (!read.ok) {
+        setError(read.error);
+        return;
       }
 
       const outcome = await importLocalWatchlistCsv(repositories, {
         profileId: activeProfile.id,
         rawFilename: file.name,
-        source,
-        ...files,
+        source: read.source,
+        ...read.files,
       });
 
       if (!outcome.ok) {

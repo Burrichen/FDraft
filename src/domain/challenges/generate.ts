@@ -1,6 +1,7 @@
 import { shuffle } from "@/domain/shared/rng";
 import type { ChallengeAttemptStatus } from "@/repositories";
 import { logChallengeAttempt, type ChallengeAttemptLogEvent } from "./logger";
+import { removeConsumedCandidate } from "./remove-consumed-candidate";
 import type { ChallengeRegistry } from "./registry";
 import type { ChallengeCandidateFilm, ChallengeContext } from "./types";
 
@@ -67,6 +68,13 @@ export function generateChallengeFilms({
   maxAttemptsPerSlot = DEFAULT_MAX_ATTEMPTS_PER_SLOT,
 }: GenerateChallengeFilmsParams): GenerateChallengeFilmsResult {
   const remainingCandidates = [...baseContext.candidates];
+  // Tracked in parallel, shrunk on every successful pick — see
+  // docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films": keeps a
+  // franchise-excluded film the "diy" challenge resolves via this pool
+  // from ever being handed to a second slot too.
+  const remainingDiyEligibleCandidates = baseContext.diyEligibleCandidates
+    ? [...baseContext.diyEligibleCandidates]
+    : undefined;
   const previousPicks: ChallengeCandidateFilm[] = [];
   const usedChallengeIds = new Set<string>();
   const slots: ChallengeSlotResult[] = [];
@@ -81,6 +89,9 @@ export function generateChallengeFilms({
       ...baseContext,
       candidates: remainingCandidates,
       previousPicks,
+      ...(remainingDiyEligibleCandidates
+        ? { diyEligibleCandidates: remainingDiyEligibleCandidates }
+        : {}),
     };
     const eligible = registry.listEligible(context);
     if (eligible.length === 0) {
@@ -123,12 +134,15 @@ export function generateChallengeFilms({
         });
         usedChallengeIds.add(challenge.id);
         previousPicks.push(result.film);
-        const usedIndex = remainingCandidates.findIndex(
-          (candidate) =>
-            candidate.watchlistEntryId === result.film.watchlistEntryId,
+        removeConsumedCandidate(
+          remainingCandidates,
+          result.film.watchlistEntryId,
         );
-        if (usedIndex !== -1) {
-          remainingCandidates.splice(usedIndex, 1);
+        if (remainingDiyEligibleCandidates) {
+          removeConsumedCandidate(
+            remainingDiyEligibleCandidates,
+            result.film.watchlistEntryId,
+          );
         }
         filled = true;
         break;

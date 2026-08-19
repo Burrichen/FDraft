@@ -229,6 +229,15 @@ const theAntiDraftLottery: ChallengeDefinition = {
  * without ever blocking or auto-picking anything: with no pre-supplied
  * films, it simply never wins a slot, and the engine moves on to the next
  * eligible challenge exactly as it already does for any other decline.
+ *
+ * Resolves its pre-selected film against `context.diyEligibleCandidates`
+ * (falling back to `context.candidates` when absent, e.g. in tests) rather
+ * than `context.candidates` alone — see docs/updates, v1.1.2, "Fix DIY
+ * Draft missing watchlist films": `candidates` has the franchise-ordering
+ * rule applied, which would otherwise make a manually-chosen later sequel
+ * (e.g. the third Mission: Impossible film) impossible to ever resolve
+ * here, even though the user explicitly picked it via a picker that
+ * correctly showed it as selectable.
  */
 const diyChallenge: ChallengeDefinition = {
   id: "diy",
@@ -240,7 +249,8 @@ const diyChallenge: ChallengeDefinition = {
   isEligible: (context) => context.candidates.length > 0,
   attempt: (context) => {
     const preSelected = context.manualSelections?.diyFilmEntryIds ?? [];
-    const film = context.candidates.find((candidate) =>
+    const pool = context.diyEligibleCandidates ?? context.candidates;
+    const film = pool.find((candidate) =>
       preSelected.includes(candidate.watchlistEntryId),
     );
     if (!film) {

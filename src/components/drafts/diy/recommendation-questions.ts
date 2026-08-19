@@ -1,4 +1,5 @@
 import { formatWatchlistDuration } from "@/domain/time/watchlist-duration";
+import { isTrustworthyRuntime } from "@/domain/watchlist/runtime";
 import { sortWatchlistFilms } from "@/domain/watchlist/sort-filter";
 import type { DiySelectableFilmView } from "./diy-film-card";
 
@@ -35,8 +36,15 @@ export interface RecommendationQuestion {
     films: readonly DiySelectableFilmView[],
     now: Date,
   ) => DiySelectableFilmView[];
-  /** A short "why this qualified" string shown alongside each recommended film (e.g. "★ 4.5", "92 min", "On your watchlist for 8 months"). */
-  qualifier: (film: DiySelectableFilmView, now: Date) => string;
+  /**
+   * A short "why this qualified" string shown alongside each recommended
+   * film (e.g. "★ 4.5", "92 min", "On your watchlist for 8 months").
+   * Omitted entirely (not just blank) when the qualifying detail is
+   * already visible elsewhere — see docs/updates, v1.1.2, "'I want
+   * something recent' cleanup": its release year is already shown next to
+   * the title, so a second "Released in <year>" line was pure redundancy.
+   */
+  qualifier?: (film: DiySelectableFilmView, now: Date) => string;
 }
 
 function requireTrustworthy(
@@ -79,9 +87,11 @@ export const RECOMMENDATION_QUESTIONS: RecommendationQuestion[] = [
     label: "I want something short",
     recommend: (films) =>
       sortWatchlistFilms(
-        requireTrustworthy(films, (f) => f.runtimeMinutes).filter(
-          (f) => f.runtimeMinutes! < SOMETHING_SHORT_MAX_RUNTIME_MINUTES,
-        ),
+        films
+          .filter((f) => isTrustworthyRuntime(f.runtimeMinutes))
+          .filter(
+            (f) => f.runtimeMinutes! < SOMETHING_SHORT_MAX_RUNTIME_MINUTES,
+          ),
         "runtime_asc",
       ).slice(0, DEFAULT_RECOMMENDATION_LIMIT),
     qualifier: (film) => `${film.runtimeMinutes} min`,
@@ -94,7 +104,7 @@ export const RECOMMENDATION_QUESTIONS: RecommendationQuestion[] = [
         requireTrustworthy(films, (f) => f.releaseYear),
         "release_year_desc",
       ).slice(0, DEFAULT_RECOMMENDATION_LIMIT),
-    qualifier: (film) => `Released in ${film.releaseYear}`,
+    // No qualifier — the release year is already shown next to the title.
   },
   {
     id: "take-me-back",

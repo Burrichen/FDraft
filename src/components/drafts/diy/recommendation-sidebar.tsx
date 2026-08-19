@@ -65,7 +65,7 @@ export function RecommendationSidebar({
                           film={film}
                           selected={selectedEntryIds.has(film.entryId)}
                           onToggle={onToggle}
-                          subtitle={question.qualifier(film, now)}
+                          subtitle={question.qualifier?.(film, now)}
                         />
                       </li>
                     ))}
