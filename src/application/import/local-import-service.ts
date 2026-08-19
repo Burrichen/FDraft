@@ -38,6 +38,8 @@ export type ImportLocalWatchlistOutcome =
       filmsImported: number;
       filmsUpdated: number;
       duplicatesSkipped: number;
+      /** Rows whose film was already marked watched in FDraft and so were deliberately NOT reactivated — see `determineAction`'s `"skip_already_watched"` guard in `domain/import/plan.ts`. */
+      alreadyWatchedSkipped: number;
       unresolvedCount: number;
       /** Every film this import touched (watchlist + ratings + watched + diary), for the immediate post-import metadata status ("1,050 cached, 154 awaiting download" — see `getImportMetadataStatus`). */
       filmIds: string[];
@@ -157,6 +159,7 @@ export async function importLocalWatchlistCsv(
       isActive: entry.isActive,
       position: entry.position,
       dateAdded: entry.dateAdded,
+      removedReason: entry.removedReason,
     }),
   );
 
@@ -169,12 +172,17 @@ export async function importLocalWatchlistCsv(
   const importId = idGenerator.generate();
   let filmsImported = 0;
   let filmsUpdated = 0;
+  let alreadyWatchedSkipped = 0;
   const touchedFilmIds = new Set<string>();
 
   for (const planRow of plan.rows) {
-    if (planRow.action === "no_change") {
+    if (
+      planRow.action === "no_change" ||
+      planRow.action === "skip_already_watched"
+    ) {
       const filmId = filmKeyToId.get(planRow.filmKey) ?? planRow.existingFilmId;
       if (filmId) touchedFilmIds.add(filmId);
+      if (planRow.action === "skip_already_watched") alreadyWatchedSkipped++;
       continue;
     }
 
@@ -306,6 +314,7 @@ export async function importLocalWatchlistCsv(
     filmsImported,
     filmsUpdated,
     duplicatesSkipped: plan.duplicateRowCount,
+    alreadyWatchedSkipped,
     unresolvedCount,
     filmIds: [...touchedFilmIds],
   };

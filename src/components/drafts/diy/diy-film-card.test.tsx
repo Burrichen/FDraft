@@ -7,12 +7,14 @@ afterEach(cleanup);
 
 const FILM: DiySelectableFilmView = {
   entryId: "entry-1",
+  filmId: "film-1",
   title: "Alpha",
   releaseYear: 2020,
   runtimeMinutes: 100,
   posterUrl: null,
   averageRating: 4,
   dateAdded: "2024-01-01",
+  genres: null,
 };
 
 describe("DiyFilmCard", () => {

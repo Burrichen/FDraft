@@ -22,6 +22,27 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.1.1",
+    nickname: "Take Your Pick",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          '"Need ideas?" now asks three more questions: "I want something short", "I want something recent", and "Take me back" — each shows why a film qualified (rating, watchlist age, runtime, or release year) and only ever suggests, never selects, a film for you.',
+          'Challenge slots can now be "Pick Your Own" — choose it in "Choose My Challenge" (with a film picker for exactly that many slots), or let it come up under "Decide My Challenge For Me" by pre-selecting optional backup films. Once picked, it behaves exactly like any other Challenge Film.',
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          '"Need ideas?" could recommend a film that was already watched, or no longer on your watchlist at all — recommendations now strictly share the same eligibility as everything else a draft can pick from.',
+          "Re-importing your watchlist could silently put an already-watched film back on it; a film you've marked watched now stays watched through a re-import.",
+          '"Highest rated" could show a film with no known rating, and similar gaps could slip into other recommendations — every recommendation now requires trustworthy data for whatever it\'s judging (a real rating, runtime, or release year), rather than guessing.',
+        ],
+      },
+    ],
+  },
+  {
     version: "1.1.0",
     nickname: "Pick Your Own",
     sections: [

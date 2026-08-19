@@ -306,6 +306,140 @@ describe("createLocalDraft", () => {
   });
 });
 
+describe("createLocalDraft — DIY Challenge Film", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("fills a 'Choose My Challenge' diy slot with exactly the pre-picked film — never a random/auto pick", async () => {
+    db = new FDraftLocalDatabase(`diy-challenge-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    // `randomCount: 0` — nothing to compete with the pre-picked film for a
+    // random slot, so this test is fully deterministic.
+    const entryIds = await seedActiveFilms(repos, 5);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 0,
+        challengeCount: 1,
+        challengeMode: "choose",
+        chosenChallengeIds: ["diy"],
+        diyFilmEntryIds: [entryIds[4]],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    const diyItem = items.find((item) => item.challengeId === "diy");
+    expect(diyItem).toBeDefined();
+    expect(diyItem?.source).toBe("challenge");
+    const pickedEntry = await repos.watchlist.getEntryById(
+      PROFILE_ID,
+      entryIds[4],
+    );
+    expect(diyItem?.filmId).toBe(pickedEntry?.filmId);
+    expect(diyItem?.watchlistEntryId).toBe(entryIds[4]);
+  });
+
+  it("gives each of two chosen diy slots a distinct pre-picked film, consumed in order", async () => {
+    db = new FDraftLocalDatabase(`diy-challenge-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 6);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 0,
+        challengeCount: 2,
+        challengeMode: "choose",
+        chosenChallengeIds: ["diy", "diy"],
+        diyFilmEntryIds: [entryIds[4], entryIds[5]],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    const diyItems = items.filter((item) => item.challengeId === "diy");
+    expect(diyItems).toHaveLength(2);
+    const pickedFilmIds = await Promise.all(
+      [entryIds[4], entryIds[5]].map(async (id) => {
+        const entry = await repos.watchlist.getEntryById(PROFILE_ID, id);
+        return entry!.filmId;
+      }),
+    );
+    expect(diyItems.map((item) => item.filmId).sort()).toEqual(
+      pickedFilmIds.sort(),
+    );
+    // The two diy items never share a film.
+    expect(new Set(diyItems.map((item) => item.filmId)).size).toBe(2);
+  });
+
+  it("leaves a chosen diy slot unfilled (never inventing a film) when no film was pre-picked for it", async () => {
+    db = new FDraftLocalDatabase(`diy-challenge-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 5);
+
+    const outcome = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 4,
+        challengeCount: 1,
+        challengeMode: "choose",
+        chosenChallengeIds: ["diy"],
+        // No diyFilmEntryIds supplied at all.
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items.some((item) => item.challengeId === "diy")).toBe(false);
+    expect(outcome.challengeWarning).toMatch(/couldn't be filled/);
+  });
+
+  it("a diy challenge item behaves exactly like any other draft item afterward — watch/undo, history, Admin Mode regeneration", async () => {
+    db = new FDraftLocalDatabase(`diy-challenge-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entryIds = await seedActiveFilms(repos, 5);
+
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 0,
+        challengeCount: 1,
+        challengeMode: "choose",
+        chosenChallengeIds: ["diy"],
+        diyFilmEntryIds: [entryIds[4]],
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+    });
+    expect(outcome.ok).toBe(true);
+    expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
+  });
+});
+
 describe("expireLocalDraftIfDue", () => {
   let db: FDraftLocalDatabase;
   afterEach(async () => {

@@ -86,6 +86,21 @@ export function hasNoUsableMetadata(metadata: MergedFilmMetadata): boolean {
   return USABLE_METADATA_KEYS.every((key) => metadata[key] === null);
 }
 
+/**
+ * Whether two records' `externalIds` give any POSITIVE evidence of
+ * pointing at different real-world entities — agreeing (or one/both
+ * having no evidence either way) returns `true`. Only a genuine, shared
+ * key (e.g. both reporting an `imdb` id) that actually DISAGREES counts
+ * as a conflict; a key present in only one of the two proves nothing.
+ */
+function externalIdsAgree(
+  a: Record<string, unknown> | null,
+  b: Record<string, unknown> | null,
+): boolean {
+  if (!a || !b) return true;
+  return Object.keys(a).every((key) => !(key in b) || a[key] === b[key]);
+}
+
 export function mergeLocalFilmMetadata(
   records: FilmMetadataRecord[],
 ): MergedFilmMetadata {
@@ -94,9 +109,29 @@ export function mergeLocalFilmMetadata(
       new Date(b.lastEnrichedAt).getTime() -
       new Date(a.lastEnrichedAt).getTime(),
   );
+  // The most-recently-enriched record is this film's authoritative
+  // identity — see docs/updates, v1.1.1, "Metadata integrity": "prefer
+  // stable provider/media IDs" / "do not merge metadata from similarly
+  // titled media." A field-by-field merge across every provider's record
+  // is only safe when they all agree on WHICH real-world entity they're
+  // describing; an older record whose `externalIds` conflict with the
+  // primary one is excluded from the merge entirely rather than letting
+  // its fields blend in under the wrong identity. In today's
+  // single-provider (TMDB) app this only matters for a genuine re-match
+  // race (`film-repository.ts`'s `upsertMetadata` read-then-write isn't
+  // atomic) or a future second provider disagreeing about the match —
+  // it's a no-op whenever every record already agrees, which is every
+  // case observed so far.
+  const primary = byRecency[0] ?? null;
 
   const merged = { ...EMPTY_MERGED_METADATA };
   for (const record of byRecency) {
+    if (
+      record !== primary &&
+      !externalIdsAgree(primary?.externalIds ?? null, record.externalIds)
+    ) {
+      continue;
+    }
     if (merged.posterUrl === null) merged.posterUrl = record.posterUrl;
     if (merged.runtimeMinutes === null)
       merged.runtimeMinutes = record.runtimeMinutes;

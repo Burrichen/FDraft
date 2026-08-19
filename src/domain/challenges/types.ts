@@ -126,6 +126,17 @@ export interface ChallengeWatchedFilmRecord {
 export interface ChallengeManualSelections {
   /** A user-picked genre for Genre Roulette, overriding its normal random-genre step. */
   genre?: string;
+  /**
+   * Films the user has pre-picked for the "Pick Your Own" (DIY) challenge
+   * (see docs/updates, v1.1.1, "DIY Challenge Film"), one
+   * `watchlistEntryId` per potential DIY slot — consumed in order as DIY
+   * slots are filled (whether chosen deliberately via "Choose My
+   * Challenge", or drawn by chance under "Decide My Challenge For Me"),
+   * so two slots never land on the same pre-picked film. An empty/absent
+   * list simply means DIY is never eligible this draft — it never falls
+   * back to picking a film on its own.
+   */
+  diyFilmEntryIds?: string[];
 }
 
 /**

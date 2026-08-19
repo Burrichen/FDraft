@@ -35,6 +35,7 @@ describe("importLocalWatchlistCsv", () => {
       filmsImported: 2,
       filmsUpdated: 0,
       duplicatesSkipped: 0,
+      alreadyWatchedSkipped: 0,
       unresolvedCount: 0,
       filmIds: expect.any(Array),
     });
@@ -72,6 +73,7 @@ describe("importLocalWatchlistCsv", () => {
       filmsImported: 0,
       filmsUpdated: 0,
       duplicatesSkipped: 0,
+      alreadyWatchedSkipped: 0,
       unresolvedCount: 0,
       filmIds: expect.any(Array),
     });
@@ -80,7 +82,39 @@ describe("importLocalWatchlistCsv", () => {
     expect(films).toHaveLength(1); // never duplicated
   });
 
-  it("reactivates a previously-removed entry instead of creating a duplicate", async () => {
+  it("reactivates a manually-removed entry instead of creating a duplicate", async () => {
+    db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const content = csv([
+      "2026-01-01,Paddington 2,2017,https://letterboxd.com/film/paddington-2/",
+    ]);
+
+    await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "a.csv",
+      watchlistCsv: content,
+    });
+    const [entry] = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    await repos.watchlist.updateEntry({
+      ...entry,
+      isActive: false,
+      removedAt: "2026-01-05T00:00:00.000Z",
+      removedReason: "manual",
+    });
+
+    const outcome = await importLocalWatchlistCsv(repos, {
+      profileId: PROFILE_ID,
+      rawFilename: "b.csv",
+      watchlistCsv: content,
+    });
+    expect(outcome.ok && outcome.filmsUpdated).toBe(1);
+
+    const active = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    expect(active).toHaveLength(1);
+    expect(active[0].id).toBe(entry.id); // same entry, reactivated — not a new row
+  });
+
+  it("does NOT reactivate a film already marked watched — re-importing a stale export must not put it back on the watchlist", async () => {
     db = new FDraftLocalDatabase(`import-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     const content = csv([
@@ -105,11 +139,11 @@ describe("importLocalWatchlistCsv", () => {
       rawFilename: "b.csv",
       watchlistCsv: content,
     });
-    expect(outcome.ok && outcome.filmsUpdated).toBe(1);
+    expect(outcome.ok && outcome.filmsUpdated).toBe(0);
+    expect(outcome.ok && outcome.alreadyWatchedSkipped).toBe(1);
 
     const active = await repos.watchlist.listActiveEntries(PROFILE_ID);
-    expect(active).toHaveLength(1);
-    expect(active[0].id).toBe(entry.id); // same entry, reactivated — not a new row
+    expect(active).toHaveLength(0); // still watched, not silently re-added
   });
 
   it("skips duplicate rows within the same file (same film twice)", async () => {
@@ -130,6 +164,7 @@ describe("importLocalWatchlistCsv", () => {
       filmsImported: 1,
       filmsUpdated: 0,
       duplicatesSkipped: 1,
+      alreadyWatchedSkipped: 0,
       unresolvedCount: 0,
       filmIds: expect.any(Array),
     });

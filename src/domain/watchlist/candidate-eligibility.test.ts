@@ -10,6 +10,7 @@ function film(
   overrides: Partial<CandidateEligibilityFilm> = {},
 ): CandidateEligibilityFilm {
   return {
+    filmId: "film-1",
     title: "Some Film",
     releaseYear: 2020,
     releaseDate: null,
@@ -24,6 +25,7 @@ const EMPTY_CONTEXT = {
   now: NOW,
   watchedReleaseYearsByCollectionId: new Map<string, number[]>(),
   poolReleaseYearsByCollectionId: new Map<string, number[]>(),
+  watchedFilmIds: new Set<string>(),
 };
 
 describe("evaluateCandidateEligibility — unreleased films", () => {
@@ -168,6 +170,24 @@ describe("evaluateCandidateEligibility — metadata identity mismatch", () => {
   });
 });
 
+describe("evaluateCandidateEligibility — already watched (redundant guard)", () => {
+  it("rejects a film whose filmId is in the profile's watched history, even though every other check would pass", () => {
+    const result = evaluateCandidateEligibility(film({ filmId: "film-9" }), {
+      ...EMPTY_CONTEXT,
+      watchedFilmIds: new Set(["film-9"]),
+    });
+    expect(result).toEqual({ eligible: false, reason: "already_watched" });
+  });
+
+  it("accepts a film whose filmId is not in the watched set", () => {
+    const result = evaluateCandidateEligibility(film({ filmId: "film-1" }), {
+      ...EMPTY_CONTEXT,
+      watchedFilmIds: new Set(["some-other-film"]),
+    });
+    expect(result).toEqual({ eligible: true });
+  });
+});
+
 describe("evaluateCandidateEligibility — check ordering", () => {
   it("reports the unreleased reason even when the film would also fail the series check", () => {
     const result = evaluateCandidateEligibility(
@@ -182,5 +202,22 @@ describe("evaluateCandidateEligibility — check ordering", () => {
       },
     );
     expect(result).toEqual({ eligible: false, reason: "unreleased" });
+  });
+
+  it("reports already_watched even when the film would also fail the unreleased/series/identity checks", () => {
+    const result = evaluateCandidateEligibility(
+      film({
+        filmId: "film-42",
+        releaseDate: "2030-01-01",
+        releaseYear: 2030,
+        collectionId: "some-collection",
+      }),
+      {
+        ...EMPTY_CONTEXT,
+        watchedFilmIds: new Set(["film-42"]),
+        poolReleaseYearsByCollectionId: new Map([["some-collection", [2000]]]),
+      },
+    );
+    expect(result).toEqual({ eligible: false, reason: "already_watched" });
   });
 });

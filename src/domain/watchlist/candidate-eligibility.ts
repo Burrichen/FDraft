@@ -19,9 +19,13 @@ import { hasSuspiciousTitleContainment } from "@/domain/import/title-normalizati
  */
 
 export type CandidateIneligibilityReason =
-  "unreleased" | "later_series_entry" | "metadata_identity_mismatch";
+  | "unreleased"
+  | "later_series_entry"
+  | "metadata_identity_mismatch"
+  | "already_watched";
 
 export interface CandidateEligibilityFilm {
+  filmId: string;
   title: string;
   releaseYear: number | null;
   /** ISO calendar date, or `null` if the provider never reported one — see `FilmMetadataRecord.releaseDate`. */
@@ -39,6 +43,17 @@ export interface CandidateEligibilityContext {
   watchedReleaseYearsByCollectionId: ReadonlyMap<string, readonly number[]>;
   /** collectionId -> release years of OTHER entries in the SAME candidate pool (still unwatched, currently on the watchlist). */
   poolReleaseYearsByCollectionId: ReadonlyMap<string, readonly number[]>;
+  /**
+   * Every filmId this profile has ever watched. A candidate only reaches
+   * this function at all because it's on the profile's ACTIVE watchlist —
+   * which should already imply "unwatched" — but see docs/updates, v1.1.1,
+   * "Centralise DIY recommendation eligibility": a watchlist-import bug
+   * could silently reactivate a watched entry, and this redundant,
+   * belt-and-suspenders check catches that (or any future regression like
+   * it) here, in the one place every draft/recommendation path already
+   * goes through, rather than trusting "on the active watchlist" alone.
+   */
+  watchedFilmIds: ReadonlySet<string>;
 }
 
 export type CandidateEligibilityResult =
@@ -124,6 +139,9 @@ export function evaluateCandidateEligibility(
   film: CandidateEligibilityFilm,
   context: CandidateEligibilityContext,
 ): CandidateEligibilityResult {
+  if (context.watchedFilmIds.has(film.filmId)) {
+    return { eligible: false, reason: "already_watched" };
+  }
   if (isConfirmedUnreleased(film, context.now)) {
     return { eligible: false, reason: "unreleased" };
   }

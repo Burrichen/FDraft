@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export interface DiySelectableFilmView {
   entryId: string;
+  filmId: string;
   title: string;
   releaseYear: number | null;
   runtimeMinutes: number | null;
@@ -13,6 +14,7 @@ export interface DiySelectableFilmView {
   averageRating: number | null;
   /** ISO calendar date (YYYY-MM-DD) the film was added to the watchlist — see `domain/watchlist/sort-filter.ts`'s `SortableWatchlistFilm`, reused as-is by the recommendation questions' "longest on watchlist" sort. */
   dateAdded: string;
+  genres: string[] | null;
 }
 
 /**

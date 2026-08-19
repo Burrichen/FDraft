@@ -3,6 +3,8 @@
 import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { DiyCompactFilmRow } from "@/components/drafts/diy/diy-compact-film-row";
+import type { DiySelectableFilmView } from "@/components/drafts/diy/diy-film-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,10 @@ interface ChallengeBrowserProps {
   onChange: (ids: string[]) => void;
   manualGenre: string;
   onManualGenreChange: (genre: string) => void;
+  /** The same canonical eligible pool the DIY Draft screen uses — see `application/drafts/local-diy-candidates.ts` (v1.1.1, "DIY Challenge Film"). */
+  diyEligibleFilms: DiySelectableFilmView[];
+  diyChallengeFilmEntryIds: string[];
+  onDiyChallengeFilmEntryIdsChange: (entryIds: string[]) => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -56,6 +62,9 @@ export function ChallengeBrowser({
   onChange,
   manualGenre,
   onManualGenreChange,
+  diyEligibleFilms,
+  diyChallengeFilmEntryIds,
+  onDiyChallengeFilmEntryIdsChange,
 }: ChallengeBrowserProps) {
   const [search, setSearch] = useState("");
 
@@ -77,6 +86,9 @@ export function ChallengeBrowser({
   const filledSlotCount = selectedChallengeIds.length;
   const hasEmptySlot = filledSlotCount < slotsNeeded;
   const hasGenreRoulette = selectedChallengeIds.includes("genre-roulette");
+  const diySlotsChosen = selectedChallengeIds.filter(
+    (id) => id === "diy",
+  ).length;
 
   function addChallenge(id: string) {
     if (!hasEmptySlot) return;
@@ -85,6 +97,23 @@ export function ChallengeBrowser({
 
   function removeSlot(index: number) {
     onChange(selectedChallengeIds.filter((_, i) => i !== index));
+    // The parent form is responsible for re-clamping `diyChallengeFilmEntryIds`
+    // to the new diy-slot count whenever `selectedChallengeIds` changes —
+    // see `new-draft-form.tsx`'s effect — so removing a "diy" slot here
+    // doesn't need its own special case.
+  }
+
+  function toggleDiyFilm(entryId: string) {
+    if (diyChallengeFilmEntryIds.includes(entryId)) {
+      onDiyChallengeFilmEntryIdsChange(
+        diyChallengeFilmEntryIds.filter((id) => id !== entryId),
+      );
+      return;
+    }
+    if (diyChallengeFilmEntryIds.length >= diySlotsChosen) {
+      return;
+    }
+    onDiyChallengeFilmEntryIdsChange([...diyChallengeFilmEntryIds, entryId]);
   }
 
   return (
@@ -146,6 +175,32 @@ export function ChallengeBrowser({
               </option>
             ))}
           </select>
+        </div>
+      ) : null}
+
+      {diySlotsChosen > 0 ? (
+        <div className="space-y-1.5">
+          <p className="text-foreground text-sm font-medium">
+            Pick Your Own — choose {diyChallengeFilmEntryIds.length} of{" "}
+            {diySlotsChosen} film{diySlotsChosen === 1 ? "" : "s"}
+          </p>
+          {diyEligibleFilms.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No eligible films on your watchlist right now.
+            </p>
+          ) : (
+            <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+              {diyEligibleFilms.map((film) => (
+                <li key={film.entryId}>
+                  <DiyCompactFilmRow
+                    film={film}
+                    selected={diyChallengeFilmEntryIds.includes(film.entryId)}
+                    onToggle={toggleDiyFilm}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : null}
 
