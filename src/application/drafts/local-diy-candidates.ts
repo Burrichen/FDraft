@@ -14,12 +14,19 @@ import { fetchLocalChallengeCandidates } from "./local-fetch-context";
  * thin wrapper around `fetchLocalChallengeCandidates` (the same
  * eligibility every random roll, Freeform batch, and reroll already goes
  * through — active profile, on that profile's watchlist, unwatched,
- * released, not an unstarted later series entry, no metadata identity
- * mismatch), with only the one extra field (`posterUrl`) DIY's own UI
- * needs added on top. A future recommendation question, or a future DIY
- * surface, automatically inherits every protection here for free just by
- * consuming this function's result — it never needs to re-implement or
- * loosen any of it.
+ * released, no metadata identity mismatch), with only the one extra field
+ * (`posterUrl`) DIY's own UI needs added on top. A future recommendation
+ * question, or a future DIY surface, automatically inherits every
+ * protection here for free just by consuming this function's result — it
+ * never needs to re-implement or loosen any of it.
+ *
+ * Deliberately passes `applyFranchiseOrderingRule: false` — see
+ * docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films": unlike a
+ * generated/random draft, DIY is manual selection, so a later entry in a
+ * franchise (e.g. a third or seventh Mission: Impossible film) must stay
+ * selectable even when an earlier, unwatched entry is also on the
+ * watchlist — that rule exists to stop the ENGINE handing someone a sequel
+ * out of order, not to stop a user picking one on purpose.
  */
 export async function getDiyEligibleFilms(
   repos: {
@@ -29,7 +36,9 @@ export async function getDiyEligibleFilms(
   },
   profileId: string,
 ): Promise<DiySelectableFilmView[]> {
-  const candidates = await fetchLocalChallengeCandidates(repos, profileId);
+  const candidates = await fetchLocalChallengeCandidates(repos, profileId, {
+    applyFranchiseOrderingRule: false,
+  });
   const metadataByFilmId = await repos.films.getMetadataForFilms(
     candidates.map((candidate) => candidate.filmId),
   );

@@ -1415,7 +1415,7 @@ describe("createLocalDraftFromSelection", () => {
     });
   });
 
-  it("rejects a candidate that fails the same eligibility rules a random roll would (e.g. an unstarted later series entry)", async () => {
+  it("does NOT apply the generated-draft 'unstarted later series entry' rule — a later sequel is directly selectable (see docs/updates, v1.1.2)", async () => {
     db = new FDraftLocalDatabase(`diy-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     await seedFranchiseFilm(repos, {
@@ -1436,15 +1436,12 @@ describe("createLocalDraftFromSelection", () => {
       timezone: "UTC",
       difficulty: "freeform",
       timeMode: "timer",
-      // Hand-picking mi3 directly must be refused exactly like a random
-      // roll would be — mi1 hasn't been watched and is right there.
+      // A random roll would refuse mi3 while mi1 sits unwatched, but manual
+      // DIY selection must not inherit that restriction — the user is
+      // choosing deliberately, not being handed a sequel out of order.
       watchlistEntryIds: ["entry-mi3"],
     });
-    expect(outcome).toEqual({
-      ok: false,
-      error: "entry_not_eligible",
-      message: expect.any(String),
-    });
+    expect(outcome.ok).toBe(true);
   });
 
   it("refuses to create a second DIY draft while one is already active", async () => {

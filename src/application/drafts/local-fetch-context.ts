@@ -33,6 +33,13 @@ import type { WatchlistRepository } from "@/repositories/watchlist-repository";
  * discarded once each candidate has been judged, not threaded through to
  * every existing challenge-family function that already destructures this
  * type.
+ *
+ * As of v1.1.2, the later-series-entry check is the one piece of this
+ * that's opt-out (`options.applyFranchiseOrderingRule`, default `true`) —
+ * see docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films": DIY
+ * Draft and the "Pick Your Own" Challenge Film picker pass `false` so a
+ * user manually picking their own films can select any sequel directly,
+ * while every generated/random draft path keeps the default.
  */
 export async function fetchLocalChallengeCandidates(
   repos: {
@@ -41,6 +48,16 @@ export async function fetchLocalChallengeCandidates(
     history: HistoryRepository;
   },
   profileId: string,
+  options: {
+    /**
+     * Defaults to `true` (every generated/random draft path). Pass `false`
+     * for DIY/manual-selection callers (see docs/updates, v1.1.2, "Fix DIY
+     * Draft missing watchlist films") — a franchise's later entries must
+     * stay selectable there even when an earlier, unwatched entry is also
+     * on the watchlist.
+     */
+    applyFranchiseOrderingRule?: boolean;
+  } = {},
 ): Promise<ChallengeCandidateFilm[]> {
   const entries = await repos.watchlist.listActiveEntries(profileId);
   const films = await Promise.all(
@@ -114,6 +131,7 @@ export async function fetchLocalChallengeCandidates(
         watchedReleaseYearsByCollectionId,
         poolReleaseYearsByCollectionId,
         watchedFilmIds,
+        applyFranchiseOrderingRule: options.applyFranchiseOrderingRule,
       });
       return result.eligible;
     })

@@ -182,7 +182,11 @@ describe("NewDraftForm — DIY Challenge Film gating", () => {
     expect(screen.getByText("3 of 3 challenges chosen")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create draft" })).toBeDisabled();
 
+    await user.click(
+      screen.getByRole("button", { name: "Choose a film for slot 1" }),
+    );
     await user.click(screen.getByRole("button", { name: /Alpha/ }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(
       screen.getByRole("button", { name: "Create draft" }),

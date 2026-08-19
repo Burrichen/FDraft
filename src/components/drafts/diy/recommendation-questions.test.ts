@@ -69,7 +69,7 @@ describe("RECOMMENDATION_QUESTIONS", () => {
 
     it("shows the rating alongside each result", () => {
       const film = makeFilm({ entryId: "a", averageRating: 4.567 });
-      expect(question("highest-rated").qualifier(film, NOW)).toBe("★ 4.6");
+      expect(question("highest-rated").qualifier!(film, NOW)).toBe("★ 4.6");
     });
   });
 
@@ -108,7 +108,7 @@ describe("RECOMMENDATION_QUESTIONS", () => {
 
     it("shows how long each result has been on the watchlist", () => {
       const film = makeFilm({ entryId: "a", dateAdded: "2026-01-01" });
-      expect(question("longest-on-watchlist").qualifier(film, NOW)).toBe(
+      expect(question("longest-on-watchlist").qualifier!(film, NOW)).toBe(
         "On your watchlist for 7 months",
       );
     });
@@ -143,6 +143,24 @@ describe("RECOMMENDATION_QUESTIONS", () => {
       expect(result.map((f) => f.entryId)).toEqual(["known"]);
     });
 
+    it("excludes a runtime of 0 — TMDB's 'unknown' sentinel for an unreleased film, never a genuine short film (see docs/updates, v1.1.2)", () => {
+      const films = [
+        makeFilm({ entryId: "zero", runtimeMinutes: 0 }),
+        makeFilm({ entryId: "known", runtimeMinutes: 90 }),
+      ];
+      const result = question("something-short").recommend(films, NOW);
+      expect(result.map((f) => f.entryId)).toEqual(["known"]);
+    });
+
+    it("excludes a negative runtime", () => {
+      const films = [
+        makeFilm({ entryId: "negative", runtimeMinutes: -1 }),
+        makeFilm({ entryId: "known", runtimeMinutes: 90 }),
+      ];
+      const result = question("something-short").recommend(films, NOW);
+      expect(result.map((f) => f.entryId)).toEqual(["known"]);
+    });
+
     it("orders shortest first", () => {
       const films = [
         makeFilm({ entryId: "a", runtimeMinutes: 110 }),
@@ -155,7 +173,7 @@ describe("RECOMMENDATION_QUESTIONS", () => {
 
     it("shows the runtime alongside each result", () => {
       const film = makeFilm({ entryId: "a", runtimeMinutes: 87 });
-      expect(question("something-short").qualifier(film, NOW)).toBe("87 min");
+      expect(question("something-short").qualifier!(film, NOW)).toBe("87 min");
     });
   });
 
@@ -179,11 +197,8 @@ describe("RECOMMENDATION_QUESTIONS", () => {
       expect(result.map((f) => f.entryId)).toEqual(["known"]);
     });
 
-    it("shows the release year alongside each result", () => {
-      const film = makeFilm({ entryId: "a", releaseYear: 2024 });
-      expect(question("something-recent").qualifier(film, NOW)).toBe(
-        "Released in 2024",
-      );
+    it("has no qualifier — the release year is already shown next to the title", () => {
+      expect(question("something-recent").qualifier).toBeUndefined();
     });
   });
 
@@ -209,7 +224,7 @@ describe("RECOMMENDATION_QUESTIONS", () => {
 
     it("shows the release year alongside each result", () => {
       const film = makeFilm({ entryId: "a", releaseYear: 1975 });
-      expect(question("take-me-back").qualifier(film, NOW)).toBe(
+      expect(question("take-me-back").qualifier!(film, NOW)).toBe(
         "Released in 1975",
       );
     });

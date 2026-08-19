@@ -1,5 +1,6 @@
 import type { BattleRoyaleState } from "./interactive/battle-royale";
 import type { ThreeDoorsState } from "./interactive/three-doors";
+import { removeConsumedCandidate } from "./remove-consumed-candidate";
 import type { ChallengeRegistry } from "./registry";
 import type {
   ChallengeCandidateFilm,
@@ -72,6 +73,15 @@ export function attemptChosenChallenges({
   context: baseContext,
 }: AttemptChosenChallengesParams): { results: ChosenChallengeSlotResult[] } {
   const remainingCandidates = [...baseContext.candidates];
+  // Tracked in parallel with `remainingCandidates`, shrunk the same way on
+  // every successful pick — see docs/updates, v1.1.2, "Fix DIY Draft
+  // missing watchlist films": without this, two chosen "diy" slots could
+  // both resolve to the SAME franchise-excluded film, since neither
+  // attempt would see the other's pick reflected in a pool that's never
+  // decremented.
+  const remainingDiyEligibleCandidates = baseContext.diyEligibleCandidates
+    ? [...baseContext.diyEligibleCandidates]
+    : undefined;
   const previousPicks: ChallengeCandidateFilm[] = [];
   const resultsBySlotIndex = new Map<number, ChosenChallengeSlotResult>();
 
@@ -100,18 +110,24 @@ export function attemptChosenChallenges({
       ...baseContext,
       candidates: remainingCandidates,
       previousPicks,
+      ...(remainingDiyEligibleCandidates
+        ? { diyEligibleCandidates: remainingDiyEligibleCandidates }
+        : {}),
     };
     const result = challenge.attempt(context);
     resultsBySlotIndex.set(slotIndex, { challengeId, result });
 
     if (result.status === "success") {
       previousPicks.push(result.film);
-      const usedIndex = remainingCandidates.findIndex(
-        (candidate) =>
-          candidate.watchlistEntryId === result.film.watchlistEntryId,
+      removeConsumedCandidate(
+        remainingCandidates,
+        result.film.watchlistEntryId,
       );
-      if (usedIndex !== -1) {
-        remainingCandidates.splice(usedIndex, 1);
+      if (remainingDiyEligibleCandidates) {
+        removeConsumedCandidate(
+          remainingDiyEligibleCandidates,
+          result.film.watchlistEntryId,
+        );
       }
     } else if (result.status === "requires_user_choice") {
       const shownFilms = extractInteractivePayloadFilms(
@@ -119,11 +135,12 @@ export function attemptChosenChallenges({
         result.payload,
       );
       for (const shown of shownFilms) {
-        const shownIndex = remainingCandidates.findIndex(
-          (candidate) => candidate.watchlistEntryId === shown.watchlistEntryId,
-        );
-        if (shownIndex !== -1) {
-          remainingCandidates.splice(shownIndex, 1);
+        removeConsumedCandidate(remainingCandidates, shown.watchlistEntryId);
+        if (remainingDiyEligibleCandidates) {
+          removeConsumedCandidate(
+            remainingDiyEligibleCandidates,
+            shown.watchlistEntryId,
+          );
         }
       }
     }

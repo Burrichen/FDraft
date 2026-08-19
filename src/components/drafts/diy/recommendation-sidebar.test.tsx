@@ -143,6 +143,24 @@ describe("RecommendationSidebar", () => {
     expect(alphaButton).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("shows no redundant qualifier text for 'I want something recent' — the year is already in the title", async () => {
+    const user = userEvent.setup();
+    render(
+      <RecommendationSidebar
+        films={FILMS}
+        selectedEntryIds={new Set()}
+        onToggle={vi.fn()}
+        now={NOW}
+      />,
+    );
+    const summary = screen.getByText("I want something recent");
+    await user.click(summary);
+    const question = summary.closest("details");
+    if (!question) throw new Error("expected a <details> ancestor");
+    expect(within(question).getByText(/Beta \(2021\)/)).toBeInTheDocument();
+    expect(within(question).queryByText(/Released in/)).not.toBeInTheDocument();
+  });
+
   it("shows a clear empty state for a question no eligible film matches", () => {
     const noRatingsFilms = FILMS.map((film) => ({
       ...film,

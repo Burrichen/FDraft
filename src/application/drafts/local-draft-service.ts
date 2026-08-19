@@ -310,12 +310,27 @@ export async function createLocalDraft(
       repos,
       profileId,
     );
+    // The "diy" challenge validates its pre-picked film(s) against the
+    // full, franchise-UNRESTRICTED DIY-eligible pool — the same one the
+    // picker showed the user — rather than `remainingCandidates` (which
+    // may have already excluded a later sequel via the franchise-ordering
+    // rule that only applies to the engine's own automatic picks). See
+    // docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films" — a
+    // film franchise-excluded from `remainingCandidates` simply won't be
+    // found there via `findIndex`/`splice` bookkeeping, so no double-pick
+    // risk from wiring in a second, wider pool just for this lookup.
+    const diyEligibleCandidates = config.diyFilmEntryIds?.length
+      ? await fetchLocalChallengeCandidates(repos, profileId, {
+          applyFranchiseOrderingRule: false,
+        })
+      : undefined;
     const engineContext: Omit<ChallengeContext, "previousPicks"> = {
       rng,
       now,
       candidates: remainingCandidates,
       watchedFilms,
       config: DEFAULT_CHALLENGE_ENGINE_CONFIG,
+      ...(diyEligibleCandidates ? { diyEligibleCandidates } : {}),
       ...(config.manualGenre || config.diyFilmEntryIds?.length
         ? {
             manualSelections: {
@@ -444,14 +459,19 @@ export async function createLocalDraftFromSelection(
     };
   }
 
-  // The same eligibility-filtered pool every other draft path draws
-  // from — a film that isn't a currently-eligible candidate (someone
-  // else's watchlist entry, already watched, unreleased, an unstarted
-  // later series entry, a metadata identity mismatch) can't be
-  // hand-picked into a draft either.
+  // The same eligibility-filtered pool the DIY selection screen shows —
+  // a film that isn't a currently-eligible candidate (someone else's
+  // watchlist entry, already watched, unreleased, a metadata identity
+  // mismatch) can't be hand-picked into a draft either. Deliberately
+  // `applyFranchiseOrderingRule: false` (see docs/updates, v1.1.2, "Fix
+  // DIY Draft missing watchlist films") — this must match exactly what
+  // `getDiyEligibleFilms` showed the user, or a sequel visible and
+  // selectable in the picker would be rejected here as "no longer
+  // eligible" at submission time.
   const eligibleCandidates = await fetchLocalChallengeCandidates(
     repos,
     profileId,
+    { applyFranchiseOrderingRule: false },
   );
   const eligibleByEntryId = new Map(
     eligibleCandidates.map((candidate) => [

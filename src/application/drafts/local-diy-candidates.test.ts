@@ -18,6 +18,7 @@ async function seedActiveFilm(
     releaseYear?: number | null;
     dateAdded?: string;
     posterUrl?: string | null;
+    collectionId?: string | null;
   },
 ) {
   await repos.films.create({
@@ -39,7 +40,7 @@ async function seedActiveFilm(
     directors: null,
     countries: null,
     languages: null,
-    collectionId: null,
+    collectionId: params.collectionId ?? null,
     collectionName: null,
     collectionOrder: null,
     averageRating: null,
@@ -208,6 +209,66 @@ describe("getDiyEligibleFilms", () => {
 
     const films = await getDiyEligibleFilms(repos, PROFILE_ID);
     expect(films).toEqual([]);
+  });
+
+  it("does NOT apply the generated-draft 'unstarted later series entry' rule — every unwatched Mission: Impossible film stays a candidate (see docs/updates, v1.1.2, 'Fix DIY Draft missing watchlist films')", async () => {
+    db = new FDraftLocalDatabase(`diy-cand-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const missionImpossibleFilms = [
+      {
+        filmId: "mi1",
+        entryId: "entry-mi1",
+        title: "Mission: Impossible",
+        releaseYear: 1996,
+      },
+      {
+        filmId: "mi2",
+        entryId: "entry-mi2",
+        title: "Mission: Impossible II",
+        releaseYear: 2000,
+      },
+      {
+        filmId: "mi3",
+        entryId: "entry-mi3",
+        title: "Mission: Impossible III",
+        releaseYear: 2006,
+      },
+      {
+        filmId: "mi4",
+        entryId: "entry-mi4",
+        title: "Mission: Impossible – Ghost Protocol",
+        releaseYear: 2011,
+      },
+      {
+        filmId: "mi5",
+        entryId: "entry-mi5",
+        title: "Mission: Impossible – Rogue Nation",
+        releaseYear: 2015,
+      },
+      {
+        filmId: "mi6",
+        entryId: "entry-mi6",
+        title: "Mission: Impossible – Fallout",
+        releaseYear: 2018,
+      },
+      {
+        filmId: "mi7",
+        entryId: "entry-mi7",
+        title: "Mission: Impossible – Dead Reckoning",
+        releaseYear: 2023,
+      },
+    ];
+    for (const film of missionImpossibleFilms) {
+      await seedActiveFilm(repos, {
+        ...film,
+        collectionId: "mission-impossible",
+      });
+    }
+
+    const films = await getDiyEligibleFilms(repos, PROFILE_ID);
+    expect(films.map((f) => f.entryId).sort()).toEqual(
+      missionImpossibleFilms.map((f) => f.entryId).sort(),
+    );
   });
 
   it("excludes a film whose provider metadata looks like a different media entity (metadata identity mismatch)", async () => {

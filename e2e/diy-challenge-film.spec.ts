@@ -50,12 +50,17 @@ test("'Pick Your Own' can be manually chosen for a challenge slot, reserves its 
     .fill("Pick Your Own");
   await page.getByRole("button", { name: /^Pick Your Own/ }).click();
   await expect(
-    page.getByText("Pick Your Own — choose 0 of 1 film"),
+    page.getByText("Pick Your Own — 0 of 1 film chosen"),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: /My Chosen Backup/ }).click();
+  await page.getByRole("button", { name: "Choose a film for slot 1" }).click();
   await expect(
-    page.getByText("Pick Your Own — choose 1 of 1 film"),
+    page.getByRole("heading", { name: "Pick Your Own" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /My Chosen Backup/ }).click();
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(
+    page.getByText("Pick Your Own — 1 of 1 film chosen"),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Create draft" }).click();

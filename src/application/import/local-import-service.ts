@@ -41,6 +41,13 @@ export type ImportLocalWatchlistOutcome =
       /** Rows whose film was already marked watched in FDraft and so were deliberately NOT reactivated — see `determineAction`'s `"skip_already_watched"` guard in `domain/import/plan.ts`. */
       alreadyWatchedSkipped: number;
       unresolvedCount: number;
+      /**
+       * Active watchlist entries deactivated because `mode: "replace"` was
+       * requested and their film wasn't present in this import's
+       * watchlist.csv — see docs/updates, v1.1.2, "Re-import Letterboxd
+       * Watchlist". Always `0` in the default `"merge"` mode.
+       */
+      filmsRemoved: number;
       /** Every film this import touched (watchlist + ratings + watched + diary), for the immediate post-import metadata status ("1,050 cached, 154 awaiting download" — see `getImportMetadataStatus`). */
       filmIds: string[];
     }
@@ -77,6 +84,19 @@ function toIdentity(row: {
  *    kind, so this genuinely cannot "upload the user's import to a remote
  *    server" (see docs/product-spec.md, "FULL OFFLINE CORE
  *    FUNCTIONALITY").
+ *
+ * `mode` (see docs/updates, v1.1.2, "Re-import Letterboxd Watchlist"):
+ *  - `"merge"` (default) — the original, purely additive/reconciling
+ *    behaviour: a currently-active watchlist entry is NEVER deactivated
+ *    just because this import's watchlist.csv doesn't mention it.
+ *  - `"replace"` — after the exact same plan/reconcile pass, any
+ *    currently-active entry whose film ISN'T among this import's
+ *    watchlist.csv rows is deactivated (`removedReason: "manual"`), so
+ *    the profile's active watchlist ends up matching the new export
+ *    exactly. Only watchlist MEMBERSHIP is touched — watched history,
+ *    ratings, draft history, and profile settings are never read or
+ *    written by this pass, since they live in entirely separate
+ *    repositories/tables this function never queries for that purpose.
  */
 export async function importLocalWatchlistCsv(
   repos: {
@@ -88,6 +108,7 @@ export async function importLocalWatchlistCsv(
     profileId: string;
     rawFilename: string | null;
     source?: "csv" | "zip";
+    mode?: "merge" | "replace";
   } & ImportLocalWatchlistFiles,
   deps: { idGenerator?: IdGenerator; clock?: Clock } = {},
 ): Promise<ImportLocalWatchlistOutcome> {
@@ -174,6 +195,11 @@ export async function importLocalWatchlistCsv(
   let filmsUpdated = 0;
   let alreadyWatchedSkipped = 0;
   const touchedFilmIds = new Set<string>();
+  // Every film this import's watchlist.csv actually mentions — distinct
+  // from `touchedFilmIds`, which also picks up ratings/watched/diary rows
+  // that have nothing to do with watchlist membership. Only meaningful for
+  // `mode: "replace"` below.
+  const newWatchlistFilmIds = new Set<string>();
 
   for (const planRow of plan.rows) {
     if (
@@ -181,13 +207,17 @@ export async function importLocalWatchlistCsv(
       planRow.action === "skip_already_watched"
     ) {
       const filmId = filmKeyToId.get(planRow.filmKey) ?? planRow.existingFilmId;
-      if (filmId) touchedFilmIds.add(filmId);
+      if (filmId) {
+        touchedFilmIds.add(filmId);
+        newWatchlistFilmIds.add(filmId);
+      }
       if (planRow.action === "skip_already_watched") alreadyWatchedSkipped++;
       continue;
     }
 
     const filmId = await resolveFilmId(toIdentity(planRow.row));
     touchedFilmIds.add(filmId);
+    newWatchlistFilmIds.add(filmId);
 
     if (
       planRow.action === "create_film_and_entry" ||
@@ -232,6 +262,22 @@ export async function importLocalWatchlistCsv(
         updatedAt: now,
       });
       filmsUpdated++;
+    }
+  }
+
+  let filmsRemoved = 0;
+  if (params.mode === "replace") {
+    for (const entry of allEntries) {
+      if (entry.isActive && !newWatchlistFilmIds.has(entry.filmId)) {
+        await repos.watchlist.updateEntry({
+          ...entry,
+          isActive: false,
+          removedAt: now,
+          removedReason: "manual",
+          updatedAt: now,
+        });
+        filmsRemoved++;
+      }
     }
   }
 
@@ -315,6 +361,7 @@ export async function importLocalWatchlistCsv(
     filmsUpdated,
     duplicatesSkipped: plan.duplicateRowCount,
     alreadyWatchedSkipped,
+    filmsRemoved,
     unresolvedCount,
     filmIds: [...touchedFilmIds],
   };
