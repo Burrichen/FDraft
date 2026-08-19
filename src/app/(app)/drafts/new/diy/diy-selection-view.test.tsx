@@ -8,19 +8,15 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocalDraftFromSelection } from "@/application/drafts/local-draft-service";
-import { fetchLocalChallengeCandidates } from "@/application/drafts/local-fetch-context";
-import type {
-  FilmMetadataRecord,
-  FilmRecord,
-  WatchlistEntryRecord,
-} from "@/repositories/records";
+import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
+import type { DiySelectableFilmView } from "@/components/drafts/diy/diy-film-card";
 import { DiySelectionView } from "./diy-selection-view";
 
 vi.mock("@/application/drafts/local-draft-service", () => ({
   createLocalDraftFromSelection: vi.fn(),
 }));
-vi.mock("@/application/drafts/local-fetch-context", () => ({
-  fetchLocalChallengeCandidates: vi.fn(),
+vi.mock("@/application/drafts/local-diy-candidates", () => ({
+  getDiyEligibleFilms: vi.fn(),
 }));
 
 const push = vi.fn();
@@ -37,60 +33,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-function makeFilm(
-  overrides: Partial<FilmRecord> & { id: string; title: string },
-): FilmRecord {
-  return {
-    releaseYear: 2020,
-    letterboxdSlug: null,
-    letterboxdUri: null,
-    createdAt: "2024-01-01T00:00:00.000Z",
-    updatedAt: "2024-01-01T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function makeEntry(
-  overrides: Partial<WatchlistEntryRecord> & {
-    id: string;
-    filmId: string;
-    dateAdded: string;
-  },
-): WatchlistEntryRecord {
-  return {
-    profileId: "profile-1",
-    position: null,
-    isActive: true,
-    selectionWeight: 1,
-    importSource: null,
-    importId: null,
-    removedAt: null,
-    removedReason: null,
-    createdAt: overrides.dateAdded,
-    ...overrides,
-  } as WatchlistEntryRecord;
-}
-
-const FILMS = ["Alpha", "Beta", "Gamma", "Delta", "Echo"].map((title, index) =>
-  makeFilm({ id: `film-${index + 1}`, title }),
-);
-const ENTRIES = FILMS.map((film, index) =>
-  makeEntry({
-    id: `entry-${index + 1}`,
-    filmId: film.id,
-    dateAdded: `2024-0${index + 1}-01`,
-  }),
-);
-
-const mockRepositories = {
-  watchlist: {
-    listActiveEntries: vi.fn(),
-  },
-  films: {
-    getById: vi.fn(),
-    getMetadataForFilms: vi.fn(),
-  },
-};
+const mockRepositories = {};
 
 vi.mock("@/components/profiles/profile-provider", () => ({
   useProfileContext: () => ({
@@ -99,43 +42,50 @@ vi.mock("@/components/profiles/profile-provider", () => ({
   }),
 }));
 
-function setUpRepositories(
-  entries: WatchlistEntryRecord[] = ENTRIES,
-  films: FilmRecord[] = FILMS,
-) {
-  (
-    mockRepositories.watchlist.listActiveEntries as ReturnType<typeof vi.fn>
-  ).mockResolvedValue(entries);
-  (
-    mockRepositories.films.getById as ReturnType<typeof vi.fn>
-  ).mockImplementation(
-    async (filmId: string) => films.find((film) => film.id === filmId) ?? null,
-  );
-  (
-    mockRepositories.films.getMetadataForFilms as ReturnType<typeof vi.fn>
-  ).mockResolvedValue(new Map<string, FilmMetadataRecord[]>());
+function makeFilm(
+  overrides: Partial<DiySelectableFilmView> & {
+    entryId: string;
+    title: string;
+  },
+): DiySelectableFilmView {
+  return {
+    filmId: `film-${overrides.entryId}`,
+    releaseYear: 2020,
+    runtimeMinutes: 100,
+    posterUrl: null,
+    averageRating: null,
+    dateAdded: "2024-01-01",
+    genres: null,
+    ...overrides,
+  };
 }
+
+const FIVE_FILMS: DiySelectableFilmView[] = [
+  "Alpha",
+  "Beta",
+  "Gamma",
+  "Delta",
+  "Echo",
+].map((title, index) =>
+  makeFilm({
+    entryId: `entry-${index + 1}`,
+    title,
+    dateAdded: `2024-0${index + 1}-01`,
+  }),
+);
 
 afterEach(() => {
   cleanup();
   vi.mocked(createLocalDraftFromSelection).mockReset();
-  vi.mocked(fetchLocalChallengeCandidates).mockReset();
-  vi.mocked(mockRepositories.watchlist.listActiveEntries).mockReset();
-  vi.mocked(mockRepositories.films.getById).mockReset();
-  vi.mocked(mockRepositories.films.getMetadataForFilms).mockReset();
+  vi.mocked(getDiyEligibleFilms).mockReset();
   push.mockReset();
   replace.mockReset();
   searchParamValues = { difficulty: "baby", timeMode: "calendar" };
 });
 
 describe("DiySelectionView", () => {
-  it("only shows films the centralized eligibility check allows, never an ineligible candidate", async () => {
-    setUpRepositories();
-    vi.mocked(fetchLocalChallengeCandidates).mockResolvedValue(
-      ENTRIES.slice(0, 3).map((entry) => ({
-        watchlistEntryId: entry.id,
-      })) as never,
-    );
+  it("renders exactly the films the canonical eligible-candidate set returns — no separate eligibility logic of its own", async () => {
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS.slice(0, 3));
     render(<DiySelectionView />);
 
     await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
@@ -143,13 +93,14 @@ describe("DiySelectionView", () => {
     expect(screen.getByText("Gamma")).toBeInTheDocument();
     expect(screen.queryByText("Delta")).not.toBeInTheDocument();
     expect(screen.queryByText("Echo")).not.toBeInTheDocument();
+    expect(getDiyEligibleFilms).toHaveBeenCalledWith(
+      mockRepositories,
+      "profile-1",
+    );
   });
 
   it("toggles selection on click and keeps the confirm button disabled until the required count is reached", async () => {
-    setUpRepositories();
-    vi.mocked(fetchLocalChallengeCandidates).mockResolvedValue(
-      ENTRIES.map((entry) => ({ watchlistEntryId: entry.id })) as never,
-    );
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS);
     const user = userEvent.setup();
     render(<DiySelectionView />);
 
@@ -173,10 +124,7 @@ describe("DiySelectionView", () => {
   });
 
   it("creates the draft with the selected entries and navigates to /drafts on success", async () => {
-    setUpRepositories();
-    vi.mocked(fetchLocalChallengeCandidates).mockResolvedValue(
-      ENTRIES.map((entry) => ({ watchlistEntryId: entry.id })) as never,
-    );
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS);
     vi.mocked(createLocalDraftFromSelection).mockResolvedValue({
       ok: true,
       draftId: "draft-1",
@@ -212,10 +160,7 @@ describe("DiySelectionView", () => {
   });
 
   it("selecting a recommendation toggles the same selection state as the main grid, without independently mutating anything", async () => {
-    setUpRepositories();
-    vi.mocked(fetchLocalChallengeCandidates).mockResolvedValue(
-      ENTRIES.map((entry) => ({ watchlistEntryId: entry.id })) as never,
-    );
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS);
     const user = userEvent.setup();
     render(<DiySelectionView />);
 
@@ -229,8 +174,7 @@ describe("DiySelectionView", () => {
     const question = summary.closest("details");
     if (!question) throw new Error("expected a <details> ancestor");
     // "Alpha" was added earliest (2024-01-01) — it's the top recommendation
-    // for this specific question (scoped so it can't collide with the
-    // "highest rated" question's own, separately-rendered "Alpha" entry).
+    // for this specific question.
     await user.click(within(question).getByRole("button", { name: /Alpha/ }));
 
     expect(screen.getByText("1 / 5 selected")).toBeInTheDocument();

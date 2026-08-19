@@ -17,6 +17,7 @@ interface ImportResult {
   filmsImported: number;
   filmsUpdated: number;
   duplicatesSkipped: number;
+  alreadyWatchedSkipped: number;
   unresolvedCount: number;
   metadataCached: number;
   metadataAwaitingDownload: number;
@@ -146,6 +147,7 @@ export function ImportView() {
         filmsImported: outcome.filmsImported,
         filmsUpdated: outcome.filmsUpdated,
         duplicatesSkipped: outcome.duplicatesSkipped,
+        alreadyWatchedSkipped: outcome.alreadyWatchedSkipped,
         unresolvedCount: outcome.unresolvedCount,
         metadataCached: metadataStatus.cached,
         metadataAwaitingDownload: metadataStatus.awaitingDownload,
@@ -176,6 +178,10 @@ export function ImportView() {
             <SummaryStat
               label="Duplicates skipped"
               value={result.duplicatesSkipped}
+            />
+            <SummaryStat
+              label="Already watched (not re-added)"
+              value={result.alreadyWatchedSkipped}
             />
             <SummaryStat
               label="Unresolved rows"

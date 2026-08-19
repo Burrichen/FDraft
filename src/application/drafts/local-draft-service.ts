@@ -292,8 +292,15 @@ export async function createLocalDraft(
       candidates: remainingCandidates,
       watchedFilms,
       config: DEFAULT_CHALLENGE_ENGINE_CONFIG,
-      ...(config.manualGenre
-        ? { manualSelections: { genre: config.manualGenre } }
+      ...(config.manualGenre || config.diyFilmEntryIds?.length
+        ? {
+            manualSelections: {
+              ...(config.manualGenre ? { genre: config.manualGenre } : {}),
+              ...(config.diyFilmEntryIds?.length
+                ? { diyFilmEntryIds: config.diyFilmEntryIds }
+                : {}),
+            },
+          }
         : {}),
     };
 

@@ -13,10 +13,10 @@ function findChallenge(id: string) {
 }
 
 describe("metaChallenges", () => {
-  it("registers exactly the 6 meta challenges with unique ids", () => {
+  it("registers exactly the 7 meta challenges with unique ids", () => {
     const ids = metaChallenges.map((c) => c.id);
-    expect(ids).toHaveLength(6);
-    expect(new Set(ids).size).toBe(6);
+    expect(ids).toHaveLength(7);
+    expect(new Set(ids).size).toBe(7);
     expect(metaChallenges.every((c) => c.category === "meta")).toBe(true);
   });
 
@@ -269,6 +269,71 @@ describe("metaChallenges", () => {
           olderWins++;
       }
       expect(olderWins / trials).toBeGreaterThan(0.6);
+    });
+  });
+
+  describe("diy", () => {
+    const challenge = findChallenge("diy");
+
+    it("is eligible whenever any candidate exists — even with no pre-selected film yet", () => {
+      const context = buildContext({ candidates: [buildFilm()] });
+      expect(challenge.isEligible(context)).toBe(true);
+    });
+
+    it("is ineligible for an empty candidate pool", () => {
+      expect(challenge.isEligible(buildContext({ candidates: [] }))).toBe(
+        false,
+      );
+    });
+
+    it("never invents a film — declines gracefully when nothing was pre-selected", () => {
+      const context = buildContext({ candidates: [buildFilm()] });
+      expect(challenge.attempt(context)).toEqual({
+        status: "ineligible",
+        reason: "no_diy_film_pre_selected",
+      });
+    });
+
+    it("returns the pre-selected film as a success, untouched by any randomness", () => {
+      const chosen = buildFilm();
+      const other = buildFilm();
+      const context = buildContext({
+        candidates: [other, chosen],
+        manualSelections: { diyFilmEntryIds: [chosen.watchlistEntryId] },
+      });
+      const result = challenge.attempt(context);
+      expect(result).toEqual({ status: "success", film: chosen });
+    });
+
+    it("consumes pre-selected films in order, skipping ones no longer in the pool (already used elsewhere)", () => {
+      const first = buildFilm();
+      const second = buildFilm();
+      // `first` has already been claimed by another slot — no longer in
+      // `candidates` — so this DIY attempt must fall through to `second`.
+      const context = buildContext({
+        candidates: [second],
+        manualSelections: {
+          diyFilmEntryIds: [first.watchlistEntryId, second.watchlistEntryId],
+        },
+      });
+      const result = challenge.attempt(context);
+      expect(result).toEqual({ status: "success", film: second });
+    });
+
+    it("declines when every pre-selected film has already been used elsewhere", () => {
+      const used = buildFilm();
+      const context = buildContext({
+        candidates: [buildFilm()], // some other, non-pre-selected film remains
+        manualSelections: { diyFilmEntryIds: [used.watchlistEntryId] },
+      });
+      expect(challenge.attempt(context)).toEqual({
+        status: "ineligible",
+        reason: "no_diy_film_pre_selected",
+      });
+    });
+
+    it("is not interactive — it can be offered by 'Choose My Challenge' and drawn by 'Decide For Me' like any basic challenge", () => {
+      expect(challenge.interactive).toBe(false);
     });
   });
 });

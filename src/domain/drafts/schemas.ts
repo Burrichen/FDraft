@@ -42,6 +42,8 @@ export const draftConfigInputSchema = z
     chosenChallengeIds: z.array(z.string().min(1)).optional(),
     /** A user-picked genre for Genre Roulette, when it's among chosenChallengeIds (see "Choose My Challenge"). */
     manualGenre: z.string().min(1).optional(),
+    /** Pre-picked films for the "diy" ("Pick Your Own") challenge — see docs/updates, v1.1.1, "DIY Challenge Film". */
+    diyFilmEntryIds: z.array(z.string().min(1)).optional(),
   })
   .superRefine((config, ctx) => {
     if (isFreeform(config.difficulty)) {
@@ -82,6 +84,17 @@ export const draftConfigInputSchema = z
       });
     }
 
+    if (
+      config.diyFilmEntryIds &&
+      new Set(config.diyFilmEntryIds).size !== config.diyFilmEntryIds.length
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "diyFilmEntryIds must not contain duplicate entries",
+        path: ["diyFilmEntryIds"],
+      });
+    }
+
     if (config.challengeMode === "choose") {
       if (!config.chosenChallengeIds?.length) {
         ctx.addIssue({
@@ -114,6 +127,22 @@ export const draftConfigInputSchema = z
             });
           }
         });
+
+        // Every deliberately-chosen "diy" slot needs its own pre-picked
+        // film before the draft can be created — see docs/updates,
+        // v1.1.1, "DIY Challenge Film": "prevent challenge draft
+        // finalisation until a valid film has been chosen." Unlike every
+        // other chosen challenge, "diy" never resolves a film on its own.
+        const diyCount = config.chosenChallengeIds.filter(
+          (id) => id === "diy",
+        ).length;
+        if (diyCount > (config.diyFilmEntryIds?.length ?? 0)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `diyFilmEntryIds must have at least ${diyCount} entries (one per "Pick Your Own" slot chosen)`,
+            path: ["diyFilmEntryIds"],
+          });
+        }
       }
     }
   });

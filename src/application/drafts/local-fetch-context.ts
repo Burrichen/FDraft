@@ -50,8 +50,8 @@ export async function fetchLocalChallengeCandidates(
     entries.map((entry) => entry.filmId),
   );
 
-  const watchedReleaseYearsByCollectionId =
-    await buildWatchedReleaseYearsByCollectionId(repos, profileId);
+  const { watchedReleaseYearsByCollectionId, watchedFilmIds } =
+    await buildWatchedFilmContext(repos, profileId);
 
   const candidatesWithEligibility = entries.map((entry, index) => {
     const film = films[index];
@@ -81,6 +81,7 @@ export async function fetchLocalChallengeCandidates(
       listAppearances: metadata.listAppearances,
     };
     const eligibilityFilm: CandidateEligibilityFilm = {
+      filmId: candidate.filmId,
       title: candidate.title,
       releaseYear: candidate.releaseYear,
       releaseDate: metadata.releaseDate,
@@ -112,39 +113,52 @@ export async function fetchLocalChallengeCandidates(
         now,
         watchedReleaseYearsByCollectionId,
         poolReleaseYearsByCollectionId,
+        watchedFilmIds,
       });
       return result.eligible;
     })
     .map(({ candidate }) => candidate);
 }
 
-/** Every collectionId this profile has watched an entry in, mapped to those entries' release years — the "has an earlier entry already been watched" half of the later-series-entry check. */
-async function buildWatchedReleaseYearsByCollectionId(
+/**
+ * Every filmId this profile has ever watched, plus (derived from the same
+ * watched-history query) every collectionId it's watched an entry in,
+ * mapped to those entries' release years — the "has an earlier entry
+ * already been watched" half of the later-series-entry check, and the
+ * redundant "unwatched" guard `evaluateCandidateEligibility` applies to
+ * every candidate (see docs/updates, v1.1.1).
+ */
+async function buildWatchedFilmContext(
   repos: {
     films: FilmRepository;
     history: HistoryRepository;
   },
   profileId: string,
-): Promise<Map<string, number[]>> {
+): Promise<{
+  watchedFilmIds: Set<string>;
+  watchedReleaseYearsByCollectionId: Map<string, number[]>;
+}> {
   const historyEntries = await repos.history.listWatchedHistory(profileId);
-  const filmIds = [...new Set(historyEntries.map((entry) => entry.filmId))];
+  const watchedFilmIds = new Set(historyEntries.map((entry) => entry.filmId));
+  const filmIds = [...watchedFilmIds];
   const films = await Promise.all(
     filmIds.map((filmId) => repos.films.getById(filmId)),
   );
   const metadataByFilmId = await repos.films.getMetadataForFilms(filmIds);
 
-  const byCollectionId = new Map<string, number[]>();
+  const watchedReleaseYearsByCollectionId = new Map<string, number[]>();
   filmIds.forEach((filmId, index) => {
     const film = films[index];
     const metadata = mergeLocalFilmMetadata(metadataByFilmId.get(filmId) ?? []);
     if (!metadata.collectionId || film?.releaseYear == null) {
       return;
     }
-    const years = byCollectionId.get(metadata.collectionId) ?? [];
+    const years =
+      watchedReleaseYearsByCollectionId.get(metadata.collectionId) ?? [];
     years.push(film.releaseYear);
-    byCollectionId.set(metadata.collectionId, years);
+    watchedReleaseYearsByCollectionId.set(metadata.collectionId, years);
   });
-  return byCollectionId;
+  return { watchedFilmIds, watchedReleaseYearsByCollectionId };
 }
 
 export async function fetchLocalChallengeWatchedFilms(

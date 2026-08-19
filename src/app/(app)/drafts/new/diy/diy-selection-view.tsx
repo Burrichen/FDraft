@@ -5,8 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createLocalDraftFromSelection } from "@/application/drafts/local-draft-service";
-import { fetchLocalChallengeCandidates } from "@/application/drafts/local-fetch-context";
-import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
 import { AsyncDataError } from "@/components/async-data-error";
 import { DiyFilmCard } from "@/components/drafts/diy/diy-film-card";
 import { RecommendationSidebar } from "@/components/drafts/diy/recommendation-sidebar";
@@ -37,13 +36,15 @@ import { Film } from "lucide-react";
  * The DIY Draft selection screen (see docs/updates, v1.1.0, "NEW
  * DRAFTING MODE — DIY DRAFT") — a "selectable version of the Watchlist"
  * reached from `/drafts/new` once a difficulty and deadline are chosen
- * there. Loads the SAME eligibility-filtered candidate pool every other
- * draft-generation path uses (`fetchLocalChallengeCandidates`) so a film
- * that couldn't be randomly drafted (unreleased, an unstarted later
- * series entry, a metadata identity mismatch) can't be manually selected
- * either — see `domain/watchlist/candidate-eligibility.ts`. Search/sort/
- * filter are the exact same functions and control the Watchlist page
- * itself uses (`domain/watchlist/sort-filter.ts`,
+ * there. Loads the ONE canonical eligible-candidate set every DIY surface
+ * shares (`getDiyEligibleFilms`, itself built on the same eligibility
+ * every draft-generation path uses) so a film that couldn't be randomly
+ * drafted (unreleased, already watched, an unstarted later series entry,
+ * a metadata identity mismatch) can't be manually selected or
+ * recommended either — see docs/updates, v1.1.1, "Centralise DIY
+ * recommendation eligibility". Search/sort/filter are the exact same
+ * functions and control the Watchlist page itself uses
+ * (`domain/watchlist/sort-filter.ts`,
  * `components/watchlist/sort-filter-control.tsx`), not a reimplementation.
  */
 export function DiySelectionView() {
@@ -59,41 +60,11 @@ export function DiySelectionView() {
 
   const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
-    const entries = await repositories.watchlist.listActiveEntries(
+    const eligibleFilms = await getDiyEligibleFilms(
+      repositories,
       activeProfile.id,
     );
-    const films = await Promise.all(
-      entries.map((entry) => repositories.films.getById(entry.filmId)),
-    );
-    const metadataByFilmId = await repositories.films.getMetadataForFilms(
-      entries.map((entry) => entry.filmId),
-    );
-    const eligibleEntryIds = new Set(
-      (await fetchLocalChallengeCandidates(repositories, activeProfile.id)).map(
-        (candidate) => candidate.watchlistEntryId,
-      ),
-    );
-
-    const eligibleFilms = entries
-      .filter((entry) => eligibleEntryIds.has(entry.id))
-      .map((entry, index) => {
-        const film = films[entries.indexOf(entry)] ?? films[index];
-        const metadata = mergeLocalFilmMetadata(
-          metadataByFilmId.get(entry.filmId) ?? [],
-        );
-        return {
-          entryId: entry.id,
-          title: film?.title ?? "Untitled",
-          releaseYear: film?.releaseYear ?? null,
-          runtimeMinutes: metadata.runtimeMinutes,
-          posterUrl: metadata.posterUrl,
-          averageRating: metadata.averageRating,
-          dateAdded: entry.dateAdded,
-          genres: metadata.genres,
-        };
-      });
-
-    return { eligibleFilms };
+    return { eligibleFilms, now: new Date() };
   }, [activeProfile?.id, repositories]);
 
   const [search, setSearch] = useState("");
@@ -263,6 +234,7 @@ export function DiySelectionView() {
           films={films}
           selectedEntryIds={selectedEntryIds}
           onToggle={handleToggle}
+          now={data.now}
         />
       </div>
 

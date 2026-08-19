@@ -1,6 +1,7 @@
 "use client";
 
 import { listLocalChallengeAvailability } from "@/application/challenges/list-local-challenge-availability";
+import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
 import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useAsyncData } from "@/hooks/use-async-data";
@@ -18,7 +19,14 @@ export function NewDraftView() {
       repositories,
       activeProfile.id,
     );
-    return { activeWatchlistCount, ...availability };
+    // Same canonical eligible pool the DIY Draft screen uses — reused here
+    // for the "Pick Your Own" challenge slot picker (see docs/updates,
+    // v1.1.1, "DIY Challenge Film").
+    const diyEligibleFilms = await getDiyEligibleFilms(
+      repositories,
+      activeProfile.id,
+    );
+    return { activeWatchlistCount, diyEligibleFilms, ...availability };
   }, [activeProfile?.id, repositories]);
 
   if (!activeProfile) {
@@ -44,6 +52,7 @@ export function NewDraftView() {
         activeWatchlistCount={data.activeWatchlistCount}
         challenges={data.challenges}
         availableGenres={data.availableGenres}
+        diyEligibleFilms={data.diyEligibleFilms}
       />
     </div>
   );

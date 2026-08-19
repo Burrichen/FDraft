@@ -1,6 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ChallengeAvailability } from "@/components/drafts/challenge-browser";
+import type { DiySelectableFilmView } from "@/components/drafts/diy/diy-film-card";
 import { NewDraftForm } from "./new-draft-form";
 
 const push = vi.fn();
@@ -32,6 +34,7 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
+        diyEligibleFilms={[]}
       />,
     );
 
@@ -53,6 +56,7 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
+        diyEligibleFilms={[]}
       />,
     );
 
@@ -79,6 +83,7 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
+        diyEligibleFilms={[]}
       />,
     );
 
@@ -98,6 +103,7 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
+        diyEligibleFilms={[]}
       />,
     );
 
@@ -115,5 +121,93 @@ describe("NewDraftForm — Random vs DIY mode", () => {
     expect(
       screen.getByRole("button", { name: "Create draft" }),
     ).toBeInTheDocument();
+  });
+});
+
+const NUMBER_SEVEN: ChallengeAvailability = {
+  id: "the-number-7",
+  name: "The Number 7",
+  description: "Shuffles your eligible watchlist and takes the seventh result.",
+  category: "meta",
+  interactive: false,
+  eligible: true,
+  ineligibleReason: null,
+};
+const DIY_CHALLENGE: ChallengeAvailability = {
+  id: "diy",
+  name: "Pick Your Own",
+  description: "You choose the exact film for this slot yourself.",
+  category: "meta",
+  interactive: false,
+  eligible: true,
+  ineligibleReason: null,
+};
+const DIY_FILMS: DiySelectableFilmView[] = [
+  {
+    entryId: "entry-1",
+    filmId: "film-1",
+    title: "Alpha",
+    releaseYear: 2020,
+    runtimeMinutes: 100,
+    posterUrl: null,
+    averageRating: null,
+    dateAdded: "2024-01-01",
+    genres: null,
+  },
+];
+
+describe("NewDraftForm — DIY Challenge Film gating", () => {
+  it("blocks submission until every chosen 'diy' challenge slot has a pre-picked film", async () => {
+    const user = userEvent.setup();
+    render(
+      <NewDraftForm
+        activeWatchlistCount={10}
+        challenges={[NUMBER_SEVEN, DIY_CHALLENGE]}
+        availableGenres={[]}
+        diyEligibleFilms={DIY_FILMS}
+      />,
+    );
+
+    // "Baby" = 5 films, default split randomCount 2 / challengeCount 3.
+    await user.click(screen.getByRole("button", { name: /Baby/ }));
+    await user.click(
+      screen.getByRole("radio", { name: /Choose My Challenge/ }),
+    );
+    await user.click(screen.getByRole("button", { name: /^Pick Your Own/ }));
+    await user.click(screen.getByRole("button", { name: /^The Number 7/ }));
+    await user.click(screen.getByRole("button", { name: /^The Number 7/ }));
+
+    // All 3 slots chosen (1 diy + 2 the-number-7), but no film picked yet
+    // for the diy slot — must stay disabled.
+    expect(screen.getByText("3 of 3 challenges chosen")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create draft" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /Alpha/ }));
+
+    expect(
+      screen.getByRole("button", { name: "Create draft" }),
+    ).not.toBeDisabled();
+  });
+
+  it("shows an optional backup-film picker under 'Decide For Me', never blocking submission", async () => {
+    const user = userEvent.setup();
+    render(
+      <NewDraftForm
+        activeWatchlistCount={10}
+        challenges={[NUMBER_SEVEN, DIY_CHALLENGE]}
+        availableGenres={[]}
+        diyEligibleFilms={DIY_FILMS}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Baby/ }));
+    expect(
+      screen.getByText(
+        'Want a chance at a "Pick Your Own" challenge slot? (optional)',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create draft" }),
+    ).not.toBeDisabled();
   });
 });
