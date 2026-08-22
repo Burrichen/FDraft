@@ -17,9 +17,13 @@ import { DraftFilmCard, type DraftFilmCardView } from "./draft-film-card";
 export function ActiveDraftFilms({
   films,
   onReroll,
+  onManualReplace,
+  onSlotReroll,
 }: {
   films: DraftFilmCardView[];
   onReroll?: (itemId: string) => Promise<void>;
+  onManualReplace?: (itemId: string) => void;
+  onSlotReroll?: (itemId: string) => Promise<void>;
 }) {
   const watchUndo = useWatchUndo();
 
@@ -66,7 +70,12 @@ export function ActiveDraftFilms({
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {toWatch.map((film) => (
             <li key={film.itemId}>
-              <DraftFilmCard film={film} onReroll={onReroll} />
+              <DraftFilmCard
+                film={film}
+                onReroll={onReroll}
+                onManualReplace={onManualReplace}
+                onSlotReroll={onSlotReroll}
+              />
             </li>
           ))}
         </ul>
@@ -88,7 +97,12 @@ export function ActiveDraftFilms({
           <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {completed.map((film) => (
               <li key={film.itemId}>
-                <DraftFilmCard film={film} onReroll={onReroll} />
+                <DraftFilmCard
+                  film={film}
+                  onReroll={onReroll}
+                  onManualReplace={onManualReplace}
+                  onSlotReroll={onSlotReroll}
+                />
               </li>
             ))}
           </ul>

@@ -1,8 +1,18 @@
 "use client";
 
-import { Check, Film, Shuffle } from "lucide-react";
+import { Check, Film, Pencil, RefreshCw, Shuffle } from "lucide-react";
 import { useState } from "react";
 import { formatChallengeDisplayValue } from "@/domain/challenges/format-display-value";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FilmMetadataLine } from "@/components/film-metadata-line";
@@ -25,9 +35,22 @@ export interface DraftFilmChallengeView {
 
 /** See `DraftItemRecord.originFilmId`/`substitutionReason` — resolved to a display-ready title by whichever page builds `DraftFilmCardView`, never recomputed here. */
 export interface DraftFilmSubstitutionView {
-  reason: "franchise_order" | "missing_metadata";
+  reason:
+    "franchise_order" | "missing_metadata" | "manual_replace" | "user_reroll";
   originalTitle: string;
 }
+
+const SUBSTITUTION_CAPTION_PREFIX: Record<
+  DraftFilmSubstitutionView["reason"],
+  string | null
+> = {
+  franchise_order: "Franchise order · Originally rolled:",
+  // Never shown today — `hasNoMetadata` already vanishes once a reroll
+  // succeeds, and the auto-repair reroll doesn't need its own caption.
+  missing_metadata: null,
+  manual_replace: "Replaced · Originally:",
+  user_reroll: "Rerolled · Originally:",
+};
 
 export interface DraftFilmCardView {
   itemId: string;
@@ -46,6 +69,8 @@ export interface DraftFilmCardView {
   hasNoMetadata: boolean;
   /** Non-null only when this slot's film differs from what was originally selected for it. */
   substitution: DraftFilmSubstitutionView | null;
+  /** See `canEditDraftSlot` — true only for a random slot the current user/draft combination is allowed to manually replace or reroll (see docs/updates, v1.1.3 "Editable random draft slots"). Computed once by the page, never re-derived here. */
+  canEdit: boolean;
 }
 
 /**
@@ -74,15 +99,35 @@ export interface DraftFilmCardView {
  * its own pending state so the button disables itself for exactly the
  * duration of that one reroll, without the parent needing to track
  * per-card state.
+ *
+ * `onManualReplace`/`onSlotReroll` are the v1.1.3 "Editable random draft
+ * slots" controls — a small pen icon and a monochrome circular-arrows
+ * icon, shown ONLY when `film.canEdit` is true (see `canEditDraftSlot`),
+ * regardless of `isCompleted` — replacing an already-watched film's slot
+ * is exactly the scenario this feature exists for. Deliberately separate
+ * from `onReroll`/`hasNoMetadata`'s auto-repair affordance: different
+ * trigger, different icon (`RefreshCw`, not `Shuffle`), so the two
+ * features never read as the same control. Clicking either one on an
+ * already-watched slot asks for confirmation first, since the replacement
+ * won't count toward this draft; an unwatched slot acts immediately.
  */
 export function DraftFilmCard({
   film,
   onReroll,
+  onManualReplace,
+  onSlotReroll,
 }: {
   film: DraftFilmCardView;
   onReroll?: (itemId: string) => Promise<void>;
+  /** Opens the manual-replacement picker for this slot — synchronous; the picker itself owns the async mutation. */
+  onManualReplace?: (itemId: string) => void;
+  onSlotReroll?: (itemId: string) => Promise<void>;
 }) {
   const [isRerolling, setIsRerolling] = useState(false);
+  const [isSlotRerolling, setIsSlotRerolling] = useState(false);
+  const [pendingEditAction, setPendingEditAction] = useState<
+    "manual" | "reroll" | null
+  >(null);
   const displayEntries = formatChallengeDisplayValue(
     film.challenge?.displayValue,
   );
@@ -105,6 +150,29 @@ export function DraftFilmCard({
     }
   }
 
+  async function runEditAction(action: "manual" | "reroll") {
+    setPendingEditAction(null);
+    if (action === "manual") {
+      onManualReplace?.(film.itemId);
+      return;
+    }
+    if (!onSlotReroll) return;
+    setIsSlotRerolling(true);
+    try {
+      await onSlotReroll(film.itemId);
+    } finally {
+      setIsSlotRerolling(false);
+    }
+  }
+
+  function handleEditIconClick(action: "manual" | "reroll") {
+    if (film.isCompleted) {
+      setPendingEditAction(action);
+      return;
+    }
+    void runEditAction(action);
+  }
+
   return (
     <div className="group relative h-full">
       {!film.isCompleted && film.entryId ? (
@@ -116,6 +184,48 @@ export function DraftFilmCard({
       {film.isCompleted && !canUndo ? (
         <div className="bg-watchlist-green text-primary-foreground absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-full">
           <Check aria-hidden="true" className="size-4" />
+        </div>
+      ) : null}
+      {film.canEdit ? (
+        <div className="absolute top-2 left-2 z-10 flex gap-1">
+          {onManualReplace ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => handleEditIconClick("manual")}
+                    aria-label={`Replace ${film.title} with a different film`}
+                    className="bg-background/80 text-foreground hover:bg-background focus-visible:outline-ring flex size-6 items-center justify-center rounded-full backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-1"
+                  />
+                }
+              >
+                <Pencil aria-hidden="true" className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>Replace this film</TooltipContent>
+            </Tooltip>
+          ) : null}
+          {onSlotReroll ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    disabled={isSlotRerolling}
+                    onClick={() => handleEditIconClick("reroll")}
+                    aria-label={`Re-roll ${film.title} for a new random film`}
+                    className="bg-background/80 text-foreground hover:bg-background focus-visible:outline-ring flex size-6 items-center justify-center rounded-full backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-1 disabled:opacity-50"
+                  />
+                }
+              >
+                <RefreshCw
+                  aria-hidden="true"
+                  className={cn("size-3.5", isSlotRerolling && "animate-spin")}
+                />
+              </TooltipTrigger>
+              <TooltipContent>Re-roll for a new random film</TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
       ) : null}
       <div className="border-border bg-card hover:border-primary/50 flex h-full flex-col overflow-hidden rounded-lg border transition-colors">
@@ -186,9 +296,10 @@ export function DraftFilmCard({
               ))}
             </div>
           ) : null}
-          {film.substitution?.reason === "franchise_order" ? (
+          {film.substitution &&
+          SUBSTITUTION_CAPTION_PREFIX[film.substitution.reason] ? (
             <p className="text-muted-foreground truncate text-[0.65rem]">
-              Franchise order · Originally rolled:{" "}
+              {SUBSTITUTION_CAPTION_PREFIX[film.substitution.reason]}{" "}
               {film.substitution.originalTitle}
             </p>
           ) : null}
@@ -216,6 +327,33 @@ export function DraftFilmCard({
           ) : null}
         </div>
       </div>
+      <AlertDialog
+        open={pendingEditAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingEditAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace a watched film?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {film.title} has already been marked watched — replacing it means
+              it won&apos;t count toward this draft. This won&apos;t affect your
+              watch history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                pendingEditAction && void runEditAction(pendingEditAction)
+              }
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

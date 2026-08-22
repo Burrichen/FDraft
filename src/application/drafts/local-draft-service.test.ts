@@ -7,6 +7,7 @@ import {
   createLocalDraftFromSelection,
   expireLocalDraftIfDue,
   generateLocalFreeformBatch,
+  replaceDraftSlot,
   rerollLocalDraftItemForMissingMetadata,
   setLocalDraftCustomName,
   submitLocalPostmortemResponse,
@@ -16,7 +17,7 @@ import { createSeededRng } from "@/domain/shared/rng";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
-import type { Repositories } from "@/repositories";
+import type { DraftItemRecord, Repositories } from "@/repositories";
 
 const PROFILE_ID = "alex";
 
@@ -1936,6 +1937,438 @@ describe("rerollLocalDraftItemForMissingMetadata", () => {
       error: "nothing_available",
       message: expect.any(String),
     });
+  });
+});
+
+describe("replaceDraftSlot — manual replacement", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("replaces a random slot's film in place with the manually chosen one, keeping the slot random", async () => {
+    db = new FDraftLocalDatabase(`replace-manual-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 2,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const draftBefore = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    const target = items[0];
+    const usedFilmIds = new Set(items.map((item) => item.filmId));
+    const allEntries = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    const unusedEntry = allEntries.find(
+      (entry) => !usedFilmIds.has(entry.filmId),
+    )!;
+
+    const outcome = await replaceDraftSlot(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: target.id,
+      adminModeEnabled: false,
+      mode: { kind: "manual", watchlistEntryId: unusedEntry.id },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.newFilmId).toBe(unusedEntry.filmId);
+
+    const updated = await repos.drafts.getItemById(target.id);
+    expect(updated?.filmId).toBe(unusedEntry.filmId);
+    expect(updated?.watchlistEntryId).toBe(unusedEntry.id);
+    expect(updated?.source).toBe("random");
+    expect(updated?.orderIndex).toBe(target.orderIndex);
+    expect(updated?.originFilmId).toBe(target.filmId);
+    expect(updated?.substitutionReason).toBe("manual_replace");
+    expect(updated?.isCompleted).toBe(false);
+
+    // Exactly one slot changed — draft capacity is untouched, and every
+    // other item is exactly as it was.
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.totalFilms).toBe(draftBefore?.totalFilms);
+    const allItemsAfter = await repos.drafts.listItemsForDraft(created.draftId);
+    expect(allItemsAfter).toHaveLength(items.length);
+    for (const item of items) {
+      if (item.id === target.id) continue;
+      expect(allItemsAfter.find((other) => other.id === item.id)).toEqual(item);
+    }
+  });
+
+  it("rejects a film already occupying this or another slot in the draft", async () => {
+    db = new FDraftLocalDatabase(`replace-manual-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 2,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    const [target, other] = items;
+
+    const outcome = await replaceDraftSlot(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: target.id,
+      adminModeEnabled: false,
+      mode: { kind: "manual", watchlistEntryId: other.watchlistEntryId! },
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "already_in_draft",
+      message: expect.any(String),
+    });
+  });
+
+  it("rejects a watchlist entry that isn't in the manual/DIY-eligible pool", async () => {
+    db = new FDraftLocalDatabase(`replace-manual-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 2);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 1,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+
+    const outcome = await replaceDraftSlot(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: items[0].id,
+      adminModeEnabled: false,
+      mode: { kind: "manual", watchlistEntryId: "does-not-exist" },
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "invalid_candidate",
+      message: expect.any(String),
+    });
+  });
+
+  it("allows manually selecting a later franchise entry — manual selection ignores sequel/franchise restrictions", async () => {
+    db = new FDraftLocalDatabase(`replace-manual-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFranchiseFilm(repos, {
+      filmId: "first",
+      entryId: "entry-first",
+      releaseYear: 2000,
+      collectionId: "saga",
+    });
+    await seedFranchiseFilm(repos, {
+      filmId: "second",
+      entryId: "entry-second",
+      releaseYear: 2010,
+      collectionId: "saga",
+    });
+    await seedActiveFilms(repos, 1);
+    // "second" is excluded from the RANDOM pool by the default franchise-
+    // ordering rule (an earlier, unwatched "first" is still on the
+    // watchlist) — the random slot lands on "first" or "film-0" instead.
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 1,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    const target = items[0];
+    expect(target.filmId).not.toBe("second");
+
+    const outcome = await replaceDraftSlot(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: target.id,
+      adminModeEnabled: false,
+      mode: { kind: "manual", watchlistEntryId: "entry-second" },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.newFilmId).toBe("second");
+  });
+});
+
+describe("replaceDraftSlot — reroll", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("draws a new random film from the normal candidate pool, never duplicating another slot, keeping the slot random", async () => {
+    db = new FDraftLocalDatabase(`replace-reroll-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 6);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 5,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    const target = items[0];
+
+    const outcome = await replaceDraftSlot(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        draftId: created.draftId,
+        draftItemId: target.id,
+        adminModeEnabled: false,
+        mode: { kind: "reroll" },
+      },
+      { rng: createSeededRng(2) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const updated = await repos.drafts.getItemById(target.id);
+    expect(updated?.filmId).toBe(outcome.newFilmId);
+    expect(updated?.filmId).not.toBe(target.filmId);
+    expect(updated?.source).toBe("random");
+    expect(updated?.substitutionReason).toBe("user_reroll");
+    expect(updated?.originFilmId).toBe(target.filmId);
+    expect(updated?.orderIndex).toBe(target.orderIndex);
+
+    const allItems = await repos.drafts.listItemsForDraft(created.draftId);
+    const filmIds = allItems.map((item) => item.filmId);
+    expect(new Set(filmIds).size).toBe(filmIds.length); // no duplicate
+  });
+
+  it("reports nothing_available (no hang) when the candidate pool is exhausted", async () => {
+    db = new FDraftLocalDatabase(`replace-reroll-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 1);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+
+    const outcome = await replaceDraftSlot(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: items[0].id,
+      adminModeEnabled: false,
+      mode: { kind: "reroll" },
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "nothing_available",
+      message: expect.any(String),
+    });
+  });
+});
+
+describe("replaceDraftSlot — permissions", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  // The event-draft rows of the `canEditDraftSlot` truth table (blocked for
+  // a normal user, allowed for Admin Mode) are covered directly in
+  // `draft-editing-permission.test.ts` — there's no way to construct an
+  // actual event-owned draft here yet, since `DraftRecord` has no
+  // `sourceEventId` field on this branch (see `replaceDraftSlot`'s
+  // `isEventDraft: false` TODO). Once the event system ships, add an
+  // integration test here that seeds a real event-owned draft and asserts
+  // `replaceDraftSlot` honors it end-to-end.
+
+  it("refuses to edit a challenge slot in either mode, even with Admin Mode on", async () => {
+    db = new FDraftLocalDatabase(`replace-perm-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 2);
+    const created = await createLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 1,
+        challengeCount: 0,
+      },
+    });
+    if (!created.ok) throw new Error("unreachable");
+    const challengeItem: DraftItemRecord = {
+      id: "challenge-item-1",
+      draftId: created.draftId,
+      filmId: "film-1",
+      watchlistEntryId: "entry-1",
+      source: "challenge",
+      challengeId: "some-challenge",
+      challengeAttemptId: null,
+      challengeDisplayValue: null,
+      orderIndex: 99,
+      isCompleted: false,
+      completedAt: null,
+      watchedHistoryId: null,
+      originFilmId: null,
+      substitutionReason: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    await repos.drafts.createItems([challengeItem]);
+
+    for (const mode of [
+      { kind: "manual" as const, watchlistEntryId: "entry-0" },
+      { kind: "reroll" as const },
+    ]) {
+      const outcome = await replaceDraftSlot(repos, {
+        profileId: PROFILE_ID,
+        draftId: created.draftId,
+        draftItemId: challengeItem.id,
+        adminModeEnabled: true,
+        mode,
+      });
+      expect(outcome).toEqual({
+        ok: false,
+        error: "not_permitted",
+        message: expect.any(String),
+      });
+    }
+  });
+});
+
+describe("replaceDraftSlot — watched-state reconciliation", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("replacing an already-watched slot clears its draft-specific completion but leaves the watched history and watchlist entry untouched", async () => {
+    db = new FDraftLocalDatabase(`replace-watched-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedActiveFilms(repos, 3);
+    const created = await createLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        config: {
+          difficulty: "baby",
+          timeMode: "timer",
+          randomCount: 2,
+          challengeCount: 0,
+        },
+      },
+      { rng: createSeededRng(1) },
+    );
+    if (!created.ok) throw new Error("unreachable");
+    const items = await repos.drafts.listItemsForDraft(created.draftId);
+    const target = items[0];
+
+    const watched = await markLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      watchlistEntryId: target.watchlistEntryId!,
+      profileTimezone: "UTC",
+    });
+    expect(watched.ok).toBe(true);
+    if (!watched.ok) return;
+
+    const watchedItem = await repos.drafts.getItemById(target.id);
+    expect(watchedItem?.isCompleted).toBe(true);
+    const watchedHistoryId = watchedItem!.watchedHistoryId!;
+    const watchedEntryBefore = await repos.watchlist.getEntryById(
+      PROFILE_ID,
+      target.watchlistEntryId!,
+    );
+    expect(watchedEntryBefore?.isActive).toBe(false);
+    expect(watchedEntryBefore?.removedReason).toBe("watched");
+
+    const usedFilmIds = new Set(items.map((item) => item.filmId));
+    const allEntries = await repos.watchlist.listActiveEntries(PROFILE_ID);
+    // "watched" deactivated the entry, so `listActiveEntries` no longer
+    // returns it — need the unwatched leftover entry to replace into.
+    const replacementEntry = allEntries.find(
+      (entry) => !usedFilmIds.has(entry.filmId),
+    )!;
+
+    const outcome = await replaceDraftSlot(repos, {
+      profileId: PROFILE_ID,
+      draftId: created.draftId,
+      draftItemId: target.id,
+      adminModeEnabled: false,
+      mode: { kind: "manual", watchlistEntryId: replacementEntry.id },
+    });
+    expect(outcome.ok).toBe(true);
+
+    const replacedItem = await repos.drafts.getItemById(target.id);
+    expect(replacedItem?.isCompleted).toBe(false);
+    expect(replacedItem?.completedAt).toBeNull();
+    expect(replacedItem?.watchedHistoryId).toBeNull();
+    expect(replacedItem?.filmId).toBe(replacementEntry.filmId);
+
+    // The old watched history record and watchlist entry are untouched —
+    // the person genuinely watched that film; only its draft credit was
+    // revoked.
+    const historyAfter = await repos.history.listWatchedHistory(PROFILE_ID);
+    expect(historyAfter.some((entry) => entry.id === watchedHistoryId)).toBe(
+      true,
+    );
+    const watchedEntryAfter = await repos.watchlist.getEntryById(
+      PROFILE_ID,
+      target.watchlistEntryId!,
+    );
+    expect(watchedEntryAfter).toEqual(watchedEntryBefore);
+
+    // The draft is still active — nothing about draft-level status changed.
+    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
+    expect(draft?.status).toBe("active");
   });
 });
 
