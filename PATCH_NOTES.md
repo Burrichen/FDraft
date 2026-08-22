@@ -1,5 +1,12 @@
 # Patch Notes
 
+### v1.1.3 — Recast
+
+#### Added
+
+- Random films in an active draft can now be replaced — a small pen icon opens a full poster-grid picker to hand-pick a specific replacement, and a reroll icon draws a new random film using the same rules as normal drafting. Challenge Films and manually-picked films stay locked.
+- Replacing a film you'd already marked watched simply removes it from this draft's credit — it asks you to confirm first, and never erases the film from your actual watch history.
+
 ### v1.1.2 — Second Take
 
 #### Added
