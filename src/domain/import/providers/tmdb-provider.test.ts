@@ -25,6 +25,9 @@ function movieDetails(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 27205,
     imdb_id: "tt1375666",
+    title: "Inception",
+    release_date: "2010-07-16",
+    status: "Released",
     runtime: 148,
     poster_path: "/poster.jpg",
     genres: [
@@ -111,6 +114,9 @@ describe("createTmdbProvider", () => {
       fansCount: null,
       listAppearances: null,
       externalIds: { tmdb: "27205", imdb: "tt1375666" },
+      releaseDate: "2010-07-16",
+      releaseStatus: "Released",
+      providerTitle: "Inception",
       raw: expect.any(Object),
     });
   });

@@ -126,6 +126,17 @@ export interface ChallengeWatchedFilmRecord {
 export interface ChallengeManualSelections {
   /** A user-picked genre for Genre Roulette, overriding its normal random-genre step. */
   genre?: string;
+  /**
+   * Films the user has pre-picked for the "Pick Your Own" (DIY) challenge
+   * (see docs/updates, v1.1.1, "DIY Challenge Film"), one
+   * `watchlistEntryId` per potential DIY slot — consumed in order as DIY
+   * slots are filled (whether chosen deliberately via "Choose My
+   * Challenge", or drawn by chance under "Decide My Challenge For Me"),
+   * so two slots never land on the same pre-picked film. An empty/absent
+   * list simply means DIY is never eligible this draft — it never falls
+   * back to picking a film on its own.
+   */
+  diyFilmEntryIds?: string[];
 }
 
 /**
@@ -144,6 +155,19 @@ export interface ChallengeContext {
   watchedFilms: ChallengeWatchedFilmRecord[];
   config: ChallengeEngineConfig;
   manualSelections?: ChallengeManualSelections;
+  /**
+   * The full, franchise-ordering-UNRESTRICTED DIY-eligible candidate pool
+   * (see docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films") —
+   * consulted ONLY by the "diy" challenge (`families/meta.ts`) when
+   * resolving `manualSelections.diyFilmEntryIds`, instead of `candidates`.
+   * `candidates` may have already excluded a later sequel the user
+   * deliberately picked, since the franchise-ordering rule that governs it
+   * is meant to constrain the engine's own automatic picks, never a film
+   * the user chose by hand. Undefined when no "diy" selection is possible
+   * this draft (e.g. tests, or a draft with no diy slots) — the "diy"
+   * challenge falls back to `candidates` in that case.
+   */
+  diyEligibleCandidates?: ChallengeCandidateFilm[];
 }
 
 export type ChallengeResult =

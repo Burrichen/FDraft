@@ -1,5 +1,6 @@
 import { computeFilmKey } from "./film-key";
 import type { ParsedWatchlistRow } from "./watchlist-csv";
+import type { WatchlistRemovalReason } from "@/repositories/records";
 
 /**
  * Pure diffing logic behind idempotent watchlist imports (see
@@ -22,12 +23,22 @@ export interface ExistingWatchlistEntryRef {
   isActive: boolean;
   position: number | null;
   dateAdded: string;
+  /**
+   * Why this entry is currently inactive — `null` for an active entry. A
+   * re-import must not silently put a film back on the active watchlist
+   * just because the user's external export still lists it (see
+   * docs/updates, v1.1.1, "Centralise DIY recommendation eligibility" —
+   * this was the root cause of an already-watched film reappearing in
+   * DIY recommendations): see `determineAction`'s `"watched"` guard below.
+   */
+  removedReason: WatchlistRemovalReason | null;
 }
 
 export type WatchlistImportRowAction =
   | "create_film_and_entry"
   | "create_entry_for_existing_film"
   | "reactivate_entry"
+  | "skip_already_watched"
   | "update_entry"
   | "no_change";
 
@@ -120,6 +131,14 @@ function determineAction({
     return "create_entry_for_existing_film";
   }
   if (!existingEntry.isActive) {
+    // A film already marked watched inside FDraft must stay watched — an
+    // external export still listing it (stale, or never removed there)
+    // must not silently undo that. `"manual"`/`"postmortem_not_interested"`
+    // removals are a deliberate FDraft-side decision the user may well
+    // want undone by a fresh import, so only `"watched"` is guarded here.
+    if (existingEntry.removedReason === "watched") {
+      return "skip_already_watched";
+    }
     return "reactivate_entry";
   }
   const unchanged =

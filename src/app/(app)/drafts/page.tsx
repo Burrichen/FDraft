@@ -4,30 +4,37 @@ import { CheckCircle2, Clapperboard } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { expireLocalDraftIfDue } from "@/application/drafts/local-draft-service";
+import {
+  expireLocalDraftIfDue,
+  rerollLocalDraftItemForMissingMetadata,
+} from "@/application/drafts/local-draft-service";
 import { getEventSettings } from "@/application/events/event-settings-store";
-import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import {
+  hasNoUsableMetadata,
+  mergeLocalFilmMetadata,
+} from "@/application/watchlist/merge-local-film-metadata";
+import { toast } from "sonner";
 import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { ActiveDraftFilms } from "@/components/drafts/active-draft-films";
 import type { DraftFilmCardView } from "@/components/drafts/draft-film-card";
 import { DraftFilmCard } from "@/components/drafts/draft-film-card";
+import { DraftNameEditor } from "@/components/drafts/draft-name-editor";
 import { DraftTimeProgress } from "@/components/drafts/draft-time-progress";
 import {
   PostmortemItem,
   type PostmortemItemView,
 } from "@/components/drafts/postmortem-item";
 import { EventPresentationBadge } from "@/components/events/event-presentation-badge";
+import { RegenerateDraftButton } from "@/components/drafts/regenerate-draft-button";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
-import {
-  DIFFICULTIES,
-  FREEFORM_BATCH_SIZE,
-  isFreeform,
-} from "@/domain/drafts/difficulty";
+import { FREEFORM_BATCH_SIZE, isFreeform } from "@/domain/drafts/difficulty";
+import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
+import { resolveAdminMode } from "@/domain/profiles/profile";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { GenerateBatchButton } from "./generate-batch-button";
 
@@ -111,6 +118,26 @@ export default function DraftsPage() {
         ).map((response) => response.draftItemId),
       );
 
+      // Resolved separately from `films` above — most items have no
+      // `originFilmId` at all, and the title-only lookup this needs is
+      // cheap enough not to worry about batching alongside it.
+      const originFilmIds = [
+        ...new Set(
+          items
+            .map((item) => item.originFilmId)
+            .filter((id): id is string => id !== null),
+        ),
+      ];
+      const originFilmsById = new Map(
+        (
+          await Promise.all(
+            originFilmIds.map((id) => repositories.films.getById(id)),
+          )
+        )
+          .filter((film) => film !== null)
+          .map((film) => [film.id, film]),
+      );
+
       const filmCards: DraftFilmCardView[] = items.map((item, index) => {
         const film = films[index];
         const metadata = mergeLocalFilmMetadata(
@@ -119,6 +146,9 @@ export default function DraftsPage() {
         const challengeDefinition = item.challengeId
           ? challengeRegistry.getById(item.challengeId)
           : undefined;
+        const originFilm = item.originFilmId
+          ? (originFilmsById.get(item.originFilmId) ?? null)
+          : null;
         return {
           itemId: item.id,
           entryId: item.watchlistEntryId,
@@ -137,6 +167,14 @@ export default function DraftsPage() {
                 displayValue: item.challengeDisplayValue,
               }
             : null,
+          hasNoMetadata: hasNoUsableMetadata(metadata),
+          substitution:
+            item.substitutionReason && originFilm
+              ? {
+                  reason: item.substitutionReason,
+                  originalTitle: originFilm.title,
+                }
+              : null,
         };
       });
 
@@ -225,6 +263,33 @@ export default function DraftsPage() {
     timeStyle: "short",
   });
   const freeform = isFreeform(draft.difficulty);
+  const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
+
+  async function handleReroll(draftItemId: string) {
+    if (!activeProfile) return;
+    const outcome = await rerollLocalDraftItemForMissingMetadata(repositories, {
+      profileId: activeProfile.id,
+      draftId: draft.id,
+      draftItemId,
+    });
+    if (!outcome.ok) {
+      toast.error(outcome.message);
+      return;
+    }
+    await reloadSilently();
+  }
+
+  function handleRegenerated(revertedWatchlistEntryIds: string[]) {
+    // Each reverted entry's watch has already been undone server-side by
+    // `abandonLocalDraft` — any pending session "Undo" record for it now
+    // points at a draft item that no longer exists, so it's cleared here
+    // rather than left to surface a confusing/no-op Undo button (see
+    // `components/watch-undo/watch-undo-provider.tsx`).
+    for (const entryId of revertedWatchlistEntryIds) {
+      watchUndo.clearUndo(entryId);
+    }
+    void reload();
+  }
 
   if (draft.status === "expired") {
     const watchedItemIds = new Set(
@@ -250,11 +315,16 @@ export default function DraftsPage() {
     return (
       <div className="max-w-2xl space-y-6">
         <div>
-          <h1 className="page-heading flex flex-wrap items-center gap-2">
-            {DIFFICULTIES[draft.difficulty].label} draft — expired
+          <h1 className="page-heading flex flex-wrap items-center gap-1.5">
+            {getDraftDisplayName(draft)} — expired
             <EventPresentationBadge
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
+            />
+            <DraftNameEditor
+              draftId={draft.id}
+              currentCustomName={draft.customName}
+              onSaved={reloadSilently}
             />
           </h1>
           <p className="page-subtitle">
@@ -330,11 +400,16 @@ export default function DraftsPage() {
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="page-heading flex flex-wrap items-center gap-2">
-            {DIFFICULTIES[draft.difficulty].label} draft
+          <h1 className="page-heading flex flex-wrap items-center gap-1.5">
+            {getDraftDisplayName(draft)}
             <EventPresentationBadge
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
+            />
+            <DraftNameEditor
+              draftId={draft.id}
+              currentCustomName={draft.customName}
+              onSaved={reloadSilently}
             />
           </h1>
           <p className="page-subtitle">
@@ -344,18 +419,26 @@ export default function DraftsPage() {
             deadline {deadlineLabel}
           </p>
         </div>
-        {freeform && draft.status === "active" ? (
-          <GenerateBatchButton
-            draftId={draft.id}
-            batchSize={FREEFORM_BATCH_SIZE}
-            onGenerated={reload}
-          />
-        ) : null}
+        <div className="flex items-center gap-2">
+          {freeform && draft.status === "active" ? (
+            <GenerateBatchButton
+              draftId={draft.id}
+              batchSize={FREEFORM_BATCH_SIZE}
+              onGenerated={reload}
+            />
+          ) : null}
+          {adminModeEnabled && draft.status === "active" ? (
+            <RegenerateDraftButton
+              draftId={draft.id}
+              onRegenerated={handleRegenerated}
+            />
+          ) : null}
+        </div>
       </div>
 
       <DraftTimeProgress progress={timeProgress} />
 
-      <ActiveDraftFilms films={filmCards} />
+      <ActiveDraftFilms films={filmCards} onReroll={handleReroll} />
     </div>
   );
 }

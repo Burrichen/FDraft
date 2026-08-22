@@ -215,6 +215,51 @@ const theAntiDraftLottery: ChallengeDefinition = {
   },
 };
 
+/**
+ * "Pick Your Own" (see docs/updates, v1.1.1, "DIY Challenge Film") — the
+ * one challenge whose film is never chosen by the engine at all. Eligible
+ * exactly like any basic challenge (`candidates.length > 0`), so it's a
+ * normal, always-visible entry in "Choose My Challenge" and a normal
+ * candidate for "Decide My Challenge For Me"'s random draw — but its
+ * `attempt()` never invents a pick: it only ever returns a film the user
+ * pre-supplied via `manualSelections.diyFilmEntryIds`, and gracefully
+ * declines (`ineligible`) if none is available, exactly the way any other
+ * challenge declines when its own specific requirement isn't met. This is
+ * what lets "Decide For Me" harmlessly draw it into a slot's shuffle order
+ * without ever blocking or auto-picking anything: with no pre-supplied
+ * films, it simply never wins a slot, and the engine moves on to the next
+ * eligible challenge exactly as it already does for any other decline.
+ *
+ * Resolves its pre-selected film against `context.diyEligibleCandidates`
+ * (falling back to `context.candidates` when absent, e.g. in tests) rather
+ * than `context.candidates` alone — see docs/updates, v1.1.2, "Fix DIY
+ * Draft missing watchlist films": `candidates` has the franchise-ordering
+ * rule applied, which would otherwise make a manually-chosen later sequel
+ * (e.g. the third Mission: Impossible film) impossible to ever resolve
+ * here, even though the user explicitly picked it via a picker that
+ * correctly showed it as selectable.
+ */
+const diyChallenge: ChallengeDefinition = {
+  id: "diy",
+  name: "Pick Your Own",
+  description: "You choose the exact film for this slot yourself.",
+  category: "meta",
+  requiredCapabilities: [],
+  interactive: false,
+  isEligible: (context) => context.candidates.length > 0,
+  attempt: (context) => {
+    const preSelected = context.manualSelections?.diyFilmEntryIds ?? [];
+    const pool = context.diyEligibleCandidates ?? context.candidates;
+    const film = pool.find((candidate) =>
+      preSelected.includes(candidate.watchlistEntryId),
+    );
+    if (!film) {
+      return { status: "ineligible", reason: "no_diy_film_pre_selected" };
+    }
+    return { status: "success", film };
+  },
+};
+
 export const metaChallenges: ChallengeDefinition[] = [
   theNumberSeven,
   battleRoyale,
@@ -222,4 +267,5 @@ export const metaChallenges: ChallengeDefinition[] = [
   threeDoors,
   theDraftLottery,
   theAntiDraftLottery,
+  diyChallenge,
 ];

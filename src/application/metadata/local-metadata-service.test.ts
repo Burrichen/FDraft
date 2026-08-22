@@ -66,6 +66,9 @@ async function seedFilmWithEntry(
       listAppearances: null,
       externalIds: null,
       raw: null,
+      releaseDate: null,
+      releaseStatus: null,
+      providerTitle: null,
       matchMethod: overrides.matchMethod ?? "automatic",
       lastEnrichedAt: overrides.metadataAgeIso,
       createdAt: overrides.metadataAgeIso,
@@ -159,6 +162,53 @@ describe("downloadMissingMetadata", () => {
       runtimeMinutes: 120,
       genres: ["Drama"],
     });
+  });
+
+  it("never lets a second film silently share the first's provider identity — flags it for manual review instead", async () => {
+    db = new FDraftLocalDatabase(`metadata-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await seedFilmWithEntry(repos, "film-real-show");
+
+    // Both lookups confidently "match" the exact same TMDB id — e.g. a
+    // matching bug that let a documentary's id win for both. See
+    // docs/updates, v1.1.0, "DRAFT CANDIDATE INTEGRITY", "METADATA ENTITY
+    // MISMATCHES". Run as two SEPARATE download passes (one film each,
+    // the second film not even seeded until the first has already
+    // persisted) rather than one batch — the guard is a plain
+    // check-then-write, the same accepted-race-condition shape
+    // `upsertMetadata` itself already has for a single-tab local-first
+    // app, so it only reliably catches a conflict against metadata a
+    // PRIOR pass already persisted, not one racing it within the same
+    // parallel worker batch.
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      status: "matched",
+      providerId: "tmdb",
+      result: {
+        runtimeMinutes: 90,
+        externalIds: { tmdb: "999" },
+      },
+    });
+
+    const first = await downloadMissingMetadata(repos, PROFILE_ID, {
+      fetchMetadata,
+    });
+    expect(first.matched).toBe(1);
+
+    await seedFilmWithEntry(repos, "film-documentary-about-it");
+    const second = await downloadMissingMetadata(repos, PROFILE_ID, {
+      fetchMetadata,
+    });
+    expect(second.matched).toBe(0);
+    expect(second.ambiguous).toBe(1);
+    expect(second.retryableFilmIds).toContain("film-documentary-about-it");
+
+    const firstMetadata =
+      await repos.films.getMetadataForFilm("film-real-show");
+    expect(firstMetadata).toHaveLength(1);
+    const secondMetadata = await repos.films.getMetadataForFilm(
+      "film-documentary-about-it",
+    );
+    expect(secondMetadata).toHaveLength(0);
   });
 
   it("a provider genuinely finding nothing is not a failure, and is retryable", async () => {

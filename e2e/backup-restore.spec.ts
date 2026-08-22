@@ -103,7 +103,9 @@ test("full lifecycle: import, draft, watch, export, wipe, import, verify restore
   // --- Import the backup back in ---
   await openSettings(page);
   await page.getByRole("button", { name: "Import FDraft Backup" }).click();
-  await page.locator('input[type="file"]').setInputFiles(backupPath!);
+  await page
+    .locator('input[type="file"][accept*=".fdraft"]')
+    .setInputFiles(backupPath!);
   await expect(page.getByText("FDraft Backup Found")).toBeVisible();
   await expect(page.getByText("Alex")).toBeVisible();
   await page
@@ -156,7 +158,9 @@ test("replacing the active profile requires confirmation, downloads a safety bac
   expect(backupPath).not.toBeNull();
 
   await page.getByRole("button", { name: "Import FDraft Backup" }).click();
-  await page.locator('input[type="file"]').setInputFiles(backupPath!);
+  await page
+    .locator('input[type="file"][accept*=".fdraft"]')
+    .setInputFiles(backupPath!);
   await expect(page.getByText("FDraft Backup Found")).toBeVisible();
 
   await page.getByRole("button", { name: "Replace Existing Profile" }).click();
@@ -214,7 +218,9 @@ test("backup export and import both work with the browser fully offline", async 
   expect(backupPath).not.toBeNull();
 
   await page.getByRole("button", { name: "Import FDraft Backup" }).click();
-  await page.locator('input[type="file"]').setInputFiles(backupPath!);
+  await page
+    .locator('input[type="file"][accept*=".fdraft"]')
+    .setInputFiles(backupPath!);
   await expect(page.getByText("FDraft Backup Found")).toBeVisible();
   await page
     .getByRole("button", { name: "Import as New Profile (Recommended)" })
@@ -241,7 +247,9 @@ test("importing a corrupt or malformed backup shows a useful error and leaves ex
 
   await openSettings(page);
   await page.getByRole("button", { name: "Import FDraft Backup" }).click();
-  await page.locator('input[type="file"]').setInputFiles(malformedPath);
+  await page
+    .locator('input[type="file"][accept*=".fdraft"]')
+    .setInputFiles(malformedPath);
 
   // A useful, specific error — never a crash, never a blank screen.
   await expect(page.getByText(/valid JSON/i)).toBeVisible();
@@ -274,7 +282,9 @@ test("importing a well-formed but wrong-format file is also rejected cleanly", a
 
   await openSettings(page);
   await page.getByRole("button", { name: "Import FDraft Backup" }).click();
-  await page.locator('input[type="file"]').setInputFiles(wrongFormatPath);
+  await page
+    .locator('input[type="file"][accept*=".fdraft"]')
+    .setInputFiles(wrongFormatPath);
 
   await expect(page.getByText(/no recognizable/i)).toBeVisible();
   await expect(page.getByText(/FDraft Backup Found/)).toHaveCount(0);

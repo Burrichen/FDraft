@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
+import {
+  hasNoUsableMetadata,
+  mergeLocalFilmMetadata,
+} from "@/application/watchlist/merge-local-film-metadata";
 import { ActiveDraftFilms } from "@/components/drafts/active-draft-films";
 import type { DraftFilmCardView } from "@/components/drafts/draft-film-card";
 import { AsyncDataError } from "@/components/async-data-error";
@@ -52,6 +55,11 @@ export function SayGoodbyeView({ draftId }: { draftId: string }) {
           genres: metadata.genres,
           isCompleted: item.isCompleted,
           challenge: null,
+          hasNoMetadata: hasNoUsableMetadata(metadata),
+          // This screen only shows the outgoing draft's films one last time
+          // before it's discarded — no reroll/franchise-substitution UI is
+          // offered here, so there's nothing to look up an origin film for.
+          substitution: null,
         };
       });
       return { filmCards };

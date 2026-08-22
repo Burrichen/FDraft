@@ -1,5 +1,6 @@
 import type { BattleRoyaleState } from "./interactive/battle-royale";
 import type { ThreeDoorsState } from "./interactive/three-doors";
+import { removeConsumedCandidate } from "./remove-consumed-candidate";
 import type { ChallengeRegistry } from "./registry";
 import type {
   ChallengeCandidateFilm,
@@ -22,6 +23,19 @@ import type {
  * those specific films have already been presented to the user as part of
  * this challenge, so re-offering them elsewhere in the same draft would be
  * confusing and could double-book a film once the interaction resolves.
+ *
+ * `"diy"` slots are always resolved FIRST, before any other chosen
+ * challenge, regardless of where the user placed them among their slots
+ * (see docs/updates, v1.1.1, "DIY Challenge Film"). Every other challenge
+ * here draws an unrelated film from the shared candidate pool with no idea
+ * a later slot's user has specifically reserved one via
+ * `manualSelections.diyFilmEntryIds` — without this, an earlier slot's
+ * random/weighted pick could silently consume the exact film the user
+ * chose for their DIY slot before it gets a turn, leaving that slot
+ * unfulfilled instead of holding the film the user explicitly picked for
+ * it. Resolving every `"diy"` slot first lets it claim its film(s) before
+ * anything else can. Results are still returned in the caller's original
+ * slot order — only the ATTEMPT order changes, not the reported mapping.
  */
 
 export interface ChosenChallengeSlotResult {
@@ -59,13 +73,33 @@ export function attemptChosenChallenges({
   context: baseContext,
 }: AttemptChosenChallengesParams): { results: ChosenChallengeSlotResult[] } {
   const remainingCandidates = [...baseContext.candidates];
+  // Tracked in parallel with `remainingCandidates`, shrunk the same way on
+  // every successful pick — see docs/updates, v1.1.2, "Fix DIY Draft
+  // missing watchlist films": without this, two chosen "diy" slots could
+  // both resolve to the SAME franchise-excluded film, since neither
+  // attempt would see the other's pick reflected in a pool that's never
+  // decremented.
+  const remainingDiyEligibleCandidates = baseContext.diyEligibleCandidates
+    ? [...baseContext.diyEligibleCandidates]
+    : undefined;
   const previousPicks: ChallengeCandidateFilm[] = [];
-  const results: ChosenChallengeSlotResult[] = [];
+  const resultsBySlotIndex = new Map<number, ChosenChallengeSlotResult>();
 
-  for (const challengeId of chosenChallengeIds) {
+  // "diy" slots attempt first (see the doc comment above), everything else
+  // keeps its original relative order.
+  const attemptOrder = chosenChallengeIds
+    .map((challengeId, slotIndex) => ({ challengeId, slotIndex }))
+    .sort((a, b) => {
+      const aIsDiy = a.challengeId === "diy";
+      const bIsDiy = b.challengeId === "diy";
+      if (aIsDiy === bIsDiy) return a.slotIndex - b.slotIndex;
+      return aIsDiy ? -1 : 1;
+    });
+
+  for (const { challengeId, slotIndex } of attemptOrder) {
     const challenge = registry.getById(challengeId);
     if (!challenge) {
-      results.push({
+      resultsBySlotIndex.set(slotIndex, {
         challengeId,
         result: { status: "failure", reason: "unknown_challenge_id" },
       });
@@ -76,18 +110,24 @@ export function attemptChosenChallenges({
       ...baseContext,
       candidates: remainingCandidates,
       previousPicks,
+      ...(remainingDiyEligibleCandidates
+        ? { diyEligibleCandidates: remainingDiyEligibleCandidates }
+        : {}),
     };
     const result = challenge.attempt(context);
-    results.push({ challengeId, result });
+    resultsBySlotIndex.set(slotIndex, { challengeId, result });
 
     if (result.status === "success") {
       previousPicks.push(result.film);
-      const usedIndex = remainingCandidates.findIndex(
-        (candidate) =>
-          candidate.watchlistEntryId === result.film.watchlistEntryId,
+      removeConsumedCandidate(
+        remainingCandidates,
+        result.film.watchlistEntryId,
       );
-      if (usedIndex !== -1) {
-        remainingCandidates.splice(usedIndex, 1);
+      if (remainingDiyEligibleCandidates) {
+        removeConsumedCandidate(
+          remainingDiyEligibleCandidates,
+          result.film.watchlistEntryId,
+        );
       }
     } else if (result.status === "requires_user_choice") {
       const shownFilms = extractInteractivePayloadFilms(
@@ -95,15 +135,19 @@ export function attemptChosenChallenges({
         result.payload,
       );
       for (const shown of shownFilms) {
-        const shownIndex = remainingCandidates.findIndex(
-          (candidate) => candidate.watchlistEntryId === shown.watchlistEntryId,
-        );
-        if (shownIndex !== -1) {
-          remainingCandidates.splice(shownIndex, 1);
+        removeConsumedCandidate(remainingCandidates, shown.watchlistEntryId);
+        if (remainingDiyEligibleCandidates) {
+          removeConsumedCandidate(
+            remainingDiyEligibleCandidates,
+            shown.watchlistEntryId,
+          );
         }
       }
     }
   }
 
+  const results = chosenChallengeIds.map((_, slotIndex) =>
+    resultsBySlotIndex.get(slotIndex)!,
+  );
   return { results };
 }

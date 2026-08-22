@@ -86,10 +86,6 @@ export function StatsView() {
     <div className="space-y-8">
       <div>
         <h1 className="page-heading">Stats</h1>
-        <p className="page-subtitle">
-          Only shown when there&apos;s real data behind it — cards you&apos;d
-          expect are hidden rather than shown empty.
-        </p>
       </div>
 
       {isEmpty ? (

@@ -1,4 +1,7 @@
-import type { EventManifest, EventManifestFilm } from "@/domain/events/event-manifest-schema";
+import type {
+  EventManifest,
+  EventManifestFilm,
+} from "@/domain/events/event-manifest-schema";
 import type { FilmRepository } from "@/repositories/film-repository";
 
 /**

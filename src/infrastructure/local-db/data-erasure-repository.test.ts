@@ -19,7 +19,12 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       lastOpenedAt: "2026-01-01T00:00:00.000Z",
       timezone: "UTC",
-      settings: { reducedMotion: false, defaultPage: "watchlist" as const },
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist" as const,
+        franchiseChronologicalOrder: false,
+        adminMode: false,
+      },
       dataVersion: 1,
     };
     await repos.profiles.create({
@@ -94,6 +99,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         sourceEventId: null,
         sourceEventManuallyEnabled: null,
         rewardsGrantedAt: null,
+        customName: null,
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
       });
@@ -111,6 +117,8 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
           isCompleted: true,
           completedAt: "2026-01-15T00:00:00.000Z",
           watchedHistoryId: `history-${profileId}`,
+          originFilmId: null,
+          substitutionReason: null,
           createdAt: "2026-01-01T00:00:00.000Z",
         },
       ]);
@@ -189,7 +197,12 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       lastOpenedAt: "2026-01-01T00:00:00.000Z",
       timezone: "UTC",
-      settings: { reducedMotion: false, defaultPage: "watchlist" },
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist",
+        franchiseChronologicalOrder: false,
+        adminMode: false,
+      },
       dataVersion: 1,
     });
 

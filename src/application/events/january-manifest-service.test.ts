@@ -22,7 +22,9 @@ function jsonResponse(body: unknown, ok = true): Response {
   } as unknown as Response;
 }
 
-async function seedMatchingFilm(repos: ReturnType<typeof createLocalRepositories>) {
+async function seedMatchingFilm(
+  repos: ReturnType<typeof createLocalRepositories>,
+) {
   await repos.films.create({
     id: "film-1",
     title: "The Matrix",

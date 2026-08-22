@@ -257,6 +257,27 @@ export function filterWatchlistFilms<T extends FilterableWatchlistFilm>(
   });
 }
 
+/**
+ * The Watchlist page's title search (see docs/updates, "WATCHLIST
+ * SEARCH") — a separate, simple pass from `filterWatchlistFilms`'s
+ * discrete dropdown filters, composed alongside them rather than folded
+ * in: free-text search and "Genre is X" are different kinds of narrowing,
+ * and keeping them as two small functions is clearer than one that does
+ * both. Case-insensitive substring match on title only; a blank/
+ * whitespace-only query matches everything, restoring the normal
+ * Watchlist.
+ */
+export function searchWatchlistFilms<T extends { title: string }>(
+  films: readonly T[],
+  query: string,
+): T[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return films.slice();
+  }
+  return films.filter((film) => film.title.toLowerCase().includes(needle));
+}
+
 /** Every genre present across `films`, alphabetized — the "Genre" filter's dynamic option list. */
 export function collectAvailableGenres(
   films: readonly { genres: string[] | null }[],

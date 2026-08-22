@@ -68,6 +68,13 @@ export const DIFFICULTY_ORDER: DraftDifficulty[] = [
   "freeform",
 ];
 
+/** Type guard for an untrusted value (e.g. a URL search param) — never trust a raw string as a `DraftDifficulty` without going through this first. */
+export function isDraftDifficulty(value: unknown): value is DraftDifficulty {
+  return (
+    typeof value === "string" && (DIFFICULTY_ORDER as string[]).includes(value)
+  );
+}
+
 export function getDifficulty(id: DraftDifficulty): DifficultyDefinition {
   return DIFFICULTIES[id];
 }

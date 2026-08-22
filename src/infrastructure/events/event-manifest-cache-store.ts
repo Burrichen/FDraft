@@ -25,16 +25,17 @@ export interface EventManifestCacheStore {
 
 const KEY_PREFIX = "fdraft:event-manifest-cache:";
 
-export class LocalStorageEventManifestCacheStore
-  implements EventManifestCacheStore
-{
+export class LocalStorageEventManifestCacheStore implements EventManifestCacheStore {
   get(eventId: string): CachedEventManifest | null {
     const raw = window.localStorage.getItem(KEY_PREFIX + eventId);
     if (!raw) {
       return null;
     }
     try {
-      const parsed = JSON.parse(raw) as { manifest?: unknown; fetchedAt?: unknown };
+      const parsed = JSON.parse(raw) as {
+        manifest?: unknown;
+        fetchedAt?: unknown;
+      };
       const manifest = parseEventManifest(parsed.manifest);
       if (!manifest || typeof parsed.fetchedAt !== "string") {
         return null;
@@ -53,9 +54,7 @@ export class LocalStorageEventManifestCacheStore
 }
 
 /** An in-memory stand-in for tests and any environment without `window`. */
-export class InMemoryEventManifestCacheStore
-  implements EventManifestCacheStore
-{
+export class InMemoryEventManifestCacheStore implements EventManifestCacheStore {
   private store = new Map<string, CachedEventManifest>();
 
   get(eventId: string): CachedEventManifest | null {

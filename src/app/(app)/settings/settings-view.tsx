@@ -6,12 +6,15 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AdminModeSection } from "./admin-mode-section";
 import { DataBackupSection } from "./data-backup-section";
 import { DefaultPageSection } from "./default-page-section";
 import { EventSwitcherSection } from "./event-switcher-section";
 import { JanuaryManifestSection } from "./january-manifest-section";
+import { FranchiseOrderSection } from "./franchise-order-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
+import { ReimportWatchlistSection } from "./reimport-watchlist-section";
 import { UpdatesSection } from "./updates-section";
 
 export function SettingsView() {
@@ -99,7 +102,11 @@ export function SettingsView() {
 
       <DefaultPageSection />
 
+      <FranchiseOrderSection />
+
       <MetadataSection />
+
+      <ReimportWatchlistSection />
 
       <EventSwitcherSection />
 
@@ -108,6 +115,8 @@ export function SettingsView() {
       <UpdatesSection />
 
       <DataBackupSection />
+
+      <AdminModeSection />
     </div>
   );
 }

@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createSeededRng } from "@/domain/shared/rng";
 import { attemptChosenChallenges } from "./choose";
+import { metaChallenges } from "./families/meta";
 import { buildContext, buildFilm } from "./families/test-helpers";
 import { createChallengeRegistry } from "./registry";
 import type { ChallengeDefinition, ChallengeResult } from "./types";
 import { DEFAULT_CHALLENGE_ENGINE_CONFIG } from "./types";
+
+/** The real "diy" ChallengeDefinition (see families/meta.ts) — used, not a stub, so this test exercises the actual reservation semantics. */
+function realDiyChallenge(): ChallengeDefinition {
+  const diy = metaChallenges.find((c) => c.id === "diy");
+  if (!diy) throw new Error("diy challenge not registered");
+  return diy;
+}
 
 function alwaysSucceeds(id: string): ChallengeDefinition {
   return {
@@ -198,6 +206,62 @@ describe("attemptChosenChallenges", () => {
     });
 
     expect(seenManualGenre).toBe("Horror");
+  });
+
+  it("resolves a 'diy' slot before an earlier-listed challenge can steal its pre-selected film", () => {
+    // "a" is a generic challenge that (like The Number 7 or a lottery) just
+    // grabs whatever film happens to be first in the pool — it has no idea
+    // a later slot's user reserved that exact film for their DIY pick.
+    const registry = createChallengeRegistry();
+    registry.register(alwaysSucceeds("a"));
+    registry.register(realDiyChallenge());
+    const reserved = buildFilm({ watchlistEntryId: "reserved-for-diy" });
+    const other = buildFilm({ watchlistEntryId: "other" });
+
+    const { results } = attemptChosenChallenges({
+      registry,
+      // "a" is listed FIRST, "diy" second — without diy-first resolution,
+      // "a" would consume `reserved` before "diy" ever ran.
+      chosenChallengeIds: ["a", "diy"],
+      context: baseCtx({
+        candidates: [reserved, other],
+        manualSelections: { diyFilmEntryIds: [reserved.watchlistEntryId] },
+      }),
+    });
+
+    expect(results).toHaveLength(2);
+    const diyResult = results[1].result;
+    expect(diyResult.status).toBe("success");
+    if (diyResult.status === "success") {
+      expect(diyResult.film.watchlistEntryId).toBe("reserved-for-diy");
+    }
+    const aResult = results[0].result;
+    expect(aResult.status).toBe("success");
+    if (aResult.status === "success") {
+      expect(aResult.film.watchlistEntryId).toBe("other");
+    }
+  });
+
+  it("preserves relative order among multiple non-diy slots when a diy slot is reordered ahead of them", () => {
+    const registry = createChallengeRegistry();
+    registry.register(alwaysSucceeds("a"));
+    registry.register(alwaysSucceeds("b"));
+    registry.register(realDiyChallenge());
+    const films = Array.from({ length: 3 }, (_, i) =>
+      buildFilm({ watchlistEntryId: `e${i}` }),
+    );
+
+    const { results } = attemptChosenChallenges({
+      registry,
+      chosenChallengeIds: ["a", "diy", "b"],
+      context: baseCtx({
+        candidates: films,
+        manualSelections: { diyFilmEntryIds: ["e2"] },
+      }),
+    });
+
+    expect(results.map((r) => r.challengeId)).toEqual(["a", "diy", "b"]);
+    expect(results.every((r) => r.result.status === "success")).toBe(true);
   });
 
   it("returns an empty results array for an empty chosen-challenge list", () => {

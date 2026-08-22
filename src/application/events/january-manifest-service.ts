@@ -2,9 +2,7 @@ import {
   parseEventManifest,
   type EventManifest,
 } from "@/domain/events/event-manifest-schema";
-import {
-  F_YOU_ITS_JANUARY_EVENT_ID,
-} from "@/domain/events/event-registry";
+import { F_YOU_ITS_JANUARY_EVENT_ID } from "@/domain/events/event-registry";
 import { setJanuaryManifestCuratedFilmIds } from "@/domain/events/january-manifest-overlay";
 import bundledDefaultManifestJson from "@/domain/events/manifests/fuck-you-its-january.json";
 import { SystemClock, type Clock } from "@/domain/time/clock";

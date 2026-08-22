@@ -44,6 +44,8 @@
   --color-watchlist-blue-foreground: var(--watchlist-blue-foreground);
   --color-watchlist-orange: var(--watchlist-orange);
   --color-watchlist-orange-foreground: var(--watchlist-orange-foreground);
+  --color-watchlist-yellow: var(--watchlist-yellow);
+  --color-watchlist-yellow-foreground: var(--watchlist-yellow-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -94,14 +96,18 @@
   --sidebar-border: oklch(1 0 0 / 14%);
   --sidebar-ring: oklch(0.72 0.13 232 / 50%);
 
-  /* Letterboxd-inspired accent trio, used sparingly and semantically:
-     green = watched/success, blue = primary interactive, orange = challenge/highlight. */
+  /* Letterboxd-inspired accent quartet, used sparingly and semantically:
+     green = watched/success, blue = primary interactive, orange =
+     challenge/highlight, yellow = "needs attention, but safe" (the
+     missing-metadata Re-roll action — deliberately distinct from orange). */
   --watchlist-green: oklch(0.75 0.16 150);
   --watchlist-green-foreground: oklch(0.15 0.03 150);
   --watchlist-blue: oklch(0.72 0.13 232);
   --watchlist-blue-foreground: oklch(0.15 0.02 232);
   --watchlist-orange: oklch(0.75 0.15 60);
   --watchlist-orange-foreground: oklch(0.15 0.03 60);
+  --watchlist-yellow: oklch(0.85 0.17 100);
+  --watchlist-yellow-foreground: oklch(0.16 0.03 100);
 }
 
 @layer base {

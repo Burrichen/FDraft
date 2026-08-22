@@ -30,7 +30,12 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
     startsAt: null,
     endsAt: null,
     recurringMonths: null,
-    recurringMonthDayRange: { startMonth: 1, startDay: 25, endMonth: 1, endDay: 31 },
+    recurringMonthDayRange: {
+      startMonth: 1,
+      startDay: 25,
+      endMonth: 1,
+      endDay: 31,
+    },
   },
   draftRules: {},
   eligibilityRules: { maxAverageRating: 3.5, curatedFilmIds: [] },

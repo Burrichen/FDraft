@@ -110,7 +110,11 @@ export const draftStatusSchema = z.enum([
   "discarded",
 ]);
 export const draftChallengeModeSchema = z.enum(["choose", "decide"]).nullable();
-export const draftItemSourceSchema = z.enum(["random", "challenge"]);
+export const draftItemSourceSchema = z.enum(["random", "challenge", "manual"]);
+export const draftItemSubstitutionReasonSchema = z.enum([
+  "franchise_order",
+  "missing_metadata",
+]);
 export const pointCurrencySchema = z.enum([
   "lifetime",
   "misery",
@@ -158,6 +162,15 @@ export const profileSettingsSchema = z.object({
   // Watchlist for a missing or invalid value wherever this is READ, not
   // this schema.
   defaultPage: z.enum(["watchlist", "drafts", "history", "stats"]).optional(),
+  // Optional for the same reason — a backup exported before v1.0.2 has no
+  // such key; `resolveFranchiseChronologicalOrder()` (see
+  // `src/domain/profiles/profile.ts`) falls back to `false` wherever this
+  // is READ.
+  franchiseChronologicalOrder: z.boolean().optional(),
+  // Optional for the same reason — a backup exported before v1.0.4 has no
+  // such key; `resolveAdminMode()` falls back to `false` wherever this is
+  // READ.
+  adminMode: z.boolean().optional(),
 });
 
 export const backupProfileSchema = z.object({
@@ -203,6 +216,13 @@ export const backupFilmMetadataSchema = z.object({
   fansCount: z.number().int().nonnegative().nullable(),
   listAppearances: z.number().int().nonnegative().nullable(),
   externalIds: jsonObjectSchema.nullable(),
+  // Optional for the same reason as `matchMethod` below — a backup
+  // exported before v1.1.0 has no such keys at all; reads fall back to
+  // `null`, never `undefined` (see docs/updates, v1.1.0, "DRAFT CANDIDATE
+  // INTEGRITY").
+  releaseDate: nullableBoundedString(20).optional(),
+  releaseStatus: nullableBoundedString(100).optional(),
+  providerTitle: nullableBoundedString(500).optional(),
   raw: jsonObjectSchema.nullable(),
   // Optional — a backup exported before this field existed has no such
   // key at all, and must still validate; `resolveMatchMethod()` (see
@@ -318,6 +338,10 @@ export const backupDraftSchema = z.object({
   // before this field existed defaults to `null`, the same "re-derive from
   // current settings" legacy fallback `resolveDraftCompletionReward` uses.
   sourceEventManuallyEnabled: z.boolean().nullable().default(null),
+  // A backup exported before v1.0.2 has no such key at all — defaults to
+  // `null`, the same "use the generated default name" every draft already
+  // had (see `src/domain/drafts/draft-name.ts`).
+  customName: nullableBoundedString(200).default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -335,6 +359,13 @@ export const backupDraftItemSchema = z.object({
   isCompleted: z.boolean(),
   completedAt: nullableIsoDateTimeSchema,
   watchedHistoryId: nullableIdSchema,
+  // Both default to `null` — a backup exported before v1.0.2 has neither
+  // key at all, meaning this item's film has never been substituted (see
+  // docs/updates, "SELECTION PROVENANCE").
+  originFilmId: nullableIdSchema.default(null),
+  substitutionReason: draftItemSubstitutionReasonSchema
+    .nullable()
+    .default(null),
   createdAt: isoDateTimeSchema,
 });
 

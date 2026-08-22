@@ -162,6 +162,7 @@ describe("markLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -180,6 +181,8 @@ describe("markLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
@@ -225,6 +228,7 @@ describe("markLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: "2026-01-05T00:00:00.000Z",
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-05T00:00:00.000Z",
     };
@@ -243,6 +247,8 @@ describe("markLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
@@ -268,6 +274,7 @@ describe("markLocalFilmWatched", () => {
       sourceEventId: "f-you-its-january",
       sourceEventManuallyEnabled: false,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-06T00:00:00.000Z",
       updatedAt: "2026-01-06T00:00:00.000Z",
     };
@@ -286,6 +293,8 @@ describe("markLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-06T00:00:00.000Z",
       },
     ]);
@@ -330,6 +339,7 @@ describe("markLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -348,6 +358,8 @@ describe("markLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
@@ -390,6 +402,7 @@ describe("markLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2025-01-01T00:00:00.000Z",
       updatedAt: "2025-01-01T00:00:00.000Z",
     });
@@ -407,6 +420,8 @@ describe("markLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2025-01-01T00:00:00.000Z",
       },
     ]);
@@ -420,6 +435,121 @@ describe("markLocalFilmWatched", () => {
     if (outcome.ok) {
       expect(outcome.draftItemId).toBeNull();
     }
+  });
+
+  it("completes the item in the CURRENT active draft, not a stale incomplete item left behind in an older archived draft for the same watchlist entry", async () => {
+    db = new FDraftLocalDatabase(`mark-watched-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const entry = await seedFilmAndEntry(repos);
+
+    // An older draft where this exact entry was never resolved (e.g. a
+    // "wanted more time" postmortem response) — its item stays
+    // `isCompleted: false` forever, even though the entry itself remains
+    // active and gets picked into a later draft (see docs/product-spec.md,
+    // "HISTORY DATA INTEGRITY").
+    await repos.drafts.createDraft({
+      id: "draft-old",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "archived",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2025-01-01T00:00:00.000Z",
+      deadlineAt: "2025-02-01T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: "2025-02-01T00:00:00.000Z",
+      freeformAchievedRank: null,
+      sourceEventId: null,
+      sourceEventManuallyEnabled: null,
+      rewardsGrantedAt: null,
+      customName: null,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    });
+    await repos.drafts.createItems([
+      {
+        id: "item-old",
+        draftId: "draft-old",
+        filmId: entry.filmId,
+        watchlistEntryId: entry.id,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2025-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    // The same entry, re-picked into today's active draft.
+    await repos.drafts.createDraft({
+      id: "draft-active",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "active",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      deadlineAt: "2026-02-01T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: null,
+      freeformAchievedRank: null,
+      sourceEventId: null,
+      sourceEventManuallyEnabled: null,
+      rewardsGrantedAt: null,
+      customName: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await repos.drafts.createItems([
+      {
+        id: "item-active",
+        draftId: "draft-active",
+        filmId: entry.filmId,
+        watchlistEntryId: entry.id,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    const outcome = await markLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      watchlistEntryId: entry.id,
+      profileTimezone: "UTC",
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    expect(outcome.draftItemId).toBe("item-active");
+    expect(outcome.draftId).toBe("draft-active");
+
+    const activeItem = await repos.drafts.getItemById("item-active");
+    expect(activeItem?.isCompleted).toBe(true);
+    expect(activeItem?.watchedHistoryId).toBe(outcome.watchedHistoryId);
+
+    // The stale item in the old, already-archived draft is untouched.
+    const oldItem = await repos.drafts.getItemById("item-old");
+    expect(oldItem?.isCompleted).toBe(false);
   });
 });
 
@@ -550,6 +680,7 @@ describe("undoLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -568,6 +699,8 @@ describe("undoLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
       {
@@ -583,6 +716,8 @@ describe("undoLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
@@ -633,6 +768,7 @@ describe("undoLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -651,6 +787,8 @@ describe("undoLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
@@ -715,6 +853,7 @@ describe("undoLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -733,6 +872,8 @@ describe("undoLocalFilmWatched", () => {
         isCompleted: false,
         completedAt: null,
         watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
@@ -800,6 +941,7 @@ describe("undoLocalFilmWatched", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -820,6 +962,8 @@ describe("undoLocalFilmWatched", () => {
         isCompleted: true,
         completedAt: "2025-06-01T00:00:00.000Z",
         watchedHistoryId: "history-from-a-different-action",
+        originFilmId: null,
+        substitutionReason: null,
         createdAt: "2025-06-01T00:00:00.000Z",
       },
     ]);

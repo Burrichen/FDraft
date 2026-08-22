@@ -25,7 +25,12 @@ async function seedFullProfile(
     createdAt: "2026-01-01T00:00:00.000Z",
     lastOpenedAt: "2026-08-01T00:00:00.000Z",
     timezone: "Europe/London",
-    settings: { reducedMotion: true, defaultPage: "watchlist" },
+    settings: {
+      reducedMotion: true,
+      defaultPage: "watchlist",
+      franchiseChronologicalOrder: false,
+      adminMode: false,
+    },
     dataVersion: 1,
   });
   await repos.settings.set(profileId, "customKey", { nested: [1, 2, 3] });
@@ -60,6 +65,9 @@ async function seedFullProfile(
     listAppearances: null,
     externalIds: { imdb_id: "tt4468740" },
     raw: { anything: "goes" },
+    releaseDate: null,
+    releaseStatus: null,
+    providerTitle: null,
     matchMethod: "automatic",
     lastEnrichedAt: "2026-01-02T00:00:00.000Z",
     createdAt: "2026-01-02T00:00:00.000Z",
@@ -138,6 +146,7 @@ async function seedFullProfile(
     sourceEventId: null,
     sourceEventManuallyEnabled: null,
     rewardsGrantedAt: null,
+    customName: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-05T00:00:00.000Z",
   });
@@ -156,6 +165,8 @@ async function seedFullProfile(
       isCompleted: true,
       completedAt: "2026-01-05T00:00:00.000Z",
       watchedHistoryId: historyId,
+      originFilmId: null,
+      substitutionReason: null,
       createdAt: "2026-01-01T00:00:00.000Z",
     },
   ]);

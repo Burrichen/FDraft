@@ -88,6 +88,7 @@ describe("cross-profile isolation (real fake-indexeddb, two profiles, one shared
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
@@ -187,7 +188,12 @@ describe("cross-profile isolation (real fake-indexeddb, two profiles, one shared
       createdAt: "2026-01-01T00:00:00.000Z",
       lastOpenedAt: "2026-01-01T00:00:00.000Z",
       timezone: "UTC",
-      settings: { reducedMotion: false, defaultPage: "watchlist" as const },
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist" as const,
+        franchiseChronologicalOrder: false,
+        adminMode: false,
+      },
       dataVersion: 1,
     };
     await repos.profiles.create({ ...base, id: "alex", displayName: "Alex" });

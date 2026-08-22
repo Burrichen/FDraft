@@ -9,12 +9,13 @@ import type { FDraftLocalDatabase } from "./database";
 
 /**
  * A draft written before `sourceEventId`/`rewardsGrantedAt`/
- * `sourceEventManuallyEnabled` existed has none of those properties at all
- * (Dexie/IndexedDB don't enforce a schema on non-indexed fields — see
- * `schema.ts`'s note on `matchMethod` for the same situation) — normalize
- * to their sensible defaults at the one chokepoint every read passes
- * through, so nothing downstream ever has to treat `undefined` as a third
- * state alongside `string | null`/`boolean | null`.
+ * `sourceEventManuallyEnabled`/`customName` existed has none of those
+ * properties at all (Dexie/IndexedDB don't enforce a schema on
+ * non-indexed fields — see `schema.ts`'s note on `matchMethod` for the
+ * same situation) — normalize to their sensible defaults at the one
+ * chokepoint every read passes through, so nothing downstream ever has to
+ * treat `undefined` as a third state alongside `string | null`/
+ * `boolean | null`.
  */
 function normalizeDraft(draft: DraftRecord): DraftRecord {
   return {
@@ -22,6 +23,16 @@ function normalizeDraft(draft: DraftRecord): DraftRecord {
     sourceEventId: draft.sourceEventId ?? null,
     rewardsGrantedAt: draft.rewardsGrantedAt ?? null,
     sourceEventManuallyEnabled: draft.sourceEventManuallyEnabled ?? null,
+    customName: draft.customName ?? null,
+  };
+}
+
+/** Same backward-compatibility rationale as `normalizeDraft`, for the selection-provenance fields v1.0.2 added. */
+function normalizeDraftItem(item: DraftItemRecord): DraftItemRecord {
+  return {
+    ...item,
+    originFilmId: item.originFilmId ?? null,
+    substitutionReason: item.substitutionReason ?? null,
   };
 }
 
@@ -89,17 +100,48 @@ export class LocalDraftRepository implements DraftRepository {
     await this.db.drafts.put(draft);
   }
 
+  async deleteDraft(draftId: string): Promise<void> {
+    await this.db.transaction(
+      "rw",
+      [
+        this.db.drafts,
+        this.db.draftItems,
+        this.db.draftChallengeAttempts,
+        this.db.draftChallengeInteractions,
+        this.db.draftPostmortemResponses,
+      ],
+      async () => {
+        await this.db.draftItems.where("draftId").equals(draftId).delete();
+        await this.db.draftChallengeAttempts
+          .where("draftId")
+          .equals(draftId)
+          .delete();
+        await this.db.draftChallengeInteractions
+          .where("draftId")
+          .equals(draftId)
+          .delete();
+        await this.db.draftPostmortemResponses
+          .where("draftId")
+          .equals(draftId)
+          .delete();
+        await this.db.drafts.delete(draftId);
+      },
+    );
+  }
+
   async listItemsForDraft(draftId: string): Promise<DraftItemRecord[]> {
     const items = await this.db.draftItems
       .where("draftId")
       .equals(draftId)
       .toArray();
-    return items.sort((a, b) => a.orderIndex - b.orderIndex);
+    return items
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map(normalizeDraftItem);
   }
 
   async getItemById(itemId: string): Promise<DraftItemRecord | null> {
     const item = await this.db.draftItems.get(itemId);
-    return item ?? null;
+    return item ? normalizeDraftItem(item) : null;
   }
 
   async createItems(items: DraftItemRecord[]): Promise<void> {
@@ -116,10 +158,11 @@ export class LocalDraftRepository implements DraftRepository {
   async findItemsByWatchlistEntryId(
     watchlistEntryId: string,
   ): Promise<DraftItemRecord[]> {
-    return this.db.draftItems
+    const items = await this.db.draftItems
       .where("watchlistEntryId")
       .equals(watchlistEntryId)
       .toArray();
+    return items.map(normalizeDraftItem);
   }
 
   async createChallengeAttempt(

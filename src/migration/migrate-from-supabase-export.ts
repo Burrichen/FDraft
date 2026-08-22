@@ -97,6 +97,11 @@ export async function migrateFromSupabaseExport(
       fansCount: metadata.fans_count,
       listAppearances: metadata.list_appearances,
       externalIds: metadata.external_ids,
+      // The Supabase-era data model predates all three of these fields —
+      // nothing to backfill them from.
+      releaseDate: null,
+      releaseStatus: null,
+      providerTitle: null,
       raw: metadata.raw,
       // The Supabase-era data model predates this field entirely — every
       // one of these was, in fact, an automatic match.
@@ -180,6 +185,10 @@ export async function migrateFromSupabaseExport(
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      // The Supabase-era data model predates draft naming/franchise
+      // ordering entirely — every migrated draft uses the generated
+      // default name.
+      customName: null,
       createdAt: draft.created_at,
       updatedAt: draft.updated_at,
     };
@@ -200,6 +209,11 @@ export async function migrateFromSupabaseExport(
       isCompleted: item.is_completed,
       completedAt: item.completed_at,
       watchedHistoryId: item.watched_history_id,
+      // The Supabase-era data model predates selection provenance
+      // entirely — every migrated item's film has always been exactly
+      // what it is now.
+      originFilmId: null,
+      substitutionReason: null,
       createdAt: item.created_at,
     };
     await repos.drafts.createItems([record]);

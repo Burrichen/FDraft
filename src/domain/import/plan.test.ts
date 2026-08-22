@@ -123,6 +123,7 @@ describe("planWatchlistImport — repeated (idempotent) import", () => {
           isActive: true,
           position: 0,
           dateAdded: "2023-01-15",
+          removedReason: null,
         },
         {
           filmId: "film-2",
@@ -130,6 +131,7 @@ describe("planWatchlistImport — repeated (idempotent) import", () => {
           isActive: true,
           position: 1,
           dateAdded: "2023-02-20",
+          removedReason: null,
         },
       ],
     });
@@ -147,6 +149,7 @@ describe("planWatchlistImport — repeated (idempotent) import", () => {
         isActive: true,
         position: 0,
         dateAdded: "2023-01-15",
+        removedReason: null,
       },
     ];
     const first = planWatchlistImport({
@@ -176,6 +179,7 @@ describe("planWatchlistImport — date and position preservation", () => {
           isActive: true,
           position: 0,
           dateAdded: "2023-01-15",
+          removedReason: null,
         },
       ],
     });
@@ -217,6 +221,7 @@ describe("planWatchlistImport — date and position preservation", () => {
           isActive: true,
           position: 1,
           dateAdded: "2023-01-15",
+          removedReason: null,
         },
         {
           filmId: "film-2",
@@ -224,6 +229,7 @@ describe("planWatchlistImport — date and position preservation", () => {
           isActive: true,
           position: 0,
           dateAdded: "2023-01-15",
+          removedReason: null,
         },
       ],
     });
@@ -233,7 +239,7 @@ describe("planWatchlistImport — date and position preservation", () => {
 });
 
 describe("planWatchlistImport — reactivating a removed film", () => {
-  it("reactivates an inactive entry instead of creating a duplicate", () => {
+  it("reactivates an inactive entry manually removed from the watchlist", () => {
     const rows = [row()];
     const plan = planWatchlistImport({
       parsedRows: rows,
@@ -245,10 +251,50 @@ describe("planWatchlistImport — reactivating a removed film", () => {
           isActive: false,
           position: 0,
           dateAdded: "2022-06-01",
+          removedReason: "manual",
         },
       ],
     });
     expect(plan.rows[0].action).toBe("reactivate_entry");
+    expect(plan.rows[0].existingEntryId).toBe("entry-1");
+  });
+
+  it("reactivates an inactive entry with no removal reason recorded (predates the field)", () => {
+    const rows = [row()];
+    const plan = planWatchlistImport({
+      parsedRows: rows,
+      existingFilms: [{ filmId: "film-1", filmKey: "slug:inception" }],
+      existingEntries: [
+        {
+          filmId: "film-1",
+          entryId: "entry-1",
+          isActive: false,
+          position: 0,
+          dateAdded: "2022-06-01",
+          removedReason: null,
+        },
+      ],
+    });
+    expect(plan.rows[0].action).toBe("reactivate_entry");
+  });
+
+  it("does NOT reactivate a film already marked watched — re-importing a stale export must not undo that", () => {
+    const rows = [row()];
+    const plan = planWatchlistImport({
+      parsedRows: rows,
+      existingFilms: [{ filmId: "film-1", filmKey: "slug:inception" }],
+      existingEntries: [
+        {
+          filmId: "film-1",
+          entryId: "entry-1",
+          isActive: false,
+          position: 0,
+          dateAdded: "2022-06-01",
+          removedReason: "watched",
+        },
+      ],
+    });
+    expect(plan.rows[0].action).toBe("skip_already_watched");
     expect(plan.rows[0].existingEntryId).toBe("entry-1");
   });
 });

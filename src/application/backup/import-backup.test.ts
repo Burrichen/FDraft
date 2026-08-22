@@ -28,7 +28,12 @@ async function seedProfile(repos: Repositories, profileId: string) {
     createdAt: "2026-01-01T00:00:00.000Z",
     lastOpenedAt: "2026-08-01T00:00:00.000Z",
     timezone: "Europe/London",
-    settings: { reducedMotion: false, defaultPage: "watchlist" },
+    settings: {
+      reducedMotion: false,
+      defaultPage: "watchlist",
+      franchiseChronologicalOrder: false,
+      adminMode: false,
+    },
     dataVersion: 1,
   });
   const filmId = `film-${profileId}`;
@@ -83,6 +88,7 @@ async function seedProfile(repos: Repositories, profileId: string) {
     sourceEventId: null,
     sourceEventManuallyEnabled: null,
     rewardsGrantedAt: null,
+    customName: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-05T00:00:00.000Z",
   });

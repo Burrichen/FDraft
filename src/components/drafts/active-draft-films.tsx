@@ -14,7 +14,13 @@ import { DraftFilmCard, type DraftFilmCardView } from "./draft-film-card";
  * here is always genuinely fresh from the database, not a value this
  * component has to reason about overriding itself.
  */
-export function ActiveDraftFilms({ films }: { films: DraftFilmCardView[] }) {
+export function ActiveDraftFilms({
+  films,
+  onReroll,
+}: {
+  films: DraftFilmCardView[];
+  onReroll?: (itemId: string) => Promise<void>;
+}) {
   const watchUndo = useWatchUndo();
 
   function hasPendingUndo(film: DraftFilmCardView): boolean {
@@ -49,17 +55,25 @@ export function ActiveDraftFilms({ films }: { films: DraftFilmCardView[] }) {
             {progress.percentWatched}%
           </span>
         </div>
-        <Progress value={progress.percentWatched} aria-label="Films watched" />
+        <Progress
+          value={progress.percentWatched}
+          aria-label="Films watched"
+          indicatorClassName="bg-watchlist-green"
+        />
       </div>
 
       {toWatch.length > 0 ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {toWatch.map((film) => (
             <li key={film.itemId}>
-              <DraftFilmCard film={film} />
+              <DraftFilmCard film={film} onReroll={onReroll} />
             </li>
           ))}
         </ul>
+      ) : films.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          This draft doesn&apos;t have any films yet.
+        </p>
       ) : (
         <p className="text-muted-foreground text-sm">
           Every film here has been watched.
@@ -74,7 +88,7 @@ export function ActiveDraftFilms({ films }: { films: DraftFilmCardView[] }) {
           <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {completed.map((film) => (
               <li key={film.itemId}>
-                <DraftFilmCard film={film} />
+                <DraftFilmCard film={film} onReroll={onReroll} />
               </li>
             ))}
           </ul>

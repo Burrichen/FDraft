@@ -300,23 +300,30 @@ async function completeMatchingActiveDraftItem(
     now: Date;
   },
 ): Promise<string | null> {
+  // Resolves the CURRENT active draft first, then looks for the matching
+  // item within it, scoped directly via `listItemsForDraft(draft.id)` —
+  // never a cross-draft scan. Scoping to THIS profile's one active draft
+  // matters: a discarded draft (see event system Phase 3, "SAY GOODBYE")
+  // keeps its own unresolved items permanently incomplete, and can
+  // reference the very same watchlist entries a new draft was just
+  // created from (the profile's watchlist isn't touched by a discard, so
+  // a new draft can freely draw from it again) — likewise, a "wanted more
+  // time" postmortem response leaves an old, archived draft's item
+  // permanently `isCompleted: false` while the entry stays active and
+  // gets re-picked into a later draft. Matching by watchlistEntryId ALONE
+  // across drafts could find either of those stale items instead of the
+  // real active one; going through `listItemsForDraft(draft.id)` avoids
+  // ever fetching another draft's items in the first place, rather than
+  // fetching broadly and filtering by `draftId` afterward.
   const draft = await repos.drafts.getActiveOrExpiredDraft(params.profileId);
   if (!draft || draft.status !== "active") {
     return null;
   }
 
-  // Scoped to THIS profile's one active draft, not just "the first
-  // incomplete item anywhere" — a discarded draft (see event system
-  // Phase 3, "SAY GOODBYE") keeps its own unresolved items permanently
-  // incomplete, and can reference the very same watchlist entries a new
-  // draft was just created from. Without this scoping, `.find()` could
-  // match that stale, forever-incomplete item instead of the real active
-  // draft's one, silently failing to complete anything here.
-  const items = await repos.drafts.findItemsByWatchlistEntryId(
-    params.watchlistEntryId,
-  );
+  const items = await repos.drafts.listItemsForDraft(draft.id);
   const incompleteItem = items.find(
-    (item) => !item.isCompleted && item.draftId === draft.id,
+    (item) =>
+      item.watchlistEntryId === params.watchlistEntryId && !item.isCompleted,
   );
   if (!incompleteItem) {
     return null;

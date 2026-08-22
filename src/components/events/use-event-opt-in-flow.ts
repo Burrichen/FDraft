@@ -35,34 +35,37 @@ export function useEventOptInFlow(params: {
     useState<PendingSayGoodbye | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const beginOptIn = useCallback(async (eventId?: string) => {
-    if (!profileId || !timezone) return;
-    setIsSaving(true);
-    try {
-      const result = await beginEventOptIn(repositories, {
-        profileId,
-        timezone,
-        eventId,
-      });
-      if (result.needsSayGoodbye) {
-        setPendingSayGoodbye({
-          draftId: result.activeDraftId,
-          eventId: result.eventId,
-          manuallyEnabled: result.manuallyEnabled,
+  const beginOptIn = useCallback(
+    async (eventId?: string) => {
+      if (!profileId || !timezone) return;
+      setIsSaving(true);
+      try {
+        const result = await beginEventOptIn(repositories, {
+          profileId,
+          timezone,
+          eventId,
         });
-      } else {
-        await onOptedIn();
+        if (result.needsSayGoodbye) {
+          setPendingSayGoodbye({
+            draftId: result.activeDraftId,
+            eventId: result.eventId,
+            manuallyEnabled: result.manuallyEnabled,
+          });
+        } else {
+          await onOptedIn();
+        }
+      } catch (cause) {
+        onError?.(
+          cause instanceof Error
+            ? cause.message
+            : "Could not opt into that event.",
+        );
+      } finally {
+        setIsSaving(false);
       }
-    } catch (cause) {
-      onError?.(
-        cause instanceof Error
-          ? cause.message
-          : "Could not opt into that event.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }, [profileId, timezone, repositories, onOptedIn, onError]);
+    },
+    [profileId, timezone, repositories, onOptedIn, onError],
+  );
 
   const confirmSayGoodbyeAction = useCallback(async () => {
     if (!profileId || !pendingSayGoodbye) return;

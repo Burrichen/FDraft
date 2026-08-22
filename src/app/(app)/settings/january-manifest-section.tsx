@@ -50,7 +50,9 @@ export function JanuaryManifestSection() {
       });
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Could not refresh event data.",
+        cause instanceof Error
+          ? cause.message
+          : "Could not refresh event data.",
       );
     } finally {
       setIsRefreshing(false);
@@ -65,8 +67,8 @@ export function JanuaryManifestSection() {
       <CardContent className="space-y-4">
         <p className="text-muted-foreground text-sm">
           F* You, It&apos;s January!&apos;s curated film list updates
-          automatically in the background. Use this to force a refresh right
-          now — mainly useful for testing.
+          automatically in the background. Use this to force a refresh right now
+          — mainly useful for testing.
         </p>
         <div className="flex items-center gap-3">
           <Button

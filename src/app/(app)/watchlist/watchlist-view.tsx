@@ -1,6 +1,6 @@
 "use client";
 
-import { Shuffle, Upload } from "lucide-react";
+import { Search, Shuffle, Upload } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -11,6 +11,7 @@ import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film
 import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { SortFilterControl } from "@/components/watchlist/sort-filter-control";
 import type { WatchlistFilmCardView } from "@/components/watchlist/types";
@@ -22,6 +23,7 @@ import {
   DEFAULT_WATCHLIST_FILTERS,
   filterWatchlistFilms,
   isDefaultWatchlistFilterState,
+  searchWatchlistFilms,
   sortWatchlistFilms,
   type WatchlistFilterState,
   type WatchlistSortOption,
@@ -76,6 +78,21 @@ export function WatchlistView() {
       activeProfile.id,
     );
 
+    // The manual "Add to Draft" action (see docs/updates) only ever
+    // targets a genuinely active draft — never expired/archived, and
+    // never one this page would create itself.
+    const draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
+      activeProfile.id,
+    );
+    const activeDraft = draftRecord?.status === "active" ? draftRecord : null;
+    const entryIdsInDraft = activeDraft
+      ? new Set(
+          (await repositories.drafts.listItemsForDraft(activeDraft.id))
+            .map((item) => item.watchlistEntryId)
+            .filter((id): id is string => id !== null),
+        )
+      : new Set<string>();
+
     const cards: WatchlistFilmCardView[] = entries.map((entry, index) => {
       const film = films[index];
       const metadata = mergeLocalFilmMetadata(
@@ -113,6 +130,8 @@ export function WatchlistView() {
       stale,
       lastImportCompletedAt: lastImport?.completedAt ?? null,
       initialSort,
+      activeDraftId: activeDraft?.id ?? null,
+      entryIdsInDraft,
     };
   }, [activeProfile?.id, repositories]);
 
@@ -179,6 +198,8 @@ export function WatchlistView() {
         hasImportedBefore={data.lastImportCompletedAt !== null}
         profileId={activeProfile.id}
         repositories={repositories}
+        activeDraftId={data.activeDraftId}
+        initialEntryIdsInDraft={data.entryIdsInDraft}
       />
     </div>
   );
@@ -200,16 +221,28 @@ function WatchlistBody({
   hasImportedBefore,
   profileId,
   repositories,
+  activeDraftId,
+  initialEntryIdsInDraft,
 }: {
   films: WatchlistFilmCardView[];
   initialSort: WatchlistSortOption;
   hasImportedBefore: boolean;
   profileId: string;
   repositories: Repositories;
+  /** The manual "Add to Draft" action's target (see docs/updates) — `null` when there's no usable active draft. */
+  activeDraftId: string | null;
+  initialEntryIdsInDraft: ReadonlySet<string>;
 }) {
   const [sort, setSort] = useState<WatchlistSortOption>(initialSort);
   const [filters, setFilters] = useState<WatchlistFilterState>(
     DEFAULT_WATCHLIST_FILTERS,
+  );
+  const [search, setSearch] = useState("");
+  // Seeded from the initial fetch, then updated immediately on a
+  // successful manual add — see "Reflect immediately when a film is
+  // already in the draft" — without waiting for a full page refetch.
+  const [entryIdsInDraft, setEntryIdsInDraft] = useState(
+    initialEntryIdsInDraft,
   );
   // Bumped every time "Shuffle" is deliberately (re-)chosen — the `rng`
   // below is only recreated when this changes, which is what makes a
@@ -243,17 +276,39 @@ function WatchlistBody({
   );
 
   const visibleFilms = useMemo(() => {
-    const filtered = filterWatchlistFilms(films, filters);
+    const searched = searchWatchlistFilms(films, search);
+    const filtered = filterWatchlistFilms(searched, filters);
     return sortWatchlistFilms(
       filtered,
       sort,
       sort === "shuffle" ? rng : undefined,
     );
-  }, [films, filters, sort, rng]);
+  }, [films, search, filters, sort, rng]);
+
+  const hasActiveNarrowing =
+    !isDefaultWatchlistFilterState(filters) || search.trim().length > 0;
+
+  function handleAddedToDraft(entryId: string) {
+    setEntryIdsInDraft((prev) => new Set(prev).add(entryId));
+  }
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="relative min-w-48 flex-1 sm:max-w-xs">
+          <Search
+            aria-hidden="true"
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+          />
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by title…"
+            aria-label="Search watchlist by title"
+            className="pl-8"
+          />
+        </div>
         <SortFilterControl
           sort={sort}
           filters={filters}
@@ -267,8 +322,14 @@ function WatchlistBody({
       <WatchlistGrid
         films={visibleFilms}
         hasImportedBefore={hasImportedBefore}
-        hasActiveFilters={!isDefaultWatchlistFilterState(filters)}
-        onResetFilters={() => setFilters(DEFAULT_WATCHLIST_FILTERS)}
+        hasActiveFilters={hasActiveNarrowing}
+        onResetFilters={() => {
+          setFilters(DEFAULT_WATCHLIST_FILTERS);
+          setSearch("");
+        }}
+        activeDraftId={activeDraftId}
+        entryIdsInDraft={entryIdsInDraft}
+        onAddedToDraft={handleAddedToDraft}
       />
     </>
   );

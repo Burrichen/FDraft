@@ -13,7 +13,7 @@ import { EventPresentationBadge } from "@/components/events/event-presentation-b
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Badge } from "@/components/ui/badge";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
-import { DIFFICULTIES } from "@/domain/drafts/difficulty";
+import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { FREEFORM_RANK_LABELS } from "@/domain/drafts/freeform";
 import {
   DEFAULT_HISTORICAL_DRAFT_SORT,
@@ -152,10 +152,6 @@ export default function DraftHistoryPage() {
     <div className="space-y-8">
       <div>
         <h1 className="page-heading">Draft history</h1>
-        <p className="page-subtitle">
-          Films you&apos;ve actually watched, and your past Monthly Watchlist
-          Drafts.
-        </p>
       </div>
 
       <RecentlyWatchedSection films={data.recentlyWatched} />
@@ -241,7 +237,7 @@ function HistoricalDraftEntry({
         <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 select-none">
           <div>
             <p className="text-foreground font-semibold">
-              {DIFFICULTIES[draft.difficulty].label} draft
+              {getDraftDisplayName(draft)}
               {draft.freeformAchievedRank ? (
                 <Badge variant="secondary" className="ml-2 align-middle">
                   Achieved: {FREEFORM_RANK_LABELS[draft.freeformAchievedRank]}
@@ -364,6 +360,10 @@ function HistoricalDraftFilmGroup({
                   >
                     Challenge:{" "}
                     {challengeDefinition?.name ?? entry.item.challengeId}
+                  </Badge>
+                ) : entry.item.source === "manual" ? (
+                  <Badge variant="outline" className="shrink-0 text-[0.65rem]">
+                    Manual
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="shrink-0 text-[0.65rem]">

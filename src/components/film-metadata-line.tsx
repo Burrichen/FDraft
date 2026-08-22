@@ -1,3 +1,5 @@
+import { isTrustworthyRuntime } from "@/domain/watchlist/runtime";
+
 interface FilmMetadataLineProps {
   releaseYear: number | null;
   runtimeMinutes: number | null;
@@ -19,7 +21,9 @@ export function FilmMetadataLine({
 }: FilmMetadataLineProps) {
   const context = [
     releaseYear ? String(releaseYear) : null,
-    runtimeMinutes ? `${runtimeMinutes} min` : null,
+    // `0`/negative runtime means "unknown", never a genuine duration —
+    // see docs/updates, v1.1.2, "Fix unreleased-film handling".
+    isTrustworthyRuntime(runtimeMinutes) ? `${runtimeMinutes} min` : null,
   ]
     .filter((part): part is string => part !== null)
     .join(" · ");
