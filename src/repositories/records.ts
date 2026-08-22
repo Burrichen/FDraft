@@ -22,15 +22,19 @@ export type DraftItemSource = "random" | "challenge" | "manual";
 /**
  * Why a draft item's `filmId` differs from `originFilmId` (see
  * `DraftItemRecord.originFilmId`) — `null` whenever it doesn't. FDraft
- * v1.0.2 introduces exactly two ways an already-selected item can be
+ * v1.0.2 introduces the first two ways an already-selected item can be
  * substituted after the fact: an earlier, unwatched entry in the same
  * franchise/collection replacing a later-in-series roll
  * ("franchise_order"), or a completely absent metadata record forcing a
- * fresh random pick ("missing_metadata"). A manually-added item is never
- * a substitution — it has no `originFilmId` at all.
+ * fresh random pick ("missing_metadata"). FDraft v1.1.3 ("Editable random
+ * draft slots") adds two more, both deliberate user actions rather than
+ * automatic corrections: hand-picking a specific replacement film
+ * ("manual_replace") or rerolling for a new random one
+ * ("user_reroll") — see `replaceDraftSlot`. A manually-added item is
+ * never a substitution — it has no `originFilmId` at all.
  */
 export type DraftItemSubstitutionReason =
-  "franchise_order" | "missing_metadata";
+  "franchise_order" | "missing_metadata" | "manual_replace" | "user_reroll";
 export type FreeformRank =
   "below_baby" | "baby" | "easy" | "medium" | "hard" | "hardcore";
 export type ChallengeAttemptStatus =

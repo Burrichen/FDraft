@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   expireLocalDraftIfDue,
+  replaceDraftSlot,
   rerollLocalDraftItemForMissingMetadata,
 } from "@/application/drafts/local-draft-service";
 import {
@@ -20,6 +21,7 @@ import type { DraftFilmCardView } from "@/components/drafts/draft-film-card";
 import { DraftFilmCard } from "@/components/drafts/draft-film-card";
 import { DraftNameEditor } from "@/components/drafts/draft-name-editor";
 import { DraftTimeProgress } from "@/components/drafts/draft-time-progress";
+import { ManualReplaceSlotSheet } from "@/components/drafts/manual-replace-slot-sheet";
 import {
   PostmortemItem,
   type PostmortemItemView,
@@ -30,9 +32,13 @@ import { Button } from "@/components/ui/button";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
 import { FREEFORM_BATCH_SIZE, isFreeform } from "@/domain/drafts/difficulty";
+import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
-import { resolveAdminMode } from "@/domain/profiles/profile";
+import {
+  resolveAdminMode,
+  resolveFranchiseChronologicalOrder,
+} from "@/domain/profiles/profile";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { GenerateBatchButton } from "./generate-batch-button";
 
@@ -53,6 +59,7 @@ export default function DraftsPage() {
   const searchParams = useSearchParams();
   const challengeWarning = searchParams.get("challengeWarning");
   const [justArchived, setJustArchived] = useState(false);
+  const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
   const { activeProfile, repositories } = useProfileContext();
   const watchUndo = useWatchUndo();
 
@@ -165,6 +172,11 @@ export default function DraftsPage() {
                   originalTitle: originFilm.title,
                 }
               : null,
+          // Baseline only — recomputed live against the current
+          // Admin Mode setting just before rendering the active-draft
+          // view (see `editableFilmCards` below), so toggling Admin Mode
+          // elsewhere doesn't require a full reload to take effect here.
+          canEdit: false,
         };
       });
 
@@ -248,6 +260,32 @@ export default function DraftsPage() {
   const freeform = isFreeform(draft.difficulty);
   const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
 
+  // Recomputed live against the current Admin Mode setting on every render
+  // (see the `canEdit: false` baseline set where `filmCards` is built) —
+  // toggling Admin Mode in Settings takes effect here immediately, without
+  // needing a reload of this page's own async data.
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const editableFilmCards: DraftFilmCardView[] = filmCards.map((card) => {
+    const item = itemsById.get(card.itemId);
+    return {
+      ...card,
+      canEdit: item
+        ? canEditDraftSlot({
+            itemSource: item.source,
+            // TODO(event system): this branch has no per-draft event
+            // field yet — see `canEditDraftSlot`'s doc comment.
+            isEventDraft: false,
+            adminModeEnabled,
+          })
+        : false,
+    };
+  });
+  const draftEntryIds = new Set(
+    items
+      .map((item) => item.watchlistEntryId)
+      .filter((entryId): entryId is string => entryId !== null),
+  );
+
   async function handleReroll(draftItemId: string) {
     if (!activeProfile) return;
     const outcome = await rerollLocalDraftItemForMissingMetadata(repositories, {
@@ -260,6 +298,41 @@ export default function DraftsPage() {
       return;
     }
     await reloadSilently();
+  }
+
+  function handleSlotReplaced(previousWatchlistEntryId: string | null) {
+    // Mirrors `handleRegenerated`'s reasoning below — a pending session
+    // "Undo" record for the just-replaced slot's PREVIOUS watchlist entry
+    // now points at a draft item that no longer represents that watch, so
+    // it's cleared here rather than left to surface a confusing/no-op Undo
+    // button.
+    if (previousWatchlistEntryId) {
+      watchUndo.clearUndo(previousWatchlistEntryId);
+    }
+    void reloadSilently();
+  }
+
+  async function handleSlotReroll(draftItemId: string) {
+    if (!activeProfile) return;
+    const outcome = await replaceDraftSlot(repositories, {
+      profileId: activeProfile.id,
+      draftId: draft.id,
+      draftItemId,
+      adminModeEnabled,
+      mode: { kind: "reroll" },
+      franchiseChronologicalOrder: resolveFranchiseChronologicalOrder(
+        activeProfile.settings.franchiseChronologicalOrder,
+      ),
+    });
+    if (!outcome.ok) {
+      toast.error(outcome.message);
+      return;
+    }
+    handleSlotReplaced(outcome.previousWatchlistEntryId);
+  }
+
+  function handleManualReplace(draftItemId: string) {
+    setReplacingItemId(draftItemId);
   }
 
   function handleRegenerated(revertedWatchlistEntryIds: string[]) {
@@ -413,7 +486,26 @@ export default function DraftsPage() {
 
       <DraftTimeProgress progress={timeProgress} />
 
-      <ActiveDraftFilms films={filmCards} onReroll={handleReroll} />
+      <ActiveDraftFilms
+        films={editableFilmCards}
+        onReroll={handleReroll}
+        onManualReplace={handleManualReplace}
+        onSlotReroll={handleSlotReroll}
+      />
+      <ManualReplaceSlotSheet
+        open={replacingItemId !== null}
+        onOpenChange={(open) => {
+          if (!open) setReplacingItemId(null);
+        }}
+        draftId={draft.id}
+        draftItemId={replacingItemId ?? ""}
+        excludedEntryIds={draftEntryIds}
+        adminModeEnabled={adminModeEnabled}
+        onReplaced={(previousWatchlistEntryId) => {
+          setReplacingItemId(null);
+          handleSlotReplaced(previousWatchlistEntryId);
+        }}
+      />
     </div>
   );
 }
