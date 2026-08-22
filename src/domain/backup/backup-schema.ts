@@ -114,6 +114,8 @@ export const draftItemSourceSchema = z.enum(["random", "challenge", "manual"]);
 export const draftItemSubstitutionReasonSchema = z.enum([
   "franchise_order",
   "missing_metadata",
+  "manual_replace",
+  "user_reroll",
 ]);
 export const pointCurrencySchema = z.enum([
   "lifetime",

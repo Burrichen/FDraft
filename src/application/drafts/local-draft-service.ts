@@ -2,6 +2,7 @@ import {
   fetchLocalChallengeCandidates,
   fetchLocalChallengeWatchedFilms,
 } from "@/application/drafts/local-fetch-context";
+import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
 import {
   awardDraftCompletionReward,
   resolveDraftCompletionReward,
@@ -21,6 +22,7 @@ import {
   type ChallengeResult,
 } from "@/domain/challenges/types";
 import { calculateDraftDeadline } from "@/domain/drafts/deadline";
+import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
 import {
   FREEFORM_BATCH_SIZE,
   getFilmCount,
@@ -49,6 +51,7 @@ import type { PointsRepository } from "@/repositories/points-repository";
 import type {
   DraftDifficulty,
   DraftItemRecord,
+  DraftItemSubstitutionReason,
   DraftPostmortemResponseRecord,
   DraftRecord,
   DraftTimeMode,
@@ -1497,4 +1500,195 @@ export async function rerollLocalDraftItemForMissingMetadata(
   });
 
   return { ok: true, newFilmId: picked.filmId };
+}
+
+export type ReplaceDraftSlotMode =
+  { kind: "manual"; watchlistEntryId: string } | { kind: "reroll" };
+export type ReplaceDraftSlotErrorCode =
+  | "draft_not_found"
+  | "draft_not_active"
+  | "item_not_found"
+  | "not_permitted"
+  | "invalid_candidate"
+  | "already_in_draft"
+  | "nothing_available";
+export type ReplaceDraftSlotOutcome =
+  | { ok: true; newFilmId: string; previousWatchlistEntryId: string | null }
+  | { ok: false; error: ReplaceDraftSlotErrorCode; message: string };
+
+/**
+ * Lets a user swap out ONE random draft slot for a different film, either
+ * by hand-picking it (`mode.kind === "manual"`) or by drawing a fresh
+ * random one (`mode.kind === "reroll"`) — see docs/updates, v1.1.3
+ * "Editable random draft slots". Modeled directly on
+ * `rerollLocalDraftItemForMissingMetadata` above: same in-place
+ * `updateItem` replacement (same `orderIndex`, no capacity change, `source`
+ * untouched — the slot stays `"random"`), same `originFilmId`/
+ * `substitutionReason` provenance.
+ *
+ * `canEditDraftSlot` is the ONLY permission check — enforced here (not
+ * just wherever the UI happens to render a button) so a second, forgetful
+ * call site can never bypass Challenge-slot locking or the Event-draft
+ * restriction.
+ *
+ * Watched-state reconciliation: if the slot being replaced was already
+ * `isCompleted`, its `WatchedHistoryRecord` and `WatchlistEntryRecord` are
+ * deliberately left untouched — the person genuinely watched that film,
+ * and that historical fact isn't erased. What IS cleared is the
+ * draft-specific linkage (`isCompleted`/`completedAt`/`watchedHistoryId`
+ * on this item), which is sufficient to guarantee the abandoned film earns
+ * no credit toward this draft: `archiveLocalDraftIfResolved` only ever
+ * fires once every item is resolved, and points are awarded once, flat,
+ * per whole draft — never per film — so severing this one item's
+ * completion is all "zero points for the replaced film" requires. This is
+ * only reachable while `draft.status === "active"`, which also guarantees
+ * `rewardsGrantedAt` is still `null` — there is no already-granted reward
+ * to reverse in this data model.
+ */
+export async function replaceDraftSlot(
+  repos: DraftRepos,
+  params: {
+    profileId: string;
+    draftId: string;
+    draftItemId: string;
+    adminModeEnabled: boolean;
+    mode: ReplaceDraftSlotMode;
+    /** Same "Franchises in chronological order" setting `createLocalDraft` takes — applied to a reroll's fresh pick for parity with normal random generation. Ignored for `mode.kind === "manual"` (manual selection deliberately ignores sequel/franchise restrictions). */
+    franchiseChronologicalOrder?: boolean;
+  },
+  deps: { rng?: Rng } = {},
+): Promise<ReplaceDraftSlotOutcome> {
+  const rng = deps.rng ?? createDefaultRng();
+
+  const draft = await repos.drafts.getById(params.profileId, params.draftId);
+  if (!draft) {
+    return {
+      ok: false,
+      error: "draft_not_found",
+      message: "Draft not found.",
+    };
+  }
+  if (draft.status !== "active") {
+    return {
+      ok: false,
+      error: "draft_not_active",
+      message: "This draft is not active.",
+    };
+  }
+
+  const item = await repos.drafts.getItemById(params.draftItemId);
+  if (!item || item.draftId !== params.draftId) {
+    return {
+      ok: false,
+      error: "item_not_found",
+      message: "Draft item not found.",
+    };
+  }
+
+  if (
+    !canEditDraftSlot({
+      itemSource: item.source,
+      draftSourceEventId: draft.sourceEventId,
+      adminModeEnabled: params.adminModeEnabled,
+    })
+  ) {
+    return {
+      ok: false,
+      error: "not_permitted",
+      message: "This slot can't be edited.",
+    };
+  }
+
+  const existingItems = await repos.drafts.listItemsForDraft(params.draftId);
+  const usedFilmIds = new Set(existingItems.map((existing) => existing.filmId));
+
+  let newFilmId: string;
+  let newWatchlistEntryId: string;
+  let substitutionReason: DraftItemSubstitutionReason;
+
+  const mode = params.mode;
+  if (mode.kind === "manual") {
+    // Re-validated against the canonical DIY/manual pool here, even though
+    // the picker UI already only ever offers eligible, unclaimed entries —
+    // the mutation itself is the actual enforcement boundary, not the UI.
+    const eligibleFilms = await getDiyEligibleFilms(repos, params.profileId);
+    const chosen = eligibleFilms.find(
+      (film) => film.entryId === mode.watchlistEntryId,
+    );
+    if (!chosen) {
+      return {
+        ok: false,
+        error: "invalid_candidate",
+        message: "That film isn't eligible for manual selection.",
+      };
+    }
+    if (usedFilmIds.has(chosen.filmId)) {
+      return {
+        ok: false,
+        error: "already_in_draft",
+        message: "That film is already part of this draft.",
+      };
+    }
+    newFilmId = chosen.filmId;
+    newWatchlistEntryId = chosen.entryId;
+    substitutionReason = "manual_replace";
+  } else {
+    // The exact same pool/eligibility normal random draft generation draws
+    // from (including its default sequel/franchise-order exclusion) —
+    // never a second, simplified random picker.
+    const candidates = await fetchLocalChallengeCandidates(
+      repos,
+      params.profileId,
+    );
+    const pool = candidates.filter(
+      (candidate) => !usedFilmIds.has(candidate.filmId),
+    );
+    if (pool.length === 0) {
+      return {
+        ok: false,
+        error: "nothing_available",
+        message:
+          "No other eligible watchlist films are available to replace this one.",
+      };
+    }
+    const [pickedEntryId] = pickRandomFilms(
+      pool.map((candidate) => ({
+        id: candidate.watchlistEntryId,
+        weight: candidate.selectionWeight,
+      })),
+      1,
+      rng,
+    );
+    let picked = pool.find(
+      (candidate) => candidate.watchlistEntryId === pickedEntryId,
+    )!;
+
+    if (params.franchiseChronologicalOrder) {
+      const franchisePool = pool.filter(
+        (candidate) => candidate.watchlistEntryId !== picked.watchlistEntryId,
+      );
+      picked = resolveFranchiseChronologicalPick({
+        rolled: picked,
+        pool: franchisePool,
+      });
+    }
+
+    newFilmId = picked.filmId;
+    newWatchlistEntryId = picked.watchlistEntryId;
+    substitutionReason = "user_reroll";
+  }
+
+  const previousWatchlistEntryId = item.watchlistEntryId;
+  await repos.drafts.updateItem({
+    ...item,
+    filmId: newFilmId,
+    watchlistEntryId: newWatchlistEntryId,
+    isCompleted: false,
+    completedAt: null,
+    watchedHistoryId: null,
+    originFilmId: item.originFilmId ?? item.filmId,
+    substitutionReason,
+  });
+
+  return { ok: true, newFilmId, previousWatchlistEntryId };
 }

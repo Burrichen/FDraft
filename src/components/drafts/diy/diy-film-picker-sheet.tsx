@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -37,6 +38,7 @@ export function DiyFilmPickerSheet({
   excludedEntryIds,
   selectedEntryId,
   slotLabel,
+  size = "default",
   onConfirm,
 }: {
   open: boolean;
@@ -49,6 +51,8 @@ export function DiyFilmPickerSheet({
   selectedEntryId: string | null;
   /** A short label identifying which slot this fills, e.g. "Challenge slot 2 of 3". */
   slotLabel: string;
+  /** `"default"` (unchanged, `sm:max-w-2xl`) for the Challenge Film picker; `"large"` widens the sheet to occupy most of the window — see the Active Draft page's manual slot replacement. */
+  size?: "default" | "large";
   onConfirm: (entryId: string) => void;
 }) {
   const [pendingEntryId, setPendingEntryId] = useState<string | null>(
@@ -97,7 +101,10 @@ export function DiyFilmPickerSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-2xl"
+        className={cn(
+          "w-full",
+          size === "large" ? "sm:max-w-5xl" : "sm:max-w-2xl",
+        )}
         aria-label={`Pick Your Own — ${slotLabel}`}
       >
         <SheetHeader>

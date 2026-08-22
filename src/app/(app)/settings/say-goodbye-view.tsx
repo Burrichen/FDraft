@@ -60,6 +60,9 @@ export function SayGoodbyeView({ draftId }: { draftId: string }) {
           // before it's discarded — no reroll/franchise-substitution UI is
           // offered here, so there's nothing to look up an origin film for.
           substitution: null,
+          // Nor is manual-replace/reroll — a draft about to be discarded
+          // has nothing left to edit.
+          canEdit: false,
         };
       });
       return { filmCards };
