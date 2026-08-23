@@ -106,13 +106,13 @@ describe("cross-profile isolation (real fake-indexeddb, two profiles, one shared
     });
 
     expect(await repos.drafts.getById("sam", "draft-a")).toBeNull();
-    expect((await repos.drafts.getActiveOrExpiredDraft("alex"))?.id).toBe(
+    expect((await repos.drafts.getActiveOrExpiredDraft("alex", null))?.id).toBe(
       "draft-a",
     );
-    expect((await repos.drafts.getActiveOrExpiredDraft("sam"))?.id).toBe(
+    expect((await repos.drafts.getActiveOrExpiredDraft("sam", null))?.id).toBe(
       "draft-b",
     );
-    expect(await repos.drafts.hasActiveDraft("alex")).toBe(true);
+    expect(await repos.drafts.hasActiveDraft("alex", null)).toBe(true);
 
     // Archiving one profile's draft must never touch the other's.
     await repos.drafts.updateDraft({

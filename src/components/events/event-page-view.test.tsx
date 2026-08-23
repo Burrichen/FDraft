@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
+import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
@@ -20,7 +21,9 @@ function Harness({
 }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <EventPageView eventId={eventId} />
+      <WatchUndoProvider>
+        <EventPageView eventId={eventId} />
+      </WatchUndoProvider>
     </ProfileProvider>
   );
 }
@@ -105,7 +108,7 @@ describe("EventPageView (PROMPT 18)", () => {
     );
     expect(
       screen.queryByRole("button", {
-        name: "I want to join the Halloween Event",
+        name: "Let me in.",
       }),
     ).not.toBeInTheDocument();
   });
@@ -122,7 +125,7 @@ describe("EventPageView (PROMPT 18)", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("button", {
-          name: "I want to join the Halloween Event",
+          name: "Let me in.",
         }),
       ).toBeInTheDocument(),
     );
@@ -168,5 +171,49 @@ describe("EventPageView (PROMPT 18)", () => {
       expect(screen.getByText(/nothing here yet/i)).toBeInTheDocument(),
     );
     expect(screen.queryByText(/points/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("EventPageView — always renders THAT PAGE'S own event identity, never another event's (regression, PROMPT B2.1 §2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("the Halloween page's heading is always 'Halloween', even while the profile is actively opted into January", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
+    });
+
+    render(
+      <Harness databaseName={databaseName} eventId={HALLOWEEN_EVENT_ID} />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Halloween" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("F* You, It's January!")).not.toBeInTheDocument();
+  });
+
+  it("the January page's heading is always 'F* You, It's January!', even while the profile is actively opted into Halloween", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, { activeEvent: HALLOWEEN_EVENT_ID });
+
+    render(
+      <Harness
+        databaseName={databaseName}
+        eventId={F_YOU_ITS_JANUARY_EVENT_ID}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "F* You, It's January!" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Halloween")).not.toBeInTheDocument();
   });
 });

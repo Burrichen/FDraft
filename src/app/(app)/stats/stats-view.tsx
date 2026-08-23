@@ -1,11 +1,16 @@
 "use client";
 
-import { Film } from "lucide-react";
+import { Clapperboard, Film } from "lucide-react";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
 import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { AdditionsCard } from "@/components/stats/additions-card";
 import { DistributionCard } from "@/components/stats/distribution-card";
+import {
+  HauntedPointsIcon,
+  MiseryPointsIcon,
+} from "@/components/stats/point-currency-icons";
+import { PointsCard } from "@/components/stats/points-card";
 import { StatCard } from "@/components/stats/stat-card";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { formatRuntimeMinutes } from "@/domain/stats/format";
@@ -68,6 +73,17 @@ export function StatsView() {
     });
   }, [activeProfile?.id, repositories]);
 
+  // Permanent point currency totals (see docs/updates, "PROMPT B2.2 —
+  // HALLOWEEN PAGE REBUILD + DEADLINE + STATS" §6) — loaded independently
+  // of the watchlist-derived stats above, since a profile can have real,
+  // non-zero totals (or legitimately all-zero ones, e.g. Haunted Points
+  // today — see docs/updates §"IF HAUNTED POINTS HAVE NO EARNING RULE")
+  // regardless of whatever their CURRENT watchlist looks like.
+  const { data: pointBalances } = useAsyncData(async () => {
+    if (!activeProfile) return null;
+    return repositories.points.getAllBalances(activeProfile.id);
+  }, [activeProfile?.id, repositories]);
+
   if (!activeProfile) {
     return null;
   }
@@ -87,6 +103,32 @@ export function StatsView() {
       <div>
         <h1 className="page-heading">Stats</h1>
       </div>
+
+      {pointBalances ? (
+        <section className="space-y-3">
+          <h2 className="text-foreground text-lg font-bold">Points</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <PointsCard
+              icon={Clapperboard}
+              iconClassName="text-watchlist-green"
+              label="Lifetime"
+              value={pointBalances.lifetime}
+            />
+            <PointsCard
+              icon={MiseryPointsIcon}
+              iconClassName="text-blue-400"
+              label="Misery"
+              value={pointBalances.misery}
+            />
+            <PointsCard
+              icon={HauntedPointsIcon}
+              iconClassName="text-halloween-purple"
+              label="Haunted"
+              value={pointBalances.haunted}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {isEmpty ? (
         <EmptyState

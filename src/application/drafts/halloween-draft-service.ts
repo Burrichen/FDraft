@@ -2,13 +2,15 @@ import {
   fetchHalloweenAdjacentCandidates,
   fetchHalloweenManifestCandidates,
 } from "@/application/drafts/halloween-fetch-context";
-import { calculateDraftDeadline } from "@/domain/drafts/deadline";
 import { getFilmCount } from "@/domain/drafts/difficulty";
 import {
   isValidHalloweenSplit,
   type HalloweenSplit,
 } from "@/domain/drafts/halloween-split";
-import { isEventAvailable } from "@/domain/events/event-availability";
+import {
+  getCurrentOccurrenceBounds,
+  isEventAvailable,
+} from "@/domain/events/event-availability";
 import {
   getEventDefinition,
   HALLOWEEN_EVENT_ID,
@@ -25,7 +27,6 @@ import type {
   DraftDifficulty,
   DraftItemRecord,
   DraftRecord,
-  DraftTimeMode,
 } from "@/repositories/records";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 
@@ -76,6 +77,19 @@ export type CreateHalloweenDraftOutcome =
  * — the generic `createLocalDraft`/January path is deliberately left
  * unchanged (see docs/updates, "PROMPT 18", scope note on why an
  * availability re-check was NOT added there).
+ *
+ * No `timeMode` parameter (see docs/updates, "PROMPT B2.2 — HALLOWEEN
+ * PAGE REBUILD + DEADLINE + STATS" §3: "Remove Halloween deadline
+ * selector") — Halloween has ONE fixed deadline, the end of the CURRENT
+ * occurrence's natural window (via `getCurrentOccurrenceBounds`, using the
+ * same `effectiveNow` the availability gate above just confirmed falls
+ * inside it — so a draft created at any point in the window always gets
+ * the exact same real deadline, "1 November 00:00" in the profile's own
+ * timezone). `DraftRecord.timeMode` is still a required field on the
+ * underlying record — set to `"timer"` unconditionally since nothing
+ * reads it as a real choice for an event-fixed-deadline draft (see
+ * `EventDefinition.fixedEventDeadline`, which `DraftLifecycleView`/History
+ * check instead, for both progress display and labeling).
  */
 export async function createHalloweenLocalDraft(
   repos: HalloweenDraftRepos,
@@ -83,7 +97,6 @@ export async function createHalloweenLocalDraft(
     profileId: string;
     timezone: string;
     difficulty: Exclude<DraftDifficulty, "freeform">;
-    timeMode: DraftTimeMode;
     split: HalloweenSplit;
     effectiveNow?: Date;
   },
@@ -104,12 +117,15 @@ export async function createHalloweenLocalDraft(
     };
   }
 
-  if (await repos.drafts.hasActiveDraft(profileId)) {
+  // Scoped to Halloween's OWN draft slot (see docs/updates, "PROMPT B2.1
+  // — DUAL DRAFT ARCHITECTURE") — a profile's normal Draft is completely
+  // independent and never blocks (or gets blocked by) this.
+  if (await repos.drafts.hasActiveDraft(profileId, HALLOWEEN_EVENT_ID)) {
     return {
       ok: false,
       error: "already_active",
       message:
-        "You already have an active draft. Finish or expire it before starting another.",
+        "You already have an active Halloween Draft. Finish or expire it before starting another.",
     };
   }
 
@@ -192,17 +208,19 @@ export async function createHalloweenLocalDraft(
 
   const now = clock.now();
   const draftId = idGenerator.generate();
-  const deadlineAt = calculateDraftDeadline({
-    timeMode: params.timeMode,
-    startedAt: now,
+  // Non-null: `isEventAvailable` above already confirmed `effectiveNow`
+  // falls inside Halloween's `recurringMonthDayRange` occurrence.
+  const deadlineAt = getCurrentOccurrenceBounds(
+    halloween.availability,
+    effectiveNow,
     timezone,
-  });
+  )!.end;
 
   const draft: DraftRecord = {
     id: draftId,
     profileId,
     difficulty: params.difficulty,
-    timeMode: params.timeMode,
+    timeMode: "timer",
     status: "active",
     totalFilms,
     randomFilmCount: totalFilms,

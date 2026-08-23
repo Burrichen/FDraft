@@ -190,3 +190,48 @@ export function getNextOccurrenceStart(
     ? thisYear
     : buildCandidate(currentYear + 1);
 }
+
+/**
+ * The real start/end instants of the `recurringMonthDayRange` occurrence
+ * `now` currently falls WITHIN — see `EventDefinition.fixedEventDeadline`
+ * (docs/updates, "PROMPT B2.2 — HALLOWEEN PAGE REBUILD + DEADLINE +
+ * STATS" §3): a Draft deadline that's fixed to "the end of the event"
+ * needs the actual end instant, and its time-progress display needs the
+ * actual start instant, of the occurrence currently in progress — not the
+ * NEXT occurrence (`getNextOccurrenceStart`, which is for an event that
+ * ISN'T currently available). Only meaningful while `isEventAvailable`
+ * is true for the same `now`; callers should check that first.
+ *
+ * Relies on the same "stays within one calendar year, start ≤ end" scope
+ * `isEventAvailable` itself assumes for `recurringMonthDayRange` (see its
+ * own doc comment) — `now`'s own local year is used for BOTH the start and
+ * end candidate, which is correct exactly because the range never crosses
+ * a year boundary. `null` for any other `EventAvailability` shape.
+ */
+export function getCurrentOccurrenceBounds(
+  availability: EventAvailability,
+  now: Date,
+  timezone: string,
+): { start: Date; end: Date } | null {
+  const range = availability.recurringMonthDayRange;
+  if (!range) {
+    return null;
+  }
+  const year = Number(formatInTimeZone(now, timezone, "yyyy"));
+  const build = (month: number, day: number, hour: number, minute: number) =>
+    fromZonedTime(new Date(year, month - 1, day, hour, minute), timezone);
+  return {
+    start: build(
+      range.startMonth,
+      range.startDay,
+      range.startHour ?? 0,
+      range.startMinute ?? 0,
+    ),
+    end: build(
+      range.endMonth,
+      range.endDay,
+      range.endHour ?? 0,
+      range.endMinute ?? 0,
+    ),
+  };
+}

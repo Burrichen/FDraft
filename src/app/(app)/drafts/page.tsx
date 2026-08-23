@@ -3,237 +3,32 @@
 import { CheckCircle2, Clapperboard } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import {
-  expireLocalDraftIfDue,
-  replaceDraftSlot,
-  rerollLocalDraftItemForMissingMetadata,
-} from "@/application/drafts/local-draft-service";
-import { getEventSettings } from "@/application/events/event-settings-store";
-import {
-  hasNoUsableMetadata,
-  mergeLocalFilmMetadata,
-} from "@/application/watchlist/merge-local-film-metadata";
-import { toast } from "sonner";
-import { AsyncDataError } from "@/components/async-data-error";
+import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
-import { ActiveDraftFilms } from "@/components/drafts/active-draft-films";
-import type { DraftFilmCardView } from "@/components/drafts/draft-film-card";
-import { DraftFilmCard } from "@/components/drafts/draft-film-card";
-import { DraftNameEditor } from "@/components/drafts/draft-name-editor";
-import { DraftTimeProgress } from "@/components/drafts/draft-time-progress";
-import { ManualReplaceSlotSheet } from "@/components/drafts/manual-replace-slot-sheet";
-import {
-  PostmortemItem,
-  type PostmortemItemView,
-} from "@/components/drafts/postmortem-item";
-import { EventPresentationBadge } from "@/components/events/event-presentation-badge";
-import { RegenerateDraftButton } from "@/components/drafts/regenerate-draft-button";
-import { useProfileContext } from "@/components/profiles/profile-provider";
+import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
 import { Button } from "@/components/ui/button";
-import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
-import { challengeRegistry } from "@/domain/challenges/catalogue";
-import { FREEFORM_BATCH_SIZE, isFreeform } from "@/domain/drafts/difficulty";
-import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
-import { getDraftDisplayName } from "@/domain/drafts/draft-name";
-import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
-import {
-  resolveAdminMode,
-  resolveFranchiseChronologicalOrder,
-} from "@/domain/profiles/profile";
-import { useAsyncData } from "@/hooks/use-async-data";
-import { GenerateBatchButton } from "./generate-batch-button";
 
 /**
  * Local-first rewrite of the Active Draft page (see docs/product-spec.md,
- * "FULL OFFLINE CORE FUNCTIONALITY", Prompt 9.5B). Same three states Phase
- * 9 established — no draft / active / expired-with-postmortem — now loaded
- * from the local repositories via `useAsyncData` instead of a Server
- * Component query, since IndexedDB only exists in the browser.
- *
- * The old "pending interactive challenges" section is gone: local "Choose
- * My Challenge" doesn't offer Battle Royale/Three Doors yet (see
- * `list-local-challenge-availability.ts`), so a local draft can never
- * actually have one pending — see docs/product-spec.md implementation log,
- * Phase 9.5B, "What this phase does NOT do".
+ * "FULL OFFLINE CORE FUNCTIONALITY", Prompt 9.5B) — now a thin wrapper
+ * around the shared `DraftLifecycleView` (see docs/updates, "PROMPT B2.1 —
+ * DUAL DRAFT ARCHITECTURE"), scoped to the profile's normal Draft
+ * (`sourceEventId: null`). An event's own Draft (e.g. Halloween) is a
+ * completely independent slot, shown on that event's own page instead —
+ * never here, and never the other way around.
  */
 export default function DraftsPage() {
   const searchParams = useSearchParams();
   const challengeWarning = searchParams.get("challengeWarning");
   const [justArchived, setJustArchived] = useState(false);
-  const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
-  const { activeProfile, repositories } = useProfileContext();
-  const watchUndo = useWatchUndo();
 
-  const { data, isLoading, error, reload, reloadSilently } =
-    useAsyncData(async () => {
-      if (!activeProfile) return null;
-
-      let draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
-        activeProfile.id,
-      );
-      if (!draftRecord) {
-        // This session's own last-remaining-film watch action may have just
-        // archived the profile's one draft (see docs/product-spec.md,
-        // "WATCHED FILM UNDO", "COMPLETED/FULLY WATCHED DRAFT") —
-        // `getActiveOrExpiredDraft` correctly excludes archived drafts, but
-        // the undo opportunity for that action must still be reachable here,
-        // even after navigating away and back.
-        const pendingArchivedDraftId = watchUndo.getPendingArchivedDraftId();
-        if (pendingArchivedDraftId) {
-          const archived = await repositories.drafts.getById(
-            activeProfile.id,
-            pendingArchivedDraftId,
-          );
-          if (archived && archived.status === "archived") {
-            draftRecord = archived;
-          }
-        }
-      }
-      const eventSettings = await getEventSettings(
-        repositories,
-        activeProfile.id,
-      );
-      if (!draftRecord)
-        return {
-          draft: null,
-          eventVisualsEnabled: eventSettings.eventVisualsEnabled,
-        } as const;
-
-      let status = draftRecord.status;
-      if (status === "active") {
-        const justExpired = await expireLocalDraftIfDue(repositories, {
-          profileId: activeProfile.id,
-          draftId: draftRecord.id,
-        });
-        if (justExpired) status = "expired";
-      }
-      const draft = { ...draftRecord, status };
-
-      const items = (
-        await repositories.drafts.listItemsForDraft(draft.id)
-      ).sort((a, b) => a.orderIndex - b.orderIndex);
-      const films = await Promise.all(
-        items.map((item) => repositories.films.getById(item.filmId)),
-      );
-      const metadataByFilmId = await repositories.films.getMetadataForFilms(
-        items.map((item) => item.filmId),
-      );
-      const answeredItemIds = new Set(
-        (
-          await repositories.history.listPostmortemResponsesForDraft(draft.id)
-        ).map((response) => response.draftItemId),
-      );
-
-      // Resolved separately from `films` above — most items have no
-      // `originFilmId` at all, and the title-only lookup this needs is
-      // cheap enough not to worry about batching alongside it.
-      const originFilmIds = [
-        ...new Set(
-          items
-            .map((item) => item.originFilmId)
-            .filter((id): id is string => id !== null),
-        ),
-      ];
-      const originFilmsById = new Map(
-        (
-          await Promise.all(
-            originFilmIds.map((id) => repositories.films.getById(id)),
-          )
-        )
-          .filter((film) => film !== null)
-          .map((film) => [film.id, film]),
-      );
-
-      const filmCards: DraftFilmCardView[] = items.map((item, index) => {
-        const film = films[index];
-        const metadata = mergeLocalFilmMetadata(
-          metadataByFilmId.get(item.filmId) ?? [],
-        );
-        const challengeDefinition = item.challengeId
-          ? challengeRegistry.getById(item.challengeId)
-          : undefined;
-        const originFilm = item.originFilmId
-          ? (originFilmsById.get(item.originFilmId) ?? null)
-          : null;
-        return {
-          itemId: item.id,
-          entryId: item.watchlistEntryId,
-          title: film?.title ?? "Untitled",
-          releaseYear: film?.releaseYear ?? null,
-          runtimeMinutes: metadata.runtimeMinutes,
-          letterboxdUri: film?.letterboxdUri ?? null,
-          posterUrl: metadata.posterUrl,
-          averageRating: metadata.averageRating,
-          genres: metadata.genres,
-          isCompleted: item.isCompleted,
-          challenge: challengeDefinition
-            ? {
-                name: challengeDefinition.name,
-                description: challengeDefinition.description,
-                displayValue: item.challengeDisplayValue,
-              }
-            : null,
-          hasNoMetadata: hasNoUsableMetadata(metadata),
-          substitution:
-            item.substitutionReason && originFilm
-              ? {
-                  reason: item.substitutionReason,
-                  originalTitle: originFilm.title,
-                }
-              : null,
-          // Baseline only — recomputed live against the current
-          // Admin Mode setting just before rendering the active-draft
-          // view (see `editableFilmCards` below), so toggling Admin Mode
-          // elsewhere doesn't require a full reload to take effect here.
-          canEdit: false,
-          source: item.source,
-        };
-      });
-
-      return {
-        draft,
-        items,
-        filmCards,
-        answeredItemIds,
-        eventVisualsEnabled: eventSettings.eventVisualsEnabled,
-      } as const;
-    }, [activeProfile?.id, repositories]);
-
-  // Keeps `filmCards`/`items` genuinely fresh after every mark-watched or
-  // undo action anywhere on this page (see docs/product-spec.md, "WATCHED
-  // FILM UNDO") — reacting to `watchUndo` itself, rather than a callback
-  // threaded down through every card, is what makes this safe: React only
-  // gives this a NEW `watchUndo` value after it has committed the
-  // register/clear state update, so by the time this effect runs the
-  // context is never stale the way calling `reloadSilently()` inline
-  // immediately after that update would be. Skips the very first run so
-  // mount doesn't trigger a redundant second fetch on top of `useAsyncData`'s
-  // own.
-  const isFirstWatchUndoEffect = useRef(true);
-  useEffect(() => {
-    if (isFirstWatchUndoEffect.current) {
-      isFirstWatchUndoEffect.current = false;
-      return;
-    }
-    void reloadSilently();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchUndo]);
-
-  if (!activeProfile) {
-    return null;
-  }
-  if (error) {
-    return <AsyncDataError error={error} onRetry={reload} />;
-  }
-  if (isLoading || !data) {
-    return null;
-  }
-
-  if (!data.draft) {
-    return (
-      <div className="space-y-6">
-        {justArchived ? (
+  return (
+    <DraftLifecycleView
+      sourceEventId={null}
+      challengeWarning={challengeWarning}
+      onDraftArchived={() => setJustArchived(true)}
+      justArchivedBanner={
+        justArchived ? (
           <div className="border-watchlist-green/40 bg-watchlist-green/10 text-foreground flex items-center gap-2 rounded-lg border px-4 py-3 text-sm">
             <CheckCircle2
               aria-hidden="true"
@@ -248,296 +43,28 @@ export default function DraftsPage() {
             </Link>
             .
           </div>
-        ) : null}
-        <div>
-          <h1 className="page-heading">Active draft</h1>
-          <p className="page-subtitle">
-            A temporary watchlist challenge for a defined period.
-          </p>
+        ) : null
+      }
+      emptyState={
+        <div className="space-y-6">
+          <div>
+            <h1 className="page-heading">Active draft</h1>
+            <p className="page-subtitle">
+              A temporary watchlist challenge for a defined period.
+            </p>
+          </div>
+          <EmptyState
+            icon={Clapperboard}
+            title="No active draft"
+            description="Pick a difficulty, choose how the list is built, and take on a Monthly Watchlist Draft."
+            action={
+              <Button nativeButton={false} render={<Link href="/drafts/new" />}>
+                Start a draft
+              </Button>
+            }
+          />
         </div>
-        <EmptyState
-          icon={Clapperboard}
-          title="No active draft"
-          description="Pick a difficulty, choose how the list is built, and take on a Monthly Watchlist Draft."
-          action={
-            <Button nativeButton={false} render={<Link href="/drafts/new" />}>
-              Start a draft
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
-
-  const { draft, items, filmCards, answeredItemIds, eventVisualsEnabled } =
-    data;
-  const deadlineLabel = new Date(draft.deadlineAt).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-  const freeform = isFreeform(draft.difficulty);
-  const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
-
-  // Recomputed live against the current Admin Mode setting on every render
-  // (see the `canEdit: false` baseline set where `filmCards` is built) —
-  // toggling Admin Mode in Settings takes effect here immediately, without
-  // needing a reload of this page's own async data.
-  const itemsById = new Map(items.map((item) => [item.id, item]));
-  const editableFilmCards: DraftFilmCardView[] = filmCards.map((card) => {
-    const item = itemsById.get(card.itemId);
-    return {
-      ...card,
-      canEdit: item
-        ? canEditDraftSlot({
-            itemSource: item.source,
-            draftSourceEventId: draft.sourceEventId,
-            adminModeEnabled,
-          })
-        : false,
-    };
-  });
-  const draftEntryIds = new Set(
-    items
-      .map((item) => item.watchlistEntryId)
-      .filter((entryId): entryId is string => entryId !== null),
-  );
-
-  async function handleReroll(draftItemId: string) {
-    if (!activeProfile) return;
-    const outcome = await rerollLocalDraftItemForMissingMetadata(repositories, {
-      profileId: activeProfile.id,
-      draftId: draft.id,
-      draftItemId,
-    });
-    if (!outcome.ok) {
-      toast.error(outcome.message);
-      return;
-    }
-    await reloadSilently();
-  }
-
-  function handleSlotReplaced(previousWatchlistEntryId: string | null) {
-    // Mirrors `handleRegenerated`'s reasoning below — a pending session
-    // "Undo" record for the just-replaced slot's PREVIOUS watchlist entry
-    // now points at a draft item that no longer represents that watch, so
-    // it's cleared here rather than left to surface a confusing/no-op Undo
-    // button.
-    if (previousWatchlistEntryId) {
-      watchUndo.clearUndo(previousWatchlistEntryId);
-    }
-    void reloadSilently();
-  }
-
-  async function handleSlotReroll(draftItemId: string) {
-    if (!activeProfile) return;
-    const outcome = await replaceDraftSlot(repositories, {
-      profileId: activeProfile.id,
-      draftId: draft.id,
-      draftItemId,
-      adminModeEnabled,
-      mode: { kind: "reroll" },
-      franchiseChronologicalOrder: resolveFranchiseChronologicalOrder(
-        activeProfile.settings.franchiseChronologicalOrder,
-      ),
-    });
-    if (!outcome.ok) {
-      toast.error(outcome.message);
-      return;
-    }
-    handleSlotReplaced(outcome.previousWatchlistEntryId);
-  }
-
-  function handleManualReplace(draftItemId: string) {
-    setReplacingItemId(draftItemId);
-  }
-
-  function handleRegenerated(
-    revertedWatchlistEntryIds: string[],
-    revertedDraftItemIds: string[],
-  ) {
-    // Each reverted item's watch has already been undone server-side by
-    // `abandonLocalDraft` — any pending session "Undo" record for it now
-    // points at a draft item that no longer exists, so it's cleared here
-    // rather than left to surface a confusing/no-op Undo button (see
-    // `components/watch-undo/watch-undo-provider.tsx`). Entry-based items
-    // are keyed by `entryId`; a Halloween off-watchlist item has none and
-    // is keyed by `draftItemId` instead — `clearUndoForItem` handles both.
-    for (const entryId of revertedWatchlistEntryIds) {
-      watchUndo.clearUndo(entryId);
-    }
-    for (const draftItemId of revertedDraftItemIds) {
-      watchUndo.clearUndoForItem(null, draftItemId);
-    }
-    void reload();
-  }
-
-  if (draft.status === "expired") {
-    const watchedItemIds = new Set(
-      items.filter((item) => item.isCompleted).map((item) => item.id),
-    );
-    const unresolvedFilms = filmCards.filter(
-      (film) => !film.isCompleted && !answeredItemIds.has(film.itemId),
-    );
-    const watchedFilms = filmCards.filter((film) =>
-      watchedItemIds.has(film.itemId),
-    );
-
-    const postmortemFilms: PostmortemItemView[] = unresolvedFilms.map(
-      (film) => ({
-        draftItemId: film.itemId,
-        title: film.title,
-        releaseYear: film.releaseYear,
-        posterUrl: film.posterUrl,
-        existingResponse: null,
-      }),
-    );
-
-    return (
-      <div className="max-w-2xl space-y-6">
-        <div>
-          <h1 className="page-heading flex flex-wrap items-center gap-1.5">
-            {getDraftDisplayName(draft)} — expired
-            <EventPresentationBadge
-              sourceEventId={draft.sourceEventId}
-              eventVisualsEnabled={eventVisualsEnabled}
-            />
-            <DraftNameEditor
-              draftId={draft.id}
-              currentCustomName={draft.customName}
-              onSaved={reloadSilently}
-            />
-          </h1>
-          <p className="page-subtitle">
-            {watchedFilms.length}/{items.length} films completed · deadline was{" "}
-            {deadlineLabel}
-          </p>
-        </div>
-
-        {postmortemFilms.length > 0 ? (
-          <section className="space-y-3">
-            <h2 className="text-foreground text-lg font-bold">
-              Why didn&apos;t you watch these?
-            </h2>
-            <ul className="space-y-3">
-              {postmortemFilms.map((film) => (
-                <PostmortemItem
-                  key={film.draftItemId}
-                  draftId={draft.id}
-                  difficulty={draft.difficulty}
-                  film={film}
-                  onArchived={() => {
-                    setJustArchived(true);
-                    reload();
-                  }}
-                />
-              ))}
-            </ul>
-          </section>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Every film has been resolved — this draft will finish archiving
-            shortly.
-          </p>
-        )}
-
-        {watchedFilms.length > 0 ? (
-          <details className="group">
-            <summary className="text-muted-foreground hover:text-foreground focus-visible:outline-ring w-fit cursor-pointer text-sm font-medium select-none focus-visible:outline-2 focus-visible:outline-offset-2">
-              Completed ({watchedFilms.length})
-            </summary>
-            <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {watchedFilms.map((film) => (
-                <li key={film.itemId}>
-                  <DraftFilmCard film={film} />
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-      </div>
-    );
-  }
-
-  const challengeItemCount = items.filter(
-    (item) => item.source === "challenge",
-  ).length;
-  const unresolvedChallengeCount =
-    draft.challengeFilmCount - challengeItemCount;
-  const timeProgress = calculateDraftTimeProgress({
-    mode: draft.timeMode,
-    now: new Date(),
-    startedAt: new Date(draft.startedAt),
-    deadlineAt: new Date(draft.deadlineAt),
-    timezone: draft.timezone,
-  });
-
-  return (
-    <div className="space-y-6">
-      {challengeWarning ? (
-        <div className="border-watchlist-orange/40 bg-watchlist-orange/10 text-foreground rounded-lg border px-4 py-3 text-sm">
-          {challengeWarning}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="page-heading flex flex-wrap items-center gap-1.5">
-            {getDraftDisplayName(draft)}
-            <EventPresentationBadge
-              sourceEventId={draft.sourceEventId}
-              eventVisualsEnabled={eventVisualsEnabled}
-            />
-            <DraftNameEditor
-              draftId={draft.id}
-              currentCustomName={draft.customName}
-              onSaved={reloadSilently}
-            />
-          </h1>
-          <p className="page-subtitle">
-            {unresolvedChallengeCount > 0
-              ? `${unresolvedChallengeCount} challenge slot${unresolvedChallengeCount === 1 ? "" : "s"} unfilled · `
-              : ""}
-            deadline {deadlineLabel}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {freeform && draft.status === "active" ? (
-            <GenerateBatchButton
-              draftId={draft.id}
-              batchSize={FREEFORM_BATCH_SIZE}
-              onGenerated={reload}
-            />
-          ) : null}
-          {adminModeEnabled && draft.status === "active" ? (
-            <RegenerateDraftButton
-              draftId={draft.id}
-              onRegenerated={handleRegenerated}
-            />
-          ) : null}
-        </div>
-      </div>
-
-      <DraftTimeProgress progress={timeProgress} />
-
-      <ActiveDraftFilms
-        films={editableFilmCards}
-        onReroll={handleReroll}
-        onManualReplace={handleManualReplace}
-        onSlotReroll={handleSlotReroll}
-      />
-      <ManualReplaceSlotSheet
-        open={replacingItemId !== null}
-        onOpenChange={(open) => {
-          if (!open) setReplacingItemId(null);
-        }}
-        draftId={draft.id}
-        draftItemId={replacingItemId ?? ""}
-        excludedEntryIds={draftEntryIds}
-        adminModeEnabled={adminModeEnabled}
-        onReplaced={(previousWatchlistEntryId) => {
-          setReplacingItemId(null);
-          handleSlotReplaced(previousWatchlistEntryId);
-        }}
-      />
-    </div>
+      }
+    />
   );
 }

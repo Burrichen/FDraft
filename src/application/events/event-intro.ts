@@ -28,14 +28,31 @@ export interface EventIntroCandidate {
  * future event is covered automatically.
  *
  * `null` whenever: the Settings "Events" switch is off (preserves existing
- * disabled-event behaviour exactly — see `EventSwitcherSection`), nothing
- * in the registry is naturally available for this profile right now, the
- * profile already has this exact event active, or the profile already
+ * disabled-event behaviour exactly — see `EventSwitcherSection`), the
+ * profile is already active in ANY event, nothing in the registry is
+ * naturally available for this profile right now, or the profile already
  * dismissed this exact availability cycle.
  *
  * Deliberately silent on `manualActivationAllowed` events outside their
  * natural window — those have no "newly available" moment to announce and
  * stay reachable only through Settings, unchanged from Phase 5.
+ *
+ * BUGFIX (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE +
+ * EVENT ROUTING/SETTINGS FIXES" §2): the pre-existing version of this
+ * function only skipped the loop entry matching `activeEvent` itself,
+ * meaning a profile already opted into one event (e.g. Halloween) could
+ * still be offered ANOTHER naturally-available event's intro (e.g.
+ * January) — the modal is mounted globally (`EventIntroDialog`, in
+ * `AppShell`), so this surfaced as a completely unrelated event's name/
+ * header popping up over whichever page the profile was actually on (most
+ * visibly Halloween's own page), and accepting it would silently
+ * overwrite `activeEvent` out from under the event the profile was
+ * already in. The root cause was genuinely "whichever event happened to
+ * be registered/iterated first that also happened to be naturally
+ * available" — `EVENT_DEFINITIONS` is iterated in a fixed declaration
+ * order (January first), so January was the one this manifested with in
+ * practice. The fix is the early return below: once a profile has ANY
+ * active event, nothing else is ever offered until they leave it.
  */
 export async function resolveEventIntroToShow(
   repos: { settings: SettingsRepository; profiles: ProfileRepository },
@@ -47,16 +64,13 @@ export async function resolveEventIntroToShow(
   });
 
   const eventSettings = await getEventSettings(repos, params.profileId);
-  if (!eventSettings.eventsEnabled) {
+  if (!eventSettings.eventsEnabled || eventSettings.activeEvent) {
     return null;
   }
 
   const dismissals = await getEventDismissals(repos, params.profileId);
 
   for (const event of EVENT_DEFINITIONS) {
-    if (eventSettings.activeEvent === event.id) {
-      continue;
-    }
     if (!isEventAvailable(event.availability, now, params.timezone)) {
       continue;
     }

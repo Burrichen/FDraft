@@ -32,7 +32,6 @@ import { calculateFreeformRank } from "@/domain/drafts/freeform";
 import type { DraftConfigInput } from "@/domain/drafts/schemas";
 import { resolveEligibleCandidates } from "@/domain/events/event-eligibility";
 import { getEventDefinition } from "@/domain/events/event-registry";
-import { GENERIC_POINT_CURRENCY } from "@/domain/events/point-currency";
 import {
   hasNoUsableMetadata,
   mergeLocalFilmMetadata,
@@ -198,12 +197,23 @@ export async function createLocalDraft(
   const franchiseChronologicalOrder =
     params.franchiseChronologicalOrder ?? false;
 
-  if (await repos.drafts.hasActiveDraft(profileId)) {
+  // Scoped to THIS draft's own destination (see docs/updates, "PROMPT
+  // B2.1 — DUAL DRAFT ARCHITECTURE"): a plain draft (`sourceEventId:
+  // null/undefined`) only ever collides with the profile's other plain
+  // draft, and — since `/drafts/new` is also how January/Frontier/Signal
+  // drafts get created today (see `drafts/new/actions.ts`, which tags
+  // `sourceEventId` from `EventSettings.activeEvent` before calling this)
+  // — an event-tagged draft only ever collides with that SAME event's own
+  // active draft, never the profile's normal one.
+  const draftScopeEventId = params.sourceEventId ?? null;
+  if (await repos.drafts.hasActiveDraft(profileId, draftScopeEventId)) {
     return {
       ok: false,
       error: "already_active",
       message:
-        "You already have an active draft. Finish or expire it before starting another.",
+        draftScopeEventId === null
+          ? "You already have an active draft. Finish or expire it before starting another."
+          : "You already have an active draft for this event. Finish or expire it before starting another.",
     };
   }
 
@@ -474,7 +484,9 @@ export async function createLocalDraftFromSelection(
   const clock = deps.clock ?? new SystemClock();
   const { profileId, timezone, difficulty, watchlistEntryIds } = params;
 
-  if (await repos.drafts.hasActiveDraft(profileId)) {
+  // DIY drafts are always a plain, non-event draft (`sourceEventId: null`
+  // below) — scoped accordingly, same as `createLocalDraft`'s own check.
+  if (await repos.drafts.hasActiveDraft(profileId, null)) {
     return {
       ok: false,
       error: "already_active",
@@ -813,12 +825,13 @@ export async function archiveLocalDraftIfResolved(
     return false;
   }
 
-  // The `"discarded"` half of that guard matters for a real race: marking
-  // this draft's last film watched (which calls this function) can be
-  // in flight at the same moment the Say Goodbye screen's "Say Goodbye"
-  // button discards it (see `settleAndDiscardLocalDraft`) — without it, a
-  // discarded draft could be resurrected back to `"archived"` the moment
-  // this function's own `updateDraft` call below ran.
+  // The `"discarded"` half of that guard is defensive: nothing currently
+  // writes a `"discarded"` draft (the "Say Goodbye" flow that used to —
+  // see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE" §1 — was
+  // removed, since opting into an event no longer touches a profile's
+  // normal Draft at all), but a draft imported from an older backup could
+  // still carry that status, and this guard keeps it from ever being
+  // resurrected back to `"archived"`.
   const items = await repos.drafts.listItemsForDraft(params.draftId);
   const unresolvedItems = items.filter(
     (item): item is DraftItemRecord => !item.isCompleted,
@@ -861,76 +874,6 @@ export async function archiveLocalDraftIfResolved(
   await awardDraftCompletionReward(
     repos,
     { profileId: params.profileId, draftId: params.draftId, reward },
-    { clock },
-  );
-  return true;
-}
-
-/**
- * Ends a draft the profile is letting go of for an event transition (see
- * docs/product-spec.md, event system Phase 3, "SAY GOODBYE") — NOT a
- * normal completion. Unlike `archiveLocalDraftIfResolved`, this never
- * requires every item to be resolved first: whatever's still unwatched
- * when this runs is simply left that way, and `status` becomes
- * `"discarded"`, not `"archived"`. `sourceEventId` is never touched — the
- * outgoing draft stays exactly whichever draft it always was.
- *
- * If the draft already reached a terminal state on its own before this
- * ran (e.g. the profile watched every remaining film during the Say
- * Goodbye screen, which auto-archives via the normal
- * `archiveLocalDraftIfResolved` path through `markLocalFilmWatched`), its
- * status is left exactly as is — only rewards get settled, never
- * downgraded from `"archived"` to `"discarded"`.
- *
- * Idempotent the same way `archiveLocalDraftIfResolved` is: a draft
- * already terminal with rewards already granted is untouched, returning
- * `false`. `rewardsGrantedAt` is the same generic, currency-agnostic
- * completion-reward guard Phase 1 added — this is its first real caller;
- * it grants no event-specific currency, only marks the timestamp.
- */
-export async function settleAndDiscardLocalDraft(
-  repos: LifecycleRepos,
-  params: { profileId: string; draftId: string },
-  deps: { clock?: Clock } = {},
-): Promise<boolean> {
-  const clock = deps.clock ?? new SystemClock();
-  const draft = await repos.drafts.getById(params.profileId, params.draftId);
-  if (!draft) {
-    return false;
-  }
-
-  const isTerminal =
-    draft.status === "archived" || draft.status === "discarded";
-  if (isTerminal && draft.rewardsGrantedAt) {
-    return false;
-  }
-
-  if (!isTerminal) {
-    const now = clock.now().toISOString();
-    await repos.drafts.updateDraft({
-      ...draft,
-      status: "discarded",
-      completedAt: draft.completedAt ?? now,
-      updatedAt: now,
-    });
-  }
-
-  // Say Goodbye always closes out the draft being LET GO OF for an event
-  // transition — never the incoming event's own draft (see
-  // `confirmSayGoodbye`) — so this never passes an `eventContext`: it
-  // always awards the generic/Lifetime currency outright, satisfying "Say
-  // Goodbye awards no event-specific currency" unconditionally rather than
-  // relying on the manual-event downgrade rule to happen to produce that
-  // result. Reuses the one centralized reward path (see
-  // `awardDraftCompletionReward`) instead of setting `rewardsGrantedAt`
-  // inline here itself.
-  await awardDraftCompletionReward(
-    repos,
-    {
-      profileId: params.profileId,
-      draftId: params.draftId,
-      reward: { currency: GENERIC_POINT_CURRENCY, amount: 0 },
-    },
     { clock },
   );
   return true;
@@ -1026,6 +969,7 @@ export async function abandonLocalDraft(
           draftItemId: item.id,
           draftId: draft.id,
           draftArchivedByThisAction: false,
+          secondaryDraftCompletion: null,
         },
       },
       deps,

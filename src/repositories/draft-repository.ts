@@ -21,12 +21,31 @@ import type {
  * service, never duplicated into the repository layer.
  */
 export interface DraftRepository {
-  getActiveOrExpiredDraft(profileId: string): Promise<DraftRecord | null>;
+  /**
+   * The profile's current active-or-expired draft WITHIN ONE SCOPE — see
+   * docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE": a normal Draft
+   * (`sourceEventId: null`) and an event's own Draft (`sourceEventId:
+   * "halloween"`, etc.) are independent and can both be active at once, so
+   * every caller must say which one it means. `sourceEventId` is matched
+   * exactly against `DraftRecord.sourceEventId` — never inferred from a
+   * route or page title (see `DraftRecord.sourceEventId`'s own doc
+   * comment for why that field is the one source of truth here).
+   */
+  getActiveOrExpiredDraft(
+    profileId: string,
+    sourceEventId: string | null,
+  ): Promise<DraftRecord | null>;
   getById(profileId: string, draftId: string): Promise<DraftRecord | null>;
   listArchived(profileId: string): Promise<DraftRecord[]>;
   /** Every draft this profile owns, regardless of status — active, expired, and archived. Used by full-profile operations (backup export) that need the complete picture, unlike the history page's `listArchived`. */
   listAllForProfile(profileId: string): Promise<DraftRecord[]>;
-  hasActiveDraft(profileId: string): Promise<boolean>;
+  /** Every currently `"active"` draft this profile owns, across every scope at once — used only where a normal Draft and an event Draft genuinely need to be considered together (see `completeMatchingActiveDraftItem` in `local-watchlist-service.ts`, "a film can theoretically appear in both active Drafts"). Everywhere else, prefer the scoped `getActiveOrExpiredDraft`/`hasActiveDraft`. */
+  listActiveDrafts(profileId: string): Promise<DraftRecord[]>;
+  /** Same scoping as `getActiveOrExpiredDraft` — whether THIS scope (normal, or one specific event) already has an active draft, never "any draft at all." */
+  hasActiveDraft(
+    profileId: string,
+    sourceEventId: string | null,
+  ): Promise<boolean>;
   createDraft(draft: DraftRecord): Promise<void>;
   updateDraft(draft: DraftRecord): Promise<void>;
   /**

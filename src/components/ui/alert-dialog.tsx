@@ -30,7 +30,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/40 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-50 bg-black/40 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:data-ending-style:opacity-0 motion-safe:data-starting-style:opacity-0",
         className,
       )}
       {...props}
@@ -48,7 +48,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          "bg-popover text-popover-foreground fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 shadow-lg transition duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0",
+          "bg-popover text-popover-foreground fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 shadow-lg motion-safe:transition motion-safe:duration-150 motion-safe:data-ending-style:scale-95 motion-safe:data-ending-style:opacity-0 motion-safe:data-starting-style:scale-95 motion-safe:data-starting-style:opacity-0",
           className,
         )}
         {...props}

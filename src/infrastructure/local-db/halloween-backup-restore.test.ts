@@ -183,9 +183,13 @@ describe("Backup/restore — session-only Halloween easter-egg state is never in
     const serialized = JSON.stringify(backup).toLowerCase();
 
     // None of these session-only concepts ever get a key in the backup —
-    // gravestone click count, candy bowl count, and Haunted's armed/
-    // triggered state are pure React component state, never written to
-    // ProfileSettings or the generic settings table.
+    // gravestone click count, candy bowl count, and the Settings "Haunted"
+    // jumpscare's armed/triggered state are pure React component state,
+    // never written to ProfileSettings or the generic settings table. (A
+    // naming coincidence, not a contradiction: "Haunted Points" — see
+    // `haunted-points-backup-restore.test.ts` — IS a real persisted
+    // currency and DOES round-trip; this profile just never earned any,
+    // so no `pointBalances` row for it exists to serialize here.)
     for (const forbidden of [
       "gravestone",
       "candybowl",

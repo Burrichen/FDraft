@@ -61,7 +61,8 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
   // dedicated temporary page proving the generic Event Page framework
   // without touching any of the mechanics above. Nav icon is resolved
   // separately (see `src/components/layout/use-nav-items.ts`), reusing
-  // this event's existing Snowflake visual theme rather than a new icon.
+  // this event's own visual theme — a hand-authored trash can (see
+  // docs/updates, "PROMPT B2.1", §3) — rather than a new icon.
   page: { route: "/events/january", navLabel: "January" },
 };
 
@@ -128,6 +129,14 @@ const HALLOWEEN: EventDefinition = {
   draftRules: {},
   eligibilityRules: { requiredGenres: null, curatedFilmIds: null },
   intro: {
+    // `description`/`bullets` are kept populated (required fields on the
+    // shared `EventIntroContent` shape every event uses) but are NOT what
+    // the join modal actually renders for Halloween any more — see
+    // docs/updates, "PROMPT B2.3 — HALLOWEEN JOIN MODAL COMPLETE
+    // REDESIGN" §3: `EventVisualTheme.renderIntroContent`
+    // (`halloween-intro-content.tsx`) fully replaces this plain-string
+    // content with genuinely rich, word-level-emphasized copy the generic
+    // dialog path (still used by every other event) can't express.
     description:
       "Halloween has arrived — a full seasonal event with its own space in FDraft.",
     bullets: [
@@ -137,8 +146,9 @@ const HALLOWEEN: EventDefinition = {
       "Seasonal styling across the app while it's active",
       "A few hidden interactions to find — we're not telling",
     ],
-    primaryActionLabel: "I want to join the Halloween Event",
-    secondaryActionLabel: "I'm not interested",
+    // Exact copy from docs/updates, "PROMPT B2.3" §1.
+    primaryActionLabel: "Let me in.",
+    secondaryActionLabel: "I don't want to be scared!",
   },
   pointType: null,
   // See docs/updates, "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI + APPROVED
@@ -150,6 +160,10 @@ const HALLOWEEN: EventDefinition = {
   manualActivationAllowed: false,
   page: { route: "/events/halloween", navLabel: "Halloween" },
   enableVisualsOnOptIn: true,
+  // See docs/updates, "PROMPT B2.2 — HALLOWEEN PAGE REBUILD + DEADLINE +
+  // STATS" §3 — Halloween has ONE fixed deadline (the event's own end),
+  // not a Calendar/Timer choice.
+  fixedEventDeadline: true,
 };
 
 /**

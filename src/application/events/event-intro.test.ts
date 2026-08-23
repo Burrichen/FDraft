@@ -4,7 +4,10 @@ import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
-import { F_YOU_ITS_JANUARY_EVENT_ID } from "@/domain/events/event-registry";
+import {
+  F_YOU_ITS_JANUARY_EVENT_ID,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -125,6 +128,28 @@ describe("resolveEventIntroToShow", () => {
     );
     expect(nextCycle?.event.id).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
     expect(nextCycle?.cycleId).toBe("2027");
+  });
+
+  it("already opted into a DIFFERENT event — no intro for a second, newly-available event (regression, PROMPT B2.1 — the January-header-leaking-onto-Halloween's-page bug)", async () => {
+    db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await applyEventOptIn(repos, {
+      profileId: PROFILE_ID,
+      eventId: HALLOWEEN_EVENT_ID,
+      manuallyEnabled: false,
+    });
+
+    // January is genuinely, naturally available right now — the OLD bug
+    // only ever skipped the loop entry matching `activeEvent` itself, so
+    // it would still return January here even though the profile is
+    // already committed to Halloween.
+    const result = await resolveEventIntroToShow(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock: JANUARY_2026 },
+    );
+
+    expect(result).toBeNull();
   });
 
   it("dismissing the event does not affect its opt-in-ability — Settings' opt-in path is untouched by dismissal state", async () => {

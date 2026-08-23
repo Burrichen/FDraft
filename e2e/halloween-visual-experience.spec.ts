@@ -29,7 +29,7 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
   // so a reload is what makes both reflect the newly-armed simulated date.
   await page.reload();
   const joinButton = page.getByRole("button", {
-    name: "I want to join the Halloween Event",
+    name: "Let me in.",
   });
   await expect(joinButton).toBeVisible();
   await joinButton.click();

@@ -54,6 +54,10 @@
   --color-halloween-cream-foreground: var(--halloween-cream-foreground);
   --color-halloween-charcoal: var(--halloween-charcoal);
   --color-halloween-charcoal-foreground: var(--halloween-charcoal-foreground);
+  --color-halloween-stem: var(--halloween-stem);
+  --color-halloween-rot: var(--halloween-rot);
+  --color-halloween-mould: var(--halloween-mould);
+  --color-halloween-glow: var(--halloween-glow);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -131,6 +135,19 @@
   --halloween-cream-foreground: oklch(0.2 0.02 80);
   --halloween-charcoal: oklch(0.15 0.012 290);
   --halloween-charcoal-foreground: oklch(0.92 0.01 290);
+  /* Decay palette (see docs/updates, "PROMPT B2.4 — HALLOWEEN DECORATION +
+     EASTER-EGG ART POLISH" §2) — a sturdy stem brown, and a rot/mould pair
+     used only by the pumpkin's "rotting" state (brownish-olive decay,
+     pale mouldy green-grey), never gore-red/black. */
+  --halloween-stem: oklch(0.42 0.07 110);
+  --halloween-rot: oklch(0.32 0.05 130);
+  --halloween-mould: oklch(0.6 0.04 150);
+  /* A genuinely bright warm glow for the pumpkin's "lit" carved cutouts —
+     distinct from `--halloween-pumpkin-foreground` (a dark text-contrast
+     color, not a light source), so lit vs. unlit-carved actually reads as
+     different once carved (see docs/updates, "PROMPT B2.4" §2, live QA
+     finding: the two states looked nearly identical without this). */
+  --halloween-glow: oklch(0.88 0.15 85);
 }
 
 /**
@@ -356,6 +373,27 @@
       opacity: 1;
     }
   }
+
+  /* The lid's own hinge sits at its left edge, just above the can's rim —
+     see nav-icons.tsx's JanuaryTrashCanNavIcon. */
+  .nav-icon-trash-lid {
+    transform-origin: 5px 6px;
+  }
+  .group:hover .nav-icon-trash-lid,
+  .group:focus-visible .nav-icon-trash-lid {
+    animation: nav-trash-lid 420ms ease-in-out;
+  }
+  @keyframes nav-trash-lid {
+    0% {
+      transform: rotate(0deg);
+    }
+    40% {
+      transform: rotate(-18deg);
+    }
+    100% {
+      transform: rotate(0deg);
+    }
+  }
 }
 
 /*
@@ -426,6 +464,61 @@
     }
     50% {
       transform: rotate(4deg);
+    }
+  }
+
+  /* A hanging ornament's thread anchors at its top — see
+     HalloweenHangingOrnament in halloween-decorations.tsx. */
+  .halloween-ornament-sway {
+    transform-origin: top center;
+    animation: halloween-ornament-sway 3.6s ease-in-out infinite;
+  }
+  @keyframes halloween-ornament-sway {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+
+  /* The join modal's decoration layer settles in a beat after the modal
+     itself finishes its own scale/fade entrance (see docs/updates,
+     "PROMPT B2.3 — HALLOWEEN JOIN MODAL COMPLETE REDESIGN" §6) — a
+     subtle, purely cosmetic flourish, never gating readability (the
+     decoration is already `aria-hidden` and fully legible at 0ms too). */
+  .halloween-modal-decoration-settle {
+    animation: halloween-decoration-settle 500ms 80ms ease-out backwards;
+  }
+  @keyframes halloween-decoration-settle {
+    0% {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* HalloweenCandle's flame — see docs/updates, "PROMPT B2.4 — HALLOWEEN
+     DECORATION + EASTER-EGG ART POLISH" §4. A subtle, slow flicker; never
+     the only established-interaction exception, just ambient dressing at
+     the same gentle amplitude as the bat/ornament sway above. */
+  .halloween-candle-flicker {
+    transform-origin: bottom center;
+    animation: halloween-candle-flicker 2.4s ease-in-out infinite;
+  }
+  @keyframes halloween-candle-flicker {
+    0%,
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(0.92) rotate(-2deg);
+      opacity: 0.85;
     }
   }
 }

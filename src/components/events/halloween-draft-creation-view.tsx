@@ -8,7 +8,6 @@ import { createHalloweenLocalDraft } from "@/application/drafts/halloween-draft-
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import { HalloweenDifficultyPicker } from "@/components/drafts/halloween-difficulty-picker";
 import { HalloweenLinkedSliders } from "@/components/drafts/halloween-linked-sliders";
-import { TimeModeToggle } from "@/components/drafts/time-mode-toggle";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +17,7 @@ import {
   type HalloweenSplit,
 } from "@/domain/drafts/halloween-split";
 import {
+  getCurrentOccurrenceBounds,
   getNextOccurrenceStart,
   isEventAvailable,
 } from "@/domain/events/event-availability";
@@ -26,15 +26,17 @@ import {
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
 import { useAsyncData } from "@/hooks/use-async-data";
-import type { DraftDifficulty, DraftTimeMode } from "@/repositories";
+import type { DraftDifficulty } from "@/repositories";
 
 /**
  * "Create Halloween Draft" — the Halloween Event page's empty state (see
- * docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS" §1/§2/§9). Plugged
- * into `EventPageView` via its `emptyStateSlot` prop rather than living
- * inside that shared shell, since this flow is genuinely Halloween-specific
- * (a three-pool allocation, no Freeform, its own generation function) —
- * see `event-page-view.tsx`'s doc comment.
+ * docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS" §1/§2/§9;
+ * deadline/layout revised by "PROMPT B2.2 — HALLOWEEN PAGE REBUILD +
+ * DEADLINE + STATS"). Rendered directly by `HalloweenPageClient` — this
+ * flow is genuinely Halloween-specific (a three-pool allocation, no
+ * Freeform, its own generation function, ONE fixed event-end deadline
+ * with no Calendar/Timer choice) rather than living in the generic Event
+ * page shell.
  *
  * Gated on Halloween's own natural window (see docs/updates, "PROMPT 21 —
  * HALLOWEEN RELEASE HARDENING", §"HALLOWEEN EXPIRY") — a profile that
@@ -53,7 +55,6 @@ export function HalloweenDraftCreationView({
     DraftDifficulty,
     "freeform"
   > | null>(null);
-  const [timeMode, setTimeMode] = useState<DraftTimeMode>("calendar");
   const [split, setSplit] = useState<HalloweenSplit | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +82,6 @@ export function HalloweenDraftCreationView({
         profileId: activeProfile.id,
         timezone: activeProfile.timezone,
         difficulty,
-        timeMode,
         split,
         effectiveNow: data.effectiveNow,
       });
@@ -138,6 +138,15 @@ export function HalloweenDraftCreationView({
   }
 
   const availability = data.availability;
+  // Halloween has ONE fixed deadline — the end of the CURRENT occurrence
+  // (see docs/updates, "PROMPT B2.2 — HALLOWEEN PAGE REBUILD + DEADLINE +
+  // STATS" §3) — never a Calendar/Timer choice. Non-null: `available` above
+  // already confirmed `data.effectiveNow` falls inside this occurrence.
+  const eventDeadline = getCurrentOccurrenceBounds(
+    halloween.availability,
+    data.effectiveNow,
+    activeProfile.timezone,
+  )!.end;
 
   return (
     <div className="space-y-6">
@@ -146,6 +155,20 @@ export function HalloweenDraftCreationView({
           <CardTitle className="text-base">Create Halloween Draft</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <section className="space-y-1.5">
+            <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Event Deadline
+            </h3>
+            <p className="text-foreground text-sm">
+              {formatInTimeZone(
+                eventDeadline,
+                activeProfile.timezone,
+                "d MMMM",
+              )}{" "}
+              — ends at midnight
+            </p>
+          </section>
+
           <section className="space-y-3">
             <h3 className="text-foreground text-sm font-bold">
               Choose a difficulty
@@ -157,29 +180,22 @@ export function HalloweenDraftCreationView({
           </section>
 
           {difficulty && split && availability ? (
-            <>
-              <section className="space-y-3">
-                <h3 className="text-foreground text-sm font-bold">
-                  Halloween-adjacent / Horror / Kitsch
-                </h3>
-                <p className="text-muted-foreground text-xs">
-                  Halloween-adjacent {availability.halloweenAdjacentAvailable}{" "}
-                  available / Horror {availability.horrorAvailable} available /
-                  Kitsch {availability.kitschAvailable} available.
-                </p>
-                <HalloweenLinkedSliders
-                  totalFilms={getFilmCount(difficulty)}
-                  split={split}
-                  onChange={setSplit}
-                  availability={availability}
-                />
-              </section>
-
-              <section className="space-y-3">
-                <h3 className="text-foreground text-sm font-bold">Deadline</h3>
-                <TimeModeToggle value={timeMode} onChange={setTimeMode} />
-              </section>
-            </>
+            <section className="space-y-3">
+              <h3 className="text-foreground text-sm font-bold">
+                Halloween-adjacent / Horror / Kitsch
+              </h3>
+              <p className="text-muted-foreground text-xs">
+                Halloween-adjacent {availability.halloweenAdjacentAvailable}{" "}
+                available / Horror {availability.horrorAvailable} available /
+                Kitsch {availability.kitschAvailable} available.
+              </p>
+              <HalloweenLinkedSliders
+                totalFilms={getFilmCount(difficulty)}
+                split={split}
+                onChange={setSplit}
+                availability={availability}
+              />
+            </section>
           ) : null}
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}

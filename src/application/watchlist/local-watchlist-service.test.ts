@@ -80,6 +80,7 @@ describe("markLocalFilmWatched", () => {
       draftItemId: null,
       draftId: null,
       draftArchivedByThisAction: false,
+      secondaryDraftCompletion: null,
     });
 
     const updated = await repos.watchlist.getEntryById(PROFILE_ID, entry.id);
@@ -203,14 +204,15 @@ describe("markLocalFilmWatched", () => {
     expect(item?.watchedHistoryId).not.toBeNull();
   });
 
-  it("completes the ACTIVE draft's item, not a discarded draft's permanently-incomplete item for the same watchlist entry (see event system Phase 3, SAY GOODBYE)", async () => {
+  it("completes the ACTIVE draft's item, not a discarded draft's permanently-incomplete item for the same watchlist entry", async () => {
     db = new FDraftLocalDatabase(`mark-watched-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     const entry = await seedFilmAndEntry(repos);
 
-    // A draft the profile said goodbye to — its item for this same
-    // watchlist entry stays incomplete forever (see
-    // settleAndDiscardLocalDraft), unlike a normally archived draft.
+    // A discarded draft (a historical/imported status — nothing currently
+    // active produces one, see docs/updates, "PROMPT B2.1 — DUAL DRAFT
+    // ARCHITECTURE" §1) — its item for this same watchlist entry stays
+    // incomplete forever, unlike a normally archived draft.
     const discardedDraft: DraftRecord = {
       id: "draft-discarded",
       profileId: PROFILE_ID,
@@ -568,6 +570,7 @@ function recordFromOutcome(
     draftItemId: outcome.draftItemId,
     draftId: outcome.draftId,
     draftArchivedByThisAction: outcome.draftArchivedByThisAction,
+    secondaryDraftCompletion: outcome.secondaryDraftCompletion,
   };
 }
 
@@ -978,6 +981,7 @@ describe("undoLocalFilmWatched", () => {
       draftItemId: "item-1",
       draftId: draft.id,
       draftArchivedByThisAction: false,
+      secondaryDraftCompletion: null,
     };
 
     await undoLocalFilmWatched(repos, {
@@ -1006,6 +1010,7 @@ describe("undoLocalFilmWatched", () => {
       draftItemId: null,
       draftId: null,
       draftArchivedByThisAction: false,
+      secondaryDraftCompletion: null,
     };
 
     await undoLocalFilmWatched(repos, {
@@ -1034,6 +1039,7 @@ describe("undoLocalFilmWatched", () => {
         draftItemId: null,
         draftId: null,
         draftArchivedByThisAction: false,
+        secondaryDraftCompletion: null,
       },
     });
 
@@ -1128,6 +1134,7 @@ describe("markLocalDraftItemWatchedWithoutEntry", () => {
       draftItemId: "horror-item-1",
       draftId: "halloween-draft-1",
       draftArchivedByThisAction: false,
+      secondaryDraftCompletion: null,
     });
 
     const item = await repos.drafts.getItemById("horror-item-1");
@@ -1267,6 +1274,7 @@ describe("undoLocalFilmWatched — off-watchlist item (null watchlistEntryId)", 
       draftItemId: watched.draftItemId,
       draftId: watched.draftId,
       draftArchivedByThisAction: watched.draftArchivedByThisAction,
+      secondaryDraftCompletion: watched.secondaryDraftCompletion,
     };
 
     const undone = await undoLocalFilmWatched(repos, {
@@ -1319,6 +1327,7 @@ describe("undoLocalFilmWatched — off-watchlist item (null watchlistEntryId)", 
         draftItemId: watched.draftItemId,
         draftId: watched.draftId,
         draftArchivedByThisAction: watched.draftArchivedByThisAction,
+        secondaryDraftCompletion: watched.secondaryDraftCompletion,
       },
     });
 

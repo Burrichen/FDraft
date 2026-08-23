@@ -2008,6 +2008,30 @@ its reward to the generic/Lifetime currency — only completing a draft
 during the event's own natural window (or, for testing, an Admin-simulated
 date inside it) ever banks that event's real currency.
 
+### Dual Draft architecture
+
+A profile's normal Draft and an event's own Draft (e.g. Halloween's) are
+completely independent — one of each can be active at the same time, and
+neither ever needs to be given up for the other. `DraftRecord.sourceEventId`
+(`null` for a normal Draft, an event's id for that event's own) is the one
+field that scopes every draft-exclusivity check (`hasActiveDraft`) and
+every "find the current draft" lookup (`getActiveOrExpiredDraft`) — never
+routes, page titles, or a second `activeDraft`-style variable. Opting into
+an event never touches a profile's normal Draft, and creating either kind
+of draft never deletes, archives, or completes the other. If the exact same
+Watchlist film is ever drafted into both at once, marking it watched
+completes both drafts' matching items from that one action, and each draft
+still resolves and rewards independently (no reward is ever granted twice
+for the same draft).
+
+### Event Settings — active events only
+
+A normal user can only ever opt into an event that is CURRENTLY naturally
+active (or Admin-simulated as such) — Settings shows either the naturally-
+active event(s) available to join, or, once joined, that one event's own
+"Event Visuals"/"Event Gameplay" toggles. There is no catalogue of inactive
+events a normal user can manually force on outside their natural window.
+
 ### Admin Event Testing (TEMPORARY developer tooling)
 
 Settings' "Event Testing" section — visible ONLY while a profile's own
@@ -2088,6 +2112,18 @@ though a profile that stayed opted in keeps its Event page, and every
 already-archived Halloween draft remains fully visible in History exactly
 as before.
 
+A Halloween Draft has ONE fixed deadline — the real end of the CURRENT
+occurrence's natural window (1 November 00:00, in the profile's own
+timezone) — never a Calendar/Timer Mode choice; every Draft created
+anywhere within the window gets that exact same deadline
+(`EventDefinition.fixedEventDeadline`, resolved via
+`getCurrentOccurrenceBounds`). Its time-progress display shows how far
+through the WHOLE event window (30 September 19:00 → 1 November 00:00)
+the profile is, using the same Admin-aware `getEffectiveEventDate` —
+never 0% just because the Draft itself was created partway through the
+season, and never affected by whatever the Admin override happens to be
+simulating for anything else.
+
 ### Editing the Horror and Kitsch lists
 
 Both lists live in one small, hand-edited, versioned JSON file —
@@ -2118,6 +2154,15 @@ currently opted into Halloween — both disappear again if the profile
 opts out or Events are turned off. The navigation icon is a hand-authored,
 original FDraft-style vector icon (a simplified jack-o'-lantern outline,
 matching every other nav icon's stroke weight/style) — never an emoji.
+
+The page itself is a genuine themed counterpart of the normal Draft page,
+not a generic Event shell with explanatory copy bolted on: it shows Event
+identity, the fixed Event deadline, Draft creation, and (once one exists)
+the active Halloween Draft directly — the same shared draft-lifecycle
+presentation `/drafts` uses (deadline, time/film progress, the responsive
+film grid, watched controls, Halloween pool badges), scoped to Halloween's
+own independent Draft slot. The join modal's own description/bullets stay
+there — the page itself never repeats them.
 
 ### Seasonal visual theming and easter eggs
 
@@ -5357,3 +5402,257 @@ details, plus a Settings-only, explicitly-labeled one-time visual moment.
   no change to how any OTHER event (January, Watchlist Frontier, Signal
   from Beyond) behaves; Admin Event Testing remains explicitly temporary,
   developer-only tooling, not a real product feature.
+
+### Phase 11 — Dual Draft architecture, event routing fixes, and Haunted Points
+
+- **Removed the "one active Draft total" rule.** A normal Draft and an
+  event's own Draft (Halloween's) are now fully independent — both can be
+  active for the same profile at once. The data model already had the
+  right field for this (`DraftRecord.sourceEventId`); the fix was scoping
+  every exclusivity/lookup call (`hasActiveDraft`, `getActiveOrExpiredDraft`)
+  by it instead of checking "any draft at all." Opting into an event no
+  longer has a "Say Goodbye" detour — it never touches a profile's normal
+  Draft, so `settleAndDiscardLocalDraft` and the whole Say Goodbye UI were
+  removed as dead code rather than left unreachable.
+- **A shared `DraftLifecycleView`** was extracted from the Drafts page so
+  an event's own page (Halloween) can show and progress its OWN active
+  draft — reroll, manual replace, postmortem, the lot — without linking
+  away to `/drafts`, which would show the wrong draft (or none) now that
+  the two are independent.
+- **Watched-film sharing.** A Watchlist film can legitimately be drafted
+  into both an active normal Draft and an active Halloween Draft at once.
+  Marking it watched now completes the matching item in every active draft
+  that has one (previously just the single "current" draft), and each
+  draft still resolves/rewards independently through the existing
+  `rewardsGrantedAt` idempotency guard — never double-granting the same
+  draft's reward, but correctly granting two DIFFERENT drafts their own
+  reward from one action. Undo reverses both completions symmetrically.
+- **Root-caused the January-header-leaking-onto-Halloween's-page bug.**
+  The event introduction modal is mounted globally and offers whichever
+  registered event is naturally available and not yet joined — but it only
+  ever skipped its loop entry for the event matching `activeEvent` itself,
+  never "skip everything once a profile has ANY active event." A profile
+  already in Halloween could still be offered January's intro (literally
+  "whichever event happened to be registered/iterated first that was also
+  available" — January is first in registry order). Fixed with one early
+  return; regression-tested at both the resolver and component level.
+- **January's nav/theme icon is now a hand-authored trash can**, matching
+  every other nav icon's stroke style, with a small lid-lift on hover/
+  focus (reduced-motion gated, like every other nav icon). The `Snowflake`
+  icon it used to borrow from `lucide-react` is now deliberately unused
+  and documented as reserved for a future Christmas Event — no Christmas
+  nav tab, page, or gameplay was added.
+- **Event Settings redesigned around "active events only."** A normal user
+  can no longer manually force an inactive event on from a catalogue —
+  Settings shows either the naturally-active event(s) available to join, or
+  (once joined) that one event's "Event Visuals"/"Event Gameplay" toggles.
+  The generic "Events" switch and its manual-activation-fallback auto-pick
+  are gone from the UI; the underlying domain function keeps an explicit-id
+  manual-activation path for The Watchlist Frontier/Signal from Beyond
+  (which have no natural window at all and no other way to be reached), but
+  nothing in the current UI ever exercises it. Admin Mode's simulated date
+  makes an event "naturally active" through the same `isEventAvailable`
+  check everything else uses — no separate "force" button was added.
+- **Haunted Points** (`PointCurrency`, `POINT_CURRENCIES`, the backup
+  schema's currency enum) is a real, persisted, profile-isolated currency
+  with a genuine backup/restore round trip and a default balance of 0 —
+  deliberately NOT wired to Halloween's `pointType` (which stays `null`),
+  since doing so would silently start awarding it on every natural
+  Halloween Draft completion through the existing generic reward path —
+  an earning mechanic this phase was explicitly told not to invent. A
+  small "Haunted Points: N" line on the Halloween page is the only UI
+  surface for it today.
+- **Testing.** A dedicated dual-draft integration suite (both active at
+  once, creating one never touches the other, a shared watched film
+  completes both with correct reward idempotency, History shows both with
+  the event one retaining its identity); a regression test for the
+  January-intro-leak fix at both layers; icon-identity tests proving
+  January never resolves to `Snowflake`; a rewritten Event Settings test
+  suite for the active-events-only redesign; and Haunted Points
+  persistence/isolation/backup-restore tests. `pnpm format`, `pnpm lint`,
+  `pnpm typecheck` (strict), and the full unit/integration suite (152
+  files, 1713 tests) are all clean, and the production web build succeeds.
+- **What this phase does NOT do, on purpose:** no Halloween visual/modal
+  redesign (explicitly deferred); no earning mechanic for Haunted Points;
+  no change to The Watchlist Frontier/Signal from Beyond's own mechanics,
+  only to how (rarely) they're reachable; no Christmas Event.
+
+### Phase 12 — Halloween page rebuild, fixed Event deadline, and Stats currencies
+
+- **The Halloween page no longer delegates to the generic `EventPageView`
+  shell.** That shell's "description + bullets" explanation duplicated the
+  join modal's own content and had no job left once a profile was opted
+  in — `HalloweenPageClient` is now a bespoke page (January's page is
+  untouched) that shows Event identity, the fixed Event deadline, Draft
+  creation, and the active Draft directly, reusing the shared
+  `DraftLifecycleView` (see Phase 11) rather than a "you have an active
+  draft, go here" redirect — no extra navigation step to reach any of it.
+- **Halloween Draft has ONE fixed deadline.** `EventDefinition.
+fixedEventDeadline` is a new, generic opt-in flag (not a Halloween-only
+  special case) — when set, a new domain function,
+  `getCurrentOccurrenceBounds` (the current-occurrence counterpart to the
+  existing `getNextOccurrenceStart`), supplies the real start/end instants
+  of the event's current natural window; Halloween Draft creation uses the
+  end of that window as `deadlineAt` regardless of when in the window it's
+  created, and the Calendar/Timer Mode toggle is gone entirely from its
+  creation UI, replaced with a plain "Event Deadline" display.
+- **Event time progress.** A `fixedEventDeadline` Draft's progress bar
+  now shows how far through the EVENT's whole window the profile is
+  (anchored to the event's own start instant and the Admin-aware
+  `getEffectiveEventDate`), not how far through the Draft's own creation-
+  to-deadline span — a Draft created mid-October correctly reads as
+  roughly half elapsed, not 0%. The Draft's own persisted `startedAt`/
+  `deadlineAt` are real, untouched historical timestamps; only the
+  progress-bar DISPLAY differs, and only for this kind of Draft.
+- **History** now shows "Event deadline" instead of a Calendar/Timer mode
+  label for a `fixedEventDeadline` Draft — that choice was never actually
+  made, so labeling it "Timer mode" would misrepresent it. Normal and
+  Event Drafts remain fully distinguishable, and both keep appearing in
+  History at once (dual-Draft support unchanged, see Phase 11).
+- **Stats gained a permanent Points section** — Lifetime, Misery, and
+  Haunted totals, always shown (never hidden as "unavailable," since a
+  point balance defaults to a real 0, not a missing value), each with its
+  own hand-authored or reused vector icon (Lifetime reuses the app's own
+  `Clapperboard` mark; Misery gets a small raincloud; Haunted gets its own
+  ghost silhouette, deliberately distinct from the nav tab's pumpkin) —
+  never emoji, never one icon repeated for every concept.
+- **Haunted Points still has no earning mechanic** — its Stats total is
+  currently, honestly, always 0 for every profile, and this phase did not
+  invent one (see Phase 11's own note on why `HALLOWEEN.pointType` stays
+  `null`). This remains a known, real product-rule gap, not an oversight.
+- **Testing.** Deadline correctness for creation at the start, middle, and
+  end of the window (plus a non-UTC timezone case) at both the service and
+  component layers; `getCurrentOccurrenceBounds` unit tests; a dedicated
+  Halloween-page component suite (empty state with no explanatory copy,
+  the active Draft rendered directly with its film/badge, dual-Draft
+  coexistence, event-progress percentage under both the real clock and an
+  Admin override — verified against a hand-computed exact percentage, not
+  just "not 0%"); a new History component test suite (previously untested
+  at this level) covering the label/badge distinction and dual-Draft
+  display; and a Stats Points test suite. `pnpm format`, `pnpm lint`,
+  `pnpm typecheck` (strict), the full unit/integration suite (154 files,
+  1732 tests), the Halloween end-to-end Playwright spec, and the
+  production web build are all clean. Three pre-existing, already-
+  documented e2e failures unrelated to this phase (a stale case-sensitive
+  `/Baby draft/` regex in old specs that can never match the real "August
+  Baby Draft" format) were re-confirmed, not newly introduced.
+- **What this phase does NOT do, on purpose:** no join-modal or
+  decorative/visual redesign (explicitly deferred); no dual-Draft
+  architecture changes (Phase 11 stands); no Haunted Points earning rule.
+
+### Phase 13 — Halloween join modal complete redesign
+
+- **The global opt-in modal (`EventIntroDialog`) got a full visual
+  redesign, scoped entirely to Halloween via the existing per-event theme
+  hooks** — no per-event branch added to the dialog itself. `EventVisualTheme`
+  gained two new optional fields, `titleClassName` and `renderIntroContent`,
+  both `undefined` for every event but Halloween, so January/Frontier/
+  Signal's dialog rendering is byte-for-byte unchanged.
+- **Size, copy, and decoration.** The dialog is now 70–92vw wide (capped
+  at `max-w-2xl`) instead of a small fixed card; the title is large,
+  centered, and orange; the body is a new hand-authored `renderIntroContent`
+  with exact word-level bold-orange emphasis on "Halloween" and "seasonal
+  event," a "Featuring:" heading, three bullets, and a smaller footer
+  note; the button copy is the exact required strings ("Let me in." /
+  "I don't want to be scared!"); and the decoration
+  (`halloween-dialog-decoration.tsx`) was rewritten as three depth layers
+  (background moon/stars/web, mid bats/hanging ornaments, foreground tiny
+  pumpkin/ghost/candy) spread across corners and edges instead of
+  clustered near the heading.
+- **Accessibility and motion.** Base UI's `AlertDialog` already provides
+  focus-trap/Escape/keyboard handling; `motion-safe:` prefixes were added
+  to its transition classes (a small, generic fix benefiting every dialog
+  consumer, not just Halloween's) so reduced-motion users get an instant
+  open/close with no animation.
+- **A genuine, pre-existing, out-of-scope product gap was found while
+  writing this phase's end-to-end test, not introduced by it:**
+  `resolveEventIntroToShow` requires `EventSettings.eventsEnabled === true`
+  with no `activeEvent` set before it will show the modal for any event —
+  but every real opt-in action sets both fields together, and leaving an
+  event resets both, so that precondition is structurally unreachable
+  through any current UI flow. The modal has likely never appeared to a
+  real user; every existing opt-in path (Settings' own inline "Join"
+  button) achieves the same outcome without ever opening it. Left
+  unfixed — a UI-only redesign prompt is the wrong place to change opt-in
+  state machine behavior — and the new end-to-end spec reaches the modal
+  by seeding `EventSettings` directly into IndexedDB, with the gap
+  documented inline.
+- **Testing.** A new `e2e/halloween-join-modal.spec.ts` (10 tests) covers
+  every viewport from 320px to desktop (button containment, no overflow),
+  long-text/stacking behavior at narrow widths, keyboard focus-trap,
+  reduced motion, decline flow, and the Admin EventClock override needed
+  to reach the modal at all; existing dialog/registry/nav tests were
+  updated for the new button copy. `pnpm format`, `pnpm lint`,
+  `pnpm typecheck`, the full unit/integration suite (154 files, 1732
+  tests), both Halloween end-to-end specs, and the production build are
+  all clean.
+- **What this phase does NOT do, on purpose:** no fix to the
+  `eventsEnabled`/`activeEvent` reachability gap described above; no
+  change to any other event's dialog rendering; no new opt-in mechanics.
+
+### Phase 14 — Halloween decoration and easter-egg art polish
+
+- **A pure art pass over the Halloween Event's decorative surfaces** —
+  no gameplay, no new persisted state, no change to any established
+  easter-egg's underlying rules (three-click gravestone reveal, pumpkin
+  state persistence/cycle, candy's session-only non-persistence, Haunted's
+  arm/trigger sequence).
+- **Gravestone** (`halloween-gravestone.tsx`) is now a real arched
+  headstone — bevelled stone faces for visible thickness, a ground mound,
+  an inset engraved border, a permanently-visible "R · I · P" carving,
+  chipped corner notches, and static hairline cracks — with a moss/grime
+  patch that visibly peels back across the three clicks (steepened to
+  1 → 0.5 → 0.15 → 0 after live QA found an even 1 → 0.7 → 0.35 split too
+  subtle on the first click) before revealing the name as an engraved,
+  two-tone inscription in the cleared plaque area, rather than small
+  printed text along the bottom edge.
+- **Pumpkin** (`halloween-pumpkin.tsx`) gained a genuinely distinct body
+  shape for its "rotting" state (`ROTTING_BODY_PATH`, not a filter over
+  the healthy shape) — collapsed/sagging, mottled with brown/green decay
+  blotches and mould spots, a shrivelled bent stem, and an uneven
+  asymmetric carved face. The "lit" state's carved cutouts now use a new
+  bright `--halloween-glow` token instead of the dark
+  `--halloween-pumpkin-foreground` token, so lit and unlit-carved are
+  visually distinguishable rather than near-identical dark cutouts.
+- **Candy bowl** (`halloween-candy-bowl.tsx`) is now a real bowl
+  silhouette (rim, tapered body, interior shadow) with candy pieces at
+  fixed, deterministic slot positions inside it — visibly piled, and
+  visibly depleting one slot at a time as clicked, rather than a plain
+  flex row of icons. The bowl itself stays visible once empty, with "You
+  ate all of them." shown alongside it, never replacing it.
+- **The decoration set grew** (ghost, bunting, candles, autumn leaves, a
+  sparingly-used skull, alongside the existing bat/cobweb/moon/star/tiny-
+  pumpkin) and the Halloween page's own decorative layer
+  (`halloween-decorative-layer.tsx`) was rebuilt as a scattered, four-tier
+  responsive composition (corners only on mobile; a header band from
+  `sm:`; a right-margin column and lower scatter from `lg:`; an extra pass
+  from `xl:`) instead of a single row clustered near the header. A new,
+  much sparser `HalloweenAmbientDecorations` layer (gated on
+  `eventVisualsEnabled` and the active event, excluded on the Halloween
+  page itself) applies light seasonal touches app-wide.
+- **Two rounds of live browser QA** (not just source review) caught and
+  fixed one real bug — the rotting pumpkin's face was accidentally
+  excluded from the `isCarvedFace` condition and never rendered at all —
+  plus the moss-fade and lit-glow polish above, and repositioned the
+  ambient layer's header-adjacent elements below the app's sticky header
+  (they were bleeding through its translucent background nearly
+  invisibly at their original position). All four fixes were re-verified
+  with follow-up screenshots.
+- **Testing.** A new gating test suite for `HalloweenAmbientDecorations`
+  (hidden when visuals are off, hidden when a different event is active,
+  visible on an ordinary page once both conditions hold, hidden again on
+  the Halloween page itself); the full existing gravestone/pumpkin/candy-
+  bowl behavioral test suites (unchanged — this phase is visual-only,
+  confirmed by all of them passing without modification). `pnpm format`,
+  `pnpm lint`, `pnpm typecheck`, the full unit/integration suite (155
+  files, 1736 tests), both Halloween end-to-end specs, the production
+  web build, and `cargo check` in `src-tauri` are all clean.
+- **A pre-existing, unrelated bug was surfaced during QA, not fixed:** a
+  fresh profile with an empty watchlist cannot create a Halloween Draft
+  through the normal UI — the default pool split allocates to
+  "Halloween-adjacent" even when that pool has 0 availability, collapsing
+  its slider to an unusable `min === max === 0`. Left as a disclosed,
+  out-of-scope finding (this phase adds no new gameplay).
+- **What this phase does NOT do, on purpose:** no new easter eggs, no
+  change to any earning/persistence rule, no fix to the pre-existing
+  slider-availability bug above.

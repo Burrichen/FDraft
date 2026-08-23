@@ -70,7 +70,8 @@ export type ImportStatus = "pending" | "completed" | "failed";
 export type WatchlistRemovalReason =
   "watched" | "postmortem_not_interested" | "manual";
 /** See `src/domain/events/point-currency.ts`. */
-export type PointCurrency = "lifetime" | "misery" | "signal" | "bounty";
+export type PointCurrency =
+  "lifetime" | "misery" | "signal" | "bounty" | "haunted";
 export type WatchedHistorySource =
   "app_watchlist_action" | "import_diary" | "import_watched";
 /** See `src/domain/metadata/match-method.ts` — always read through `resolveMatchMethod()`, never trusted raw (a record from before this field existed has no such property at all). */

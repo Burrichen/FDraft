@@ -118,7 +118,7 @@ describe("NavLinks — temporary Event navigation item (PROMPT 18)", () => {
     expect(link.textContent).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
   });
 
-  it("shows a January tab, linking to its route, when opted into January", async () => {
+  it("shows a January tab, linking to its route, with a real non-emoji SVG trash can icon (not the old Snowflake), when opted into January", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, {
       eventsEnabled: true,
@@ -129,10 +129,14 @@ describe("NavLinks — temporary Event navigation item (PROMPT 18)", () => {
     await waitFor(() =>
       expect(screen.getByText("January")).toBeInTheDocument(),
     );
-    expect(screen.getByRole("link", { name: /january/i })).toHaveAttribute(
-      "href",
-      "/events/january",
-    );
+    const link = screen.getByRole("link", { name: /january/i });
+    expect(link).toHaveAttribute("href", "/events/january");
+    const icon = link.querySelector("svg");
+    expect(icon).not.toBeNull();
+    // The trash can (see nav-icons.tsx's JanuaryTrashCanNavIcon) has a
+    // dedicated lid group; lucide's old Snowflake icon never did.
+    expect(icon?.querySelector(".nav-icon-trash-lid")).not.toBeNull();
+    expect(link.textContent).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
   });
 
   it("shows no extra tab for an active event with no dedicated page (Signal from Beyond)", async () => {

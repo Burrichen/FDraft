@@ -88,3 +88,64 @@ describe("StatsView (real fake-indexeddb)", () => {
     );
   });
 });
+
+/**
+ * Covers docs/updates, "PROMPT B2.2 — HALLOWEEN PAGE REBUILD + DEADLINE +
+ * STATS" §6: permanent point-currency totals always show, even at 0 (no
+ * invented Haunted Points earning mechanic), and are shown even for a
+ * profile with an otherwise-empty watchlist.
+ */
+describe("StatsView — Points (PROMPT B2.2)", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("shows all three currencies, defaulting to 0, even for a brand-new profile with an empty watchlist", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() => expect(screen.getByText("Points")).toBeInTheDocument());
+    expect(screen.getByText("Lifetime")).toBeInTheDocument();
+    expect(screen.getByText("Misery")).toBeInTheDocument();
+    expect(screen.getByText("Haunted")).toBeInTheDocument();
+    // Three distinct cards, each reading 0 — a real earned total, not a
+    // hidden/unavailable stat.
+    expect(screen.getAllByText("0")).toHaveLength(3);
+  });
+
+  it("shows real, non-zero totals for each currency independently", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.points.setBalance({
+      profileId: PROFILE_ID,
+      currency: "lifetime",
+      total: 47,
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+    await repos.points.setBalance({
+      profileId: PROFILE_ID,
+      currency: "misery",
+      total: 8,
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() => expect(screen.getByText("47")).toBeInTheDocument());
+    expect(screen.getByText("8")).toBeInTheDocument();
+    // Haunted stays at its real, honest 0 — no invented reward just to
+    // make the counter non-zero (see docs/updates §"IF HAUNTED POINTS
+    // HAVE NO EARNING RULE").
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+});

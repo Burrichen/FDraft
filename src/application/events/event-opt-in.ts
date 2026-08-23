@@ -1,4 +1,3 @@
-import { settleAndDiscardLocalDraft } from "@/application/drafts/local-draft-service";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   getEventSettings,
@@ -11,45 +10,43 @@ import {
   getEventDefinition,
 } from "@/domain/events/event-registry";
 import type { Clock } from "@/domain/time/clock";
-import { SystemClock } from "@/domain/time/clock";
-import type { DraftRepository } from "@/repositories/draft-repository";
-import type { HistoryRepository } from "@/repositories/history-repository";
-import type { PointsRepository } from "@/repositories/points-repository";
 import type { ProfileRepository } from "@/repositories/profile-repository";
 import type { SettingsRepository } from "@/repositories/settings-repository";
-import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 
 type EventOptInRepos = {
-  drafts: DraftRepository;
-  watchlist: WatchlistRepository;
-  history: HistoryRepository;
   settings: SettingsRepository;
-  points: PointsRepository;
   profiles: ProfileRepository;
 };
 
 /**
- * Which event a click of the Settings "Events" toggle actually opts into —
- * the naturally-available one, if any (see `isEventAvailable`), otherwise
- * the first one that allows manual activation. No event name/id appears
- * here; this is data-driven from `EVENT_DEFINITIONS` alone, so a second
- * future event slots in without touching this function. `null` only when
- * the registry has nothing eligible at all (empty, or every entry forbids
- * manual activation while none is naturally available).
+ * Which event a Join action actually opts into.
  *
- * `requestedEventId`, when given, opts into THAT specific event instead of
- * auto-picking one (see docs/product-spec.md, event system Phase 10 audit:
- * every registered event currently allows manual activation, so the
- * auto-pick fallback below always resolves to the first entry in
- * `EVENT_DEFINITIONS` — meaning Halloween/The Watchlist Frontier/Signal
- * from Beyond were completely unreachable through Settings' own "Opt In"
- * button, which displays a SPECIFIC event's name but, without this
- * parameter, always activated whichever event this function auto-picked
- * instead — silently diverging from what was shown). Still resolves
- * `manuallyEnabled` the same way: `false` only if the requested event is
- * naturally available right now, `true` otherwise — and `null` (fails
- * safely, same as an empty registry) for a stale/unknown id or one that
- * isn't naturally available and doesn't allow manual activation.
+ * With an explicit `requestedEventId` (every current caller — the
+ * Settings available-events list and the event introduction modal both
+ * only ever offer a Join button for an event `isEventAvailable` already
+ * confirmed, so this manual-activation fallback is unreachable through
+ * today's UI, but is kept for any future or direct caller that legitimately
+ * needs to activate a `manualActivationAllowed` event with no natural
+ * window at all, e.g. The Watchlist Frontier/Signal from Beyond):
+ * naturally-available takes priority; failing that, falls back to a
+ * manual activation IF the requested event allows it.
+ *
+ * With NO explicit id (a generic "opt into whatever's currently running"
+ * call): ONLY ever resolves a naturally-available event now (see
+ * docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE + EVENT ROUTING/
+ * SETTINGS FIXES" §4, "Do not allow normal users to force inactive
+ * Events") — no manual-activation fallback at all. The old fallback to
+ * "the first manually-activatable event in registry order" existed solely
+ * for the generic Settings "Events" toggle, which no longer exists
+ * (replaced by explicit per-event Join buttons, each of which already
+ * targets a specific, naturally-available event by id).
+ *
+ * Admin Mode's simulated date flows through the same `getEffectiveEventDate`
+ * this reads its `now` from, so an Admin-simulated window counts as
+ * "naturally available" too, with no separate "force" affordance needed
+ * (see §4, "ADMIN EXCEPTION") — everything here flows through the one
+ * central EventClock. No event name/id appears here; entirely data-driven
+ * from `EVENT_DEFINITIONS`, so a future event needs no changes here.
  */
 function resolveEventToOptInto(
   now: Date,
@@ -77,44 +74,28 @@ function resolveEventToOptInto(
   const naturallyAvailable = EVENT_DEFINITIONS.find((event) =>
     isEventAvailable(event.availability, now, timezone),
   );
-  if (naturallyAvailable) {
-    return { event: naturallyAvailable, manuallyEnabled: false };
-  }
-  const manualCandidate = EVENT_DEFINITIONS.find(
-    (event) => event.manualActivationAllowed,
-  );
-  return manualCandidate
-    ? { event: manualCandidate, manuallyEnabled: true }
+  return naturallyAvailable
+    ? { event: naturallyAvailable, manuallyEnabled: false }
     : null;
 }
 
-export type BeginEventOptInResult =
-  | { needsSayGoodbye: false; eventId: string | null }
-  | {
-      needsSayGoodbye: true;
-      activeDraftId: string;
-      eventId: string;
-      manuallyEnabled: boolean;
-    };
+export interface BeginEventOptInResult {
+  eventId: string | null;
+}
 
 /**
- * The entry point for "opt into full event participation" (see
- * docs/product-spec.md, event system Phase 3, "SAY GOODBYE" and Phase 5):
- * never immediately overwrites an active draft. With no active draft,
- * this applies the opt-in immediately — the existing, unchanged path
- * (still a no-op if the registry has nothing eligible, exactly as before
- * any real event existed). With one, it applies NOTHING yet and reports
- * back which draft the Say Goodbye screen needs to show, and which event
- * opting in resolved to; the opt-in itself only completes once the caller
- * runs `confirmSayGoodbye`.
+ * Opts a profile into full event participation (see docs/product-spec.md,
+ * event system Phase 5; revised by "PROMPT B2.1" §1/§4 — this no longer
+ * ever touches drafts, and no longer has a "Say Goodbye" detour). A
+ * profile's normal Draft (if any) is completely unaffected by opting into
+ * an event — the two are fully independent (see docs/updates, "DUAL DRAFT
+ * ARCHITECTURE"), so there is nothing here to check or pause for.
  *
  * `eventId`, when given, targets that SPECIFIC event (see
- * `resolveEventToOptInto`'s doc comment) — every caller that already
- * displays a specific event's name next to its own "Opt In" button (the
- * Settings available-event notice, the event introduction modal) passes
- * its id here, rather than trusting auto-pick to land on the same one it
- * displayed. Omitted only for the generic "Events" switch, which has no
- * specific event in mind and keeps the existing auto-pick behaviour.
+ * `resolveEventToOptInto`'s doc comment). Omitted only for a generic
+ * "opt into whatever's currently running" call. A no-op (returns
+ * `{ eventId: null }`, no settings change) whenever nothing eligible is
+ * currently available.
  */
 export async function beginEventOptIn(
   repos: EventOptInRepos,
@@ -125,41 +106,21 @@ export async function beginEventOptIn(
     clock: deps.clock,
   });
   const candidate = resolveEventToOptInto(now, params.timezone, params.eventId);
-  const hasActiveDraft = await repos.drafts.hasActiveDraft(params.profileId);
-
-  if (!hasActiveDraft) {
-    if (candidate) {
-      await applyEventOptIn(repos, {
-        profileId: params.profileId,
-        eventId: candidate.event.id,
-        manuallyEnabled: candidate.manuallyEnabled,
-      });
-    }
-    return { needsSayGoodbye: false, eventId: candidate?.event.id ?? null };
-  }
-
   if (!candidate) {
-    return { needsSayGoodbye: false, eventId: null };
+    return { eventId: null };
   }
 
-  const activeDraft = await repos.drafts.getActiveOrExpiredDraft(
-    params.profileId,
-  );
-  // hasActiveDraft just confirmed a status:"active" draft exists for this
-  // profile, so getActiveOrExpiredDraft (which also considers "expired")
-  // is guaranteed to find at least that one.
-  return {
-    needsSayGoodbye: true,
-    activeDraftId: activeDraft!.id,
+  await applyEventOptIn(repos, {
+    profileId: params.profileId,
     eventId: candidate.event.id,
     manuallyEnabled: candidate.manuallyEnabled,
-  };
+  });
+  return { eventId: candidate.event.id };
 }
 
 /**
- * The actual event-settings mutation "opting in" performs — shared by the
- * no-active-draft path above and `confirmSayGoodbye` below, so there is
- * exactly one place this write happens. `EventDefinition.
+ * The actual event-settings mutation "opting in" performs — the one place
+ * this write happens, shared by `beginEventOptIn` above. `EventDefinition.
  * enableVisualsOnOptIn` (see docs/updates, "PROMPT 18 — EVENT PAGES +
  * HALLOWEEN LIFECYCLE") force-enables `eventVisualsEnabled` for an event
  * that opts into that — today only Halloween — while every other event's
@@ -183,35 +144,5 @@ export async function applyEventOptIn(
       !current.manuallyEnabledEvents.includes(params.eventId)
         ? [...current.manuallyEnabledEvents, params.eventId]
         : current.manuallyEnabledEvents,
-  });
-}
-
-/**
- * Confirms the Say Goodbye screen: settles and discards the outgoing
- * draft (see `settleAndDiscardLocalDraft` — generic/Lifetime reward
- * processing only, no event currency, no downgrade if it already
- * auto-archived), then resumes the event opt-in that was paused to show
- * this screen. The outgoing draft's `sourceEventId` is never touched.
- */
-export async function confirmSayGoodbye(
-  repos: EventOptInRepos,
-  params: {
-    profileId: string;
-    draftId: string;
-    eventId: string;
-    manuallyEnabled: boolean;
-  },
-  deps: { clock?: Clock } = {},
-): Promise<void> {
-  const clock = deps.clock ?? new SystemClock();
-  await settleAndDiscardLocalDraft(
-    repos,
-    { profileId: params.profileId, draftId: params.draftId },
-    { clock },
-  );
-  await applyEventOptIn(repos, {
-    profileId: params.profileId,
-    eventId: params.eventId,
-    manuallyEnabled: params.manuallyEnabled,
   });
 }

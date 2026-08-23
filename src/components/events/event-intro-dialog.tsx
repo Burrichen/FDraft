@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import {
@@ -20,7 +21,6 @@ import {
   resolveEventTheme,
 } from "./event-visual-themes";
 import { useEventOptInFlow } from "./use-event-opt-in-flow";
-import { SayGoodbyeView } from "@/app/(app)/settings/say-goodbye-view";
 
 /**
  * The generic event introduction modal (see docs/product-spec.md, event
@@ -28,16 +28,20 @@ import { SayGoodbyeView } from "@/app/(app)/settings/say-goodbye-view";
  * newly-started event, not Settings") — mounted once in `AppShell`, like
  * `UpdateDialog`, so it can appear over any page. Every event supplies its
  * own `name`/`intro` content (`EventDefinition.intro`); this component has
- * no per-event branch or copy of its own, so a second future event needs
- * no new modal component.
+ * no per-event branch or copy of its own — an event that wants genuinely
+ * richer presentation (size, title styling, decoration, fully custom body
+ * copy) supplies it entirely through `EventVisualTheme`'s optional render
+ * hooks (see docs/updates, "PROMPT B2.3 — HALLOWEEN JOIN MODAL COMPLETE
+ * REDESIGN") — today only Halloween populates them; every other event's
+ * dialog renders exactly as before (generic size, plain title, description
+ * + bullets + the shared footer note).
  *
  * Eligibility is entirely `resolveEventIntroToShow`'s call — this
  * component only renders whatever it returns and reacts to the two
- * actions: "Opt In" runs the SAME `useEventOptInFlow` lifecycle
- * `EventSwitcherSection` uses (including Say Goodbye when an active draft
- * is in the way), and "Nah" records a cycle-scoped dismissal, never a
- * permanent one — the next occurrence of a recurring event is eligible to
- * show its intro again.
+ * actions: "primary" runs the SAME `useEventOptInFlow` action
+ * `EventSwitcherSection` uses, and "secondary" records a cycle-scoped
+ * dismissal, never a permanent one — the next occurrence of a recurring
+ * event is eligible to show its intro again.
  */
 export function EventIntroDialog() {
   const { activeProfile, repositories } = useProfileContext();
@@ -70,108 +74,88 @@ export function EventIntroDialog() {
     await reloadSilently();
   }
 
-  const introOpen = Boolean(candidate) && !optIn.pendingSayGoodbye;
-  const sayGoodbyeOpen = Boolean(optIn.pendingSayGoodbye);
+  // Ungated by `eventVisualsEnabled` (see `resolveEventPresentationTheme`'s
+  // own doc comment) — this is a one-time first impression, shown before
+  // any opt-in exists, so it must look fully dressed even for a profile
+  // that has never turned visuals on for anything.
+  const presentationTheme = candidate
+    ? resolveEventPresentationTheme(candidate.event)
+    : undefined;
 
   return (
-    <>
-      <AlertDialog
-        open={introOpen}
-        onOpenChange={(next) => {
-          if (!next) void handleDismiss();
-        }}
-      >
-        <AlertDialogContent
-          className={
-            candidate
-              ? resolveEventPresentationTheme(candidate.event)?.rootClassName
-              : undefined
-          }
-        >
-          {candidate ? (
-            <>
-              {resolveEventPresentationTheme(
-                candidate.event,
-              )?.renderDecoration?.()}
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center gap-2">
-                  {(() => {
-                    const theme = resolveEventTheme(
-                      candidate.event,
-                      candidate.eventVisualsEnabled,
-                    );
-                    return theme ? (
-                      <theme.icon
-                        aria-hidden="true"
-                        className="size-4 shrink-0"
-                      />
-                    ) : null;
-                  })()}
-                  {candidate.event.name}
-                </AlertDialogTitle>
+    <AlertDialog
+      open={Boolean(candidate)}
+      onOpenChange={(next) => {
+        if (!next) void handleDismiss();
+      }}
+    >
+      <AlertDialogContent className={presentationTheme?.rootClassName}>
+        {candidate ? (
+          <>
+            {presentationTheme?.renderDecoration?.()}
+            <AlertDialogHeader>
+              <AlertDialogTitle
+                className={cn(
+                  "flex items-center gap-2",
+                  presentationTheme?.titleClassName,
+                )}
+              >
+                {(() => {
+                  const theme = resolveEventTheme(
+                    candidate.event,
+                    candidate.eventVisualsEnabled,
+                  );
+                  return theme ? (
+                    <theme.icon
+                      aria-hidden="true"
+                      className="size-4 shrink-0"
+                    />
+                  ) : null;
+                })()}
+                {candidate.event.name}
+              </AlertDialogTitle>
+              {presentationTheme?.renderIntroContent ? null : (
                 <AlertDialogDescription>
                   {candidate.event.intro.description}
                 </AlertDialogDescription>
-              </AlertDialogHeader>
-              <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">
-                {candidate.event.intro.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-              <p className="text-muted-foreground text-xs">
-                Not ready? This isn&apos;t permanent — you can still opt in
-                later from Settings while it&apos;s available.
-              </p>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={optIn.isSaving}>
-                  {candidate.event.intro.secondaryActionLabel ?? "Nah"}
-                </AlertDialogCancel>
-                <Button
-                  type="button"
-                  onClick={() => void optIn.beginOptIn(candidate.event.id)}
-                  disabled={optIn.isSaving}
-                >
-                  {candidate.event.intro.primaryActionLabel ?? "Opt In"}
-                </Button>
-              </AlertDialogFooter>
-            </>
-          ) : null}
-        </AlertDialogContent>
-      </AlertDialog>
+              )}
+            </AlertDialogHeader>
 
-      <AlertDialog open={sayGoodbyeOpen} onOpenChange={() => {}}>
-        <AlertDialogContent className="max-w-lg">
-          {optIn.pendingSayGoodbye ? (
-            <>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Say goodbye to your draft?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Opting in replaces your active draft. Mark anything
-                  you&apos;ve watched, then confirm to close this draft out and
-                  continue — whatever&apos;s left unwatched is simply let go of,
-                  not held against you.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <SayGoodbyeView draftId={optIn.pendingSayGoodbye.draftId} />
-              <AlertDialogFooter>
-                <Button
-                  type="button"
-                  onClick={() => void optIn.confirmSayGoodbyeAction()}
-                  disabled={optIn.isSaving}
-                >
-                  Say Goodbye
-                </Button>
-                <AlertDialogCancel
-                  onClick={optIn.cancelSayGoodbye}
-                  disabled={optIn.isSaving}
-                >
-                  Cancel
-                </AlertDialogCancel>
-              </AlertDialogFooter>
-            </>
-          ) : null}
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+            {presentationTheme?.renderIntroContent ? (
+              presentationTheme.renderIntroContent()
+            ) : (
+              <>
+                <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">
+                  {candidate.event.intro.bullets.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+                <p className="text-muted-foreground text-xs">
+                  Not ready? This isn&apos;t permanent — you can still opt in
+                  later from Settings while it&apos;s available.
+                </p>
+              </>
+            )}
+
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                className="h-auto px-5 py-2.5 text-sm sm:text-base"
+                disabled={optIn.isSaving}
+              >
+                {candidate.event.intro.secondaryActionLabel ?? "Nah"}
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                className="h-auto px-6 py-2.5 text-sm sm:text-base"
+                onClick={() => void optIn.beginOptIn(candidate.event.id)}
+                disabled={optIn.isSaving}
+              >
+                {candidate.event.intro.primaryActionLabel ?? "Opt In"}
+              </Button>
+            </AlertDialogFooter>
+          </>
+        ) : null}
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

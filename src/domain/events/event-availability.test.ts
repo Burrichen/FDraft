@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
   getAvailabilityCycleId,
+  getCurrentOccurrenceBounds,
   getNextOccurrenceStart,
   isEventAvailable,
 } from "./event-availability";
+
+const HALLOWEEN_AVAILABILITY = {
+  startsAt: null,
+  endsAt: null,
+  recurringMonths: null,
+  recurringMonthDayRange: {
+    startMonth: 9,
+    startDay: 30,
+    startHour: 19,
+    startMinute: 0,
+    endMonth: 11,
+    endDay: 1,
+    endHour: 0,
+    endMinute: 0,
+  },
+};
 
 describe("isEventAvailable", () => {
   it("no fixed window and no recurring months — never naturally available (manual-only)", () => {
@@ -546,6 +563,56 @@ describe("getNextOccurrenceStart", () => {
   it("returns null for an availability shape with no recurringMonthDayRange", () => {
     expect(
       getNextOccurrenceStart(
+        {
+          startsAt: null,
+          endsAt: null,
+          recurringMonths: [6, 7, 8],
+          recurringMonthDayRange: null,
+        },
+        new Date("2026-06-15T00:00:00.000Z"),
+        "UTC",
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("getCurrentOccurrenceBounds", () => {
+  it("returns the real start/end instants of the occurrence 'now' falls inside, regardless of where in the window 'now' is (PROMPT B2.2 examples)", () => {
+    for (const now of [
+      new Date("2026-09-30T19:15:00.000Z"),
+      new Date("2026-10-15T12:00:00.000Z"),
+      new Date("2026-10-31T23:00:00.000Z"),
+    ]) {
+      const bounds = getCurrentOccurrenceBounds(
+        HALLOWEEN_AVAILABILITY,
+        now,
+        "UTC",
+      );
+      expect(bounds).toEqual({
+        start: new Date("2026-09-30T19:00:00.000Z"),
+        end: new Date("2026-11-01T00:00:00.000Z"),
+      });
+    }
+  });
+
+  it("evaluates in the given timezone, not UTC", () => {
+    const bounds = getCurrentOccurrenceBounds(
+      HALLOWEEN_AVAILABILITY,
+      new Date("2026-10-15T12:00:00.000Z"),
+      "America/New_York",
+    );
+    // 19:00 America/New_York on 30 Sep 2026 (EDT, UTC-4) is 23:00 UTC;
+    // midnight 1 Nov America/New_York (EDT until 1 Nov 02:00 UTC that
+    // year) is 04:00 UTC.
+    expect(bounds).toEqual({
+      start: new Date("2026-09-30T23:00:00.000Z"),
+      end: new Date("2026-11-01T04:00:00.000Z"),
+    });
+  });
+
+  it("returns null for an availability shape with no recurringMonthDayRange", () => {
+    expect(
+      getCurrentOccurrenceBounds(
         {
           startsAt: null,
           endsAt: null,

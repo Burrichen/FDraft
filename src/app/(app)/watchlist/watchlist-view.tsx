@@ -79,10 +79,14 @@ export function WatchlistView() {
     );
 
     // The manual "Add to Draft" action (see docs/updates) only ever
-    // targets a genuinely active draft — never expired/archived, and
-    // never one this page would create itself.
+    // targets a genuinely active NORMAL draft — never expired/archived,
+    // never one this page would create itself, and never an event's own
+    // draft (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE") —
+    // manually inserting a watchlist film into a Halloween Draft isn't a
+    // supported flow.
     const draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
       activeProfile.id,
+      null,
     );
     const activeDraft = draftRecord?.status === "active" ? draftRecord : null;
     const entryIdsInDraft = activeDraft

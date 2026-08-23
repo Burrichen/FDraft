@@ -1,4 +1,3 @@
-import { Snowflake } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { getEventSettings } from "@/application/events/event-settings-store";
 import { useProfileContext } from "@/components/profiles/profile-provider";
@@ -8,7 +7,7 @@ import {
   getEventDefinition,
 } from "@/domain/events/event-registry";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { HalloweenNavIcon } from "./nav-icons";
+import { HalloweenNavIcon, JanuaryTrashCanNavIcon } from "./nav-icons";
 import { NAV_ITEMS, type NavItem } from "./nav-config";
 
 /**
@@ -24,7 +23,7 @@ const EVENT_NAV_ICONS: Record<
   ComponentType<SVGProps<SVGSVGElement>>
 > = {
   [HALLOWEEN_EVENT_ID]: HalloweenNavIcon,
-  [F_YOU_ITS_JANUARY_EVENT_ID]: Snowflake,
+  [F_YOU_ITS_JANUARY_EVENT_ID]: JanuaryTrashCanNavIcon,
 };
 
 /**

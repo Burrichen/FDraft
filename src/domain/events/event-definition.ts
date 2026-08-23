@@ -154,4 +154,25 @@ export interface EventDefinition {
   page?: EventPageContent | null;
   /** When true, opting into this event also force-enables `EventSettings.eventVisualsEnabled` — a genuinely opt-in-time default, not something the generic opt-in flow does for every event. Absent/false preserves today's behaviour (opt-in and visuals stay fully decoupled). */
   enableVisualsOnOptIn?: boolean;
+  /**
+   * When true, this event's own Draft has ONE fixed deadline — the end of
+   * the event's current natural occurrence (via `getCurrentOccurrenceBounds`,
+   * `event-availability.ts`) — rather than letting the profile choose
+   * Calendar/Timer mode (see docs/updates, "PROMPT B2.2 — HALLOWEEN PAGE
+   * REBUILD + DEADLINE + STATS" §3). Requires `availability.
+   * recurringMonthDayRange` to be set (the only shape `getCurrentOccurrenceBounds`
+   * supports). Absent/false preserves today's behaviour (normal Calendar/
+   * Timer choice) — today only Halloween sets this.
+   *
+   * Also changes how that Draft's time-PROGRESS is displayed (see
+   * `DraftLifecycleView`): instead of "elapsed since this draft's own
+   * creation," it shows "elapsed through the event's whole natural
+   * window" — a Draft created halfway through the event reads as roughly
+   * 50% through, not 0%, and uses `getEffectiveEventDate` (so Admin's
+   * simulated date drives it, exactly like every other event-availability
+   * check) rather than the real wall clock. The Draft's own persisted
+   * `startedAt`/`deadlineAt` timestamps are real and never touched by
+   * this — only the progress-bar DISPLAY differs.
+   */
+  fixedEventDeadline?: boolean;
 }

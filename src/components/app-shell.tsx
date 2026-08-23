@@ -6,6 +6,10 @@ import type { ReactNode } from "react";
 import { refreshHalloweenManifest } from "@/application/events/halloween-manifest-service";
 import { refreshJanuaryManifest } from "@/application/events/january-manifest-service";
 import { EventIntroDialog } from "@/components/events/event-intro-dialog";
+import {
+  HalloweenAmbientDecorations,
+  useHalloweenAmbientVisible,
+} from "@/components/events/halloween-ambient-decorations";
 import { Header } from "@/components/layout/header";
 import { FirstRunScreen } from "@/components/profiles/first-run-screen";
 import { ProfilePicker } from "@/components/profiles/profile-picker";
@@ -35,6 +39,7 @@ import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/per
 function AppShellContent({ children }: { children: ReactNode }) {
   const { activeProfile, profiles, initError, retryInit, repositories } =
     useProfileContext();
+  const halloweenAmbientVisible = useHalloweenAmbientVisible();
 
   // Only once a real profile is active — never on the bare first-run
   // screen (see docs/product-spec.md, "BROWSER STORAGE PERSISTENCE":
@@ -127,6 +132,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     // navigating between pages never resets it — only a hard reload does.
     <WatchUndoProvider key={activeProfile.id}>
       <EventIntroDialog key={activeProfile.id} />
+      {halloweenAmbientVisible ? <HalloweenAmbientDecorations /> : null}
       <div className="flex min-h-full flex-col">
         <Header activeProfile={activeProfile} profiles={profiles} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">

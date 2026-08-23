@@ -129,10 +129,10 @@ describe("event-registry", () => {
       const event = getEventDefinition(HALLOWEEN_EVENT_ID);
       expect(event?.intro.description.length).toBeGreaterThan(0);
       expect(event?.intro.bullets.length).toBeGreaterThan(0);
-      expect(event?.intro.primaryActionLabel).toBe(
-        "I want to join the Halloween Event",
+      expect(event?.intro.primaryActionLabel).toBe("Let me in.");
+      expect(event?.intro.secondaryActionLabel).toBe(
+        "I don't want to be scared!",
       );
-      expect(event?.intro.secondaryActionLabel).toBe("I'm not interested");
     });
   });
 

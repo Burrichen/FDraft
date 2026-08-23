@@ -41,11 +41,16 @@ export class LocalDraftRepository implements DraftRepository {
 
   async getActiveOrExpiredDraft(
     profileId: string,
+    sourceEventId: string | null,
   ): Promise<DraftRecord | null> {
     const drafts = await this.db.drafts
       .where("profileId")
       .equals(profileId)
-      .and((draft) => draft.status === "active" || draft.status === "expired")
+      .and(
+        (draft) =>
+          (draft.status === "active" || draft.status === "expired") &&
+          (draft.sourceEventId ?? null) === sourceEventId,
+      )
       .toArray();
     if (drafts.length === 0) {
       return null;
@@ -84,12 +89,25 @@ export class LocalDraftRepository implements DraftRepository {
       .map(normalizeDraft);
   }
 
-  async hasActiveDraft(profileId: string): Promise<boolean> {
-    const count = await this.db.drafts
+  async listActiveDrafts(profileId: string): Promise<DraftRecord[]> {
+    const drafts = await this.db.drafts
       .where("[profileId+status]")
       .equals([profileId, "active"])
-      .count();
-    return count > 0;
+      .toArray();
+    return drafts.map(normalizeDraft);
+  }
+
+  async hasActiveDraft(
+    profileId: string,
+    sourceEventId: string | null,
+  ): Promise<boolean> {
+    const drafts = await this.db.drafts
+      .where("[profileId+status]")
+      .equals([profileId, "active"])
+      .toArray();
+    return drafts.some(
+      (draft) => (draft.sourceEventId ?? null) === sourceEventId,
+    );
   }
 
   async createDraft(draft: DraftRecord): Promise<void> {

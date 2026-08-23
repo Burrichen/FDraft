@@ -2,49 +2,46 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatInTimeZone } from "date-fns-tz";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
+import { isEventAvailable } from "@/domain/events/event-availability";
 import {
-  getNextOccurrenceStart,
-  isEventAvailable,
-} from "@/domain/events/event-availability";
-import { EVENT_DEFINITIONS } from "@/domain/events/event-registry";
+  EVENT_DEFINITIONS,
+  getEventDefinition,
+} from "@/domain/events/event-registry";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { SayGoodbyeView } from "./say-goodbye-view";
 
 /**
- * The Settings page's Event Switcher (see docs/product-spec.md, event
- * system Phase 2/5/6). The event introduction modal (`EventIntroDialog`,
- * mounted app-wide) is now the PRIMARY way a profile discovers and enters
- * a newly-started event — this section is the fallback: a manual path for
- * a profile that dismissed that modal, missed it, or wants to opt in
- * outside the modal's own moment. Two independent toggles, plus a
- * catch-up affordance:
- *  - "Events": full participation. Turning it ON resolves whichever event
- *    is currently eligible — naturally available (see `isEventAvailable`)
- *    or, failing that, the first one allowing manual activation (see
- *    `beginEventOptIn`) — with no event name hardcoded here at all. With
- *    an active draft, this shows the Say Goodbye screen instead of saving
- *    immediately (see event system Phase 3, "SAY GOODBYE") — the exact
- *    same lifecycle `EventIntroDialog`'s "Opt In" button runs, via the
- *    shared `useEventOptInFlow` hook, so this never duplicates it.
- *  - "Event visuals": cosmetic-only, deliberately independent, and never
- *    gated by Say Goodbye — it doesn't touch drafts at all.
- *  - A currently-available-event notice, shown whenever one exists and
- *    the profile hasn't already opted into it — reachable regardless of
- *    whether that event's intro modal was ever dismissed (dismissal only
- *    ever suppresses the modal, never this).
- * No event-specific visual redesign here — this stays the same generic
- * presentation regardless of which event is actually eligible.
+ * The Settings page's Event section (see docs/product-spec.md, event
+ * system Phase 2/5/6; revised by docs/updates, "PROMPT B2.1 — DUAL DRAFT
+ * ARCHITECTURE + EVENT ROUTING/SETTINGS FIXES" §4). A normal user can now
+ * ONLY ever join an event that's CURRENTLY naturally active — there is no
+ * catalogue of inactive events a normal user can force on (the previous
+ * "manually activate any time, downgraded to Lifetime Points" catalogue
+ * is gone). Two states:
+ *
+ *  - Not currently in an event: "AVAILABLE EVENTS" lists every naturally-
+ *    active event with a Join button, or a plain "No events are currently
+ *    running." message when nothing qualifies.
+ *  - Currently in one: "CURRENT EVENT" names it and exposes its two
+ *    independent toggles — "Event Visuals" (purely cosmetic) and "Event
+ *    Gameplay" (full participation; turning it off leaves the event —
+ *    settings only, never touches any Draft, normal or the event's own,
+ *    see docs/updates §1).
+ *
+ * "Naturally active" is entirely `isEventAvailable`, evaluated against
+ * `getEffectiveEventDate` — so Admin Mode's Event Testing override (see
+ * `EventTestingSection`) makes a simulated event genuinely "available"
+ * here too, with no separate "force" affordance of its own; everything
+ * flows through the one central EventClock.
  */
 export function EventSwitcherSection() {
   const { activeProfile, repositories } = useProfileContext();
@@ -69,37 +66,24 @@ export function EventSwitcherSection() {
     onError: (message) => toast.error(message),
   });
 
-  if (!activeProfile || !data) {
+  if (!activeProfile || !timezone || !data) {
     return null;
   }
   const { settings, effectiveNow } = data;
 
-  // Only ever true for a manually-activatable event — for one of those,
-  // this was always true regardless of natural availability (manual
-  // activation works any time), so dropping the OR here doesn't change
-  // their behaviour at all. A restricted event (manualActivationAllowed:
-  // false, e.g. Halloween) is deliberately excluded from this generic
-  // slot — it gets its own always-visible status block below instead, so
-  // it's never shown twice.
-  const availableEvent = EVENT_DEFINITIONS.find(
-    (event) =>
-      settings.activeEvent !== event.id && event.manualActivationAllowed,
-  );
+  const currentEvent = settings.activeEvent
+    ? getEventDefinition(settings.activeEvent)
+    : null;
+  const isCurrentlyJoined = settings.eventsEnabled && currentEvent !== null;
 
-  // Every event that can ONLY ever be joined during its own natural (or
-  // Admin-simulated) window — today just Halloween, but genuinely
-  // data-driven: any future non-manual recurring event gets this same
-  // always-visible "Available Now" / "Returns <date>" row for free, with
-  // no new conditional logic anywhere.
-  const restrictedEvents = EVENT_DEFINITIONS.filter(
+  const availableEvents = EVENT_DEFINITIONS.filter(
     (event) =>
-      settings.activeEvent !== event.id &&
-      !event.manualActivationAllowed &&
-      event.availability.recurringMonthDayRange,
+      event.id !== settings.activeEvent &&
+      isEventAvailable(event.availability, effectiveNow, timezone),
   );
 
   async function handleEventVisualsChange(value: boolean) {
-    if (!profileId || !settings) return;
+    if (!profileId) return;
     setIsSaving(true);
     try {
       await setEventSettings(repositories, profileId, {
@@ -116,71 +100,23 @@ export function EventSwitcherSection() {
     }
   }
 
-  async function handleEventsEnabledChange(value: boolean) {
-    if (!profileId || !settings) return;
-    if (!value) {
-      // Turning participation off never touches an active draft — only
-      // turning it ON while one exists needs Say Goodbye. Clears
-      // activeEvent too, so a later opt-in always re-resolves fresh
-      // rather than trusting a possibly-stale value.
-      setIsSaving(true);
-      try {
-        await setEventSettings(repositories, profileId, {
-          ...settings,
-          eventsEnabled: false,
-          activeEvent: null,
-        });
-        await reloadSilently();
-      } catch (cause) {
-        toast.error(
-          cause instanceof Error
-            ? cause.message
-            : "Could not save that setting.",
-        );
-      } finally {
-        setIsSaving(false);
-      }
-      return;
+  async function handleLeaveCurrentEvent() {
+    if (!profileId) return;
+    setIsSaving(true);
+    try {
+      await setEventSettings(repositories, profileId, {
+        ...settings,
+        eventsEnabled: false,
+        activeEvent: null,
+      });
+      await reloadSilently();
+    } catch (cause) {
+      toast.error(
+        cause instanceof Error ? cause.message : "Could not save that setting.",
+      );
+    } finally {
+      setIsSaving(false);
     }
-    await optIn.beginOptIn();
-  }
-
-  if (optIn.pendingSayGoodbye) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Say goodbye to your draft?
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground text-sm">
-            Turning on Events replaces your active draft. Mark anything
-            you&apos;ve watched, then confirm to close this draft out and
-            continue — whatever&apos;s left unwatched is simply let go of, not
-            held against you.
-          </p>
-          <SayGoodbyeView draftId={optIn.pendingSayGoodbye.draftId} />
-          <div className="flex gap-3 border-t pt-4">
-            <Button
-              type="button"
-              onClick={() => void optIn.confirmSayGoodbyeAction()}
-              disabled={optIn.isSaving}
-            >
-              Say Goodbye
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={optIn.cancelSayGoodbye}
-              disabled={optIn.isSaving}
-            >
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
   }
 
   return (
@@ -189,117 +125,101 @@ export function EventSwitcherSection() {
         <CardTitle className="text-base">Events</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <Label htmlFor="events-enabled" className="text-foreground text-sm">
-              Events
-            </Label>
-            <p className="text-muted-foreground text-sm">
-              Opt into special drafting rules and scoring while an event is
-              running.
-            </p>
-          </div>
-          <input
-            id="events-enabled"
-            type="checkbox"
-            checked={settings.eventsEnabled}
-            disabled={isSaving || optIn.isSaving}
-            onChange={(event) =>
-              void handleEventsEnabledChange(event.target.checked)
-            }
-            className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t pt-4">
-          <div>
-            <Label
-              htmlFor="event-visuals-enabled"
-              className="text-foreground text-sm"
-            >
-              Event visuals
-            </Label>
-            <p className="text-muted-foreground text-sm">
-              Independent of the setting above — purely cosmetic theming.
-            </p>
-          </div>
-          <input
-            id="event-visuals-enabled"
-            type="checkbox"
-            checked={settings.eventVisualsEnabled}
-            disabled={isSaving}
-            onChange={(event) =>
-              void handleEventVisualsChange(event.target.checked)
-            }
-            className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
-          />
-        </div>
-
-        {availableEvent ? (
-          <div className="flex items-center justify-between gap-3 border-t pt-4">
+        {isCurrentlyJoined && currentEvent ? (
+          <>
             <div>
-              <p className="text-foreground text-sm font-medium">
-                {availableEvent.name}
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Current Event
               </p>
-              <p className="text-muted-foreground text-sm">
-                Available now — opt in here any time, whether or not you&apos;ve
-                seen its introduction before.
+              <p className="text-foreground text-sm font-medium">
+                {currentEvent.name}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void optIn.beginOptIn(availableEvent.id)}
-              disabled={optIn.isSaving}
-            >
-              Opt In
-            </Button>
-          </div>
-        ) : null}
 
-        {timezone
-          ? restrictedEvents.map((event) => {
-              const available = isEventAvailable(
-                event.availability,
-                effectiveNow,
-                timezone,
-              );
-              const nextStart = getNextOccurrenceStart(
-                event.availability,
-                effectiveNow,
-                timezone,
-              );
-              return (
-                <div
-                  key={event.id}
-                  className="flex items-center justify-between gap-3 border-t pt-4"
+            <div className="flex items-center justify-between gap-3 border-t pt-4">
+              <div>
+                <Label
+                  htmlFor="event-visuals-enabled"
+                  className="text-foreground text-sm"
                 >
-                  <div>
+                  Event Visuals
+                </Label>
+                <p className="text-muted-foreground text-sm">
+                  Purely cosmetic theming, independent of the setting below.
+                </p>
+              </div>
+              <input
+                id="event-visuals-enabled"
+                type="checkbox"
+                checked={settings.eventVisualsEnabled}
+                disabled={isSaving}
+                onChange={(event) =>
+                  void handleEventVisualsChange(event.target.checked)
+                }
+                className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t pt-4">
+              <div>
+                <Label
+                  htmlFor="event-gameplay-enabled"
+                  className="text-foreground text-sm"
+                >
+                  Event Gameplay
+                </Label>
+                <p className="text-muted-foreground text-sm">
+                  Turn off to leave {currentEvent.name} — your normal Draft, if
+                  you have one, is never affected.
+                </p>
+              </div>
+              <input
+                id="event-gameplay-enabled"
+                type="checkbox"
+                checked={settings.eventsEnabled}
+                disabled={isSaving}
+                onChange={(event) => {
+                  if (!event.target.checked) {
+                    void handleLeaveCurrentEvent();
+                  }
+                }}
+                className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </div>
+          </>
+        ) : (
+          <div>
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Available Events
+            </p>
+            {availableEvents.length === 0 ? (
+              <p className="text-muted-foreground mt-2 text-sm">
+                No events are currently running.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-3">
+                {availableEvents.map((event) => (
+                  <li
+                    key={event.id}
+                    className="flex items-center justify-between gap-3"
+                  >
                     <p className="text-foreground text-sm font-medium">
                       {event.name}
                     </p>
-                    <p className="text-muted-foreground text-sm">
-                      {available
-                        ? "Available now — a normal user can only start this during its natural period."
-                        : nextStart
-                          ? `Returns ${formatInTimeZone(nextStart, timezone, "d MMMM 'at' h:mm a")}.`
-                          : "Not currently active."}
-                    </p>
-                  </div>
-                  {available ? (
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => void optIn.beginOptIn(event.id)}
                       disabled={optIn.isSaving}
                     >
-                      {event.intro.primaryActionLabel ?? "Opt In"}
+                      {event.intro.primaryActionLabel ?? "Join"}
                     </Button>
-                  ) : null}
-                </div>
-              );
-            })
-          : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

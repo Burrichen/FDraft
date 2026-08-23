@@ -16,6 +16,20 @@ import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 import type { archiveLocalDraftIfResolved } from "@/application/drafts/local-draft-service";
 
 export type MarkWatchedErrorCode = "not_found" | "not_active";
+
+/**
+ * One draft's own item completion caused by a single watch action — see
+ * `MarkWatchedOutcome.secondaryDraftCompletion` for why more than one of
+ * these can result from ONE action (see docs/updates, "PROMPT B2.1 — DUAL
+ * DRAFT ARCHITECTURE").
+ */
+export interface DraftCompletionInfo {
+  draftItemId: string;
+  draftId: string;
+  /** Whether THIS completion is what just archived that draft (e.g. completing its last remaining film) — see `archiveLocalDraftIfResolved`'s return value. `undoLocalFilmWatched` only ever reverts a draft's status back to "active" when this is true, never a draft that was already archived for an unrelated reason. */
+  draftArchivedByThisAction: boolean;
+}
+
 export type MarkWatchedOutcome =
   | {
       ok: true;
@@ -24,11 +38,24 @@ export type MarkWatchedOutcome =
       filmId: string;
       /** The watched-history record this specific action created — the key `undoLocalFilmWatched` uses to reverse exactly this action and nothing else (see docs/product-spec.md, "WATCHED FILM UNDO"). */
       watchedHistoryId: string;
+      /** The FIRST draft this action completed an item in, or `null` if this film wasn't part of any active draft — kept as its own top-level field (rather than living only inside a list) so every existing caller that only ever cared about "the one draft this completed" keeps working unchanged. */
       draftItemId: string | null;
-      /** The draft `draftItemId` belongs to, or `null` if this film wasn't part of any active draft. Carried alongside `draftArchivedByThisAction` so a caller can undo the archive too, not just the item completion. */
       draftId: string | null;
-      /** Whether THIS call is what just archived that draft (e.g. completing its last remaining film) — see `archiveLocalDraftIfResolved`'s return value. `undoLocalFilmWatched` only ever reverts a draft's status back to "active" when this is true, never a draft that was already archived for an unrelated reason. */
       draftArchivedByThisAction: boolean;
+      /**
+       * A SECOND draft this SAME watch action also completed an item in —
+       * e.g. the same watchlist film was drafted into both the profile's
+       * normal Draft and its active Halloween Draft at once (see
+       * docs/product-spec.md, "DUAL DRAFT ARCHITECTURE": "a film can
+       * theoretically appear in both active Drafts"). `null` in the
+       * overwhelmingly common case where at most one active draft
+       * contained this film. Each draft still resolves and grants its OWN
+       * reward independently (see `archiveLocalDraftIfResolved`) — this
+       * never grants the same draft's reward twice; it just means two
+       * DIFFERENT drafts' completions are reported from one action, so
+       * `undoLocalFilmWatched` can reverse both.
+       */
+      secondaryDraftCompletion: DraftCompletionInfo | null;
     }
   | { ok: false; error: MarkWatchedErrorCode; message: string };
 
@@ -49,6 +76,8 @@ export interface WatchSessionUndoRecord {
   draftItemId: string | null;
   draftId: string | null;
   draftArchivedByThisAction: boolean;
+  /** See `MarkWatchedOutcome.secondaryDraftCompletion` — reversed alongside the primary completion above by `undoLocalFilmWatched`. */
+  secondaryDraftCompletion: DraftCompletionInfo | null;
 }
 
 export type UndoMarkWatchedErrorCode = "not_found";
@@ -138,34 +167,31 @@ export async function markLocalFilmWatched(
   };
   await repos.watchlist.updateEntry(updatedEntry);
 
-  const draftItemId = await completeMatchingActiveDraftItem(repos, {
+  const completions = await completeMatchingActiveDraftItem(repos, {
     profileId: params.profileId,
     watchlistEntryId: entry.id,
     watchedHistoryId,
     now,
   });
-
-  let draftId: string | null = null;
-  let draftArchivedByThisAction = false;
-  if (draftItemId) {
-    const item = await repos.drafts.getItemById(draftItemId);
-    draftId = item?.draftId ?? null;
-    if (draftId && deps.archiveIfResolved) {
-      draftArchivedByThisAction = await deps.archiveIfResolved(repos, {
-        profileId: params.profileId,
-        draftId,
-      });
+  for (const completion of completions) {
+    if (deps.archiveIfResolved) {
+      completion.draftArchivedByThisAction = await deps.archiveIfResolved(
+        repos,
+        { profileId: params.profileId, draftId: completion.draftId },
+      );
     }
   }
+  const [primary = null, secondary = null] = completions;
 
   return {
     ok: true,
     watchlistEntryId: entry.id,
     filmId: entry.filmId,
     watchedHistoryId,
-    draftItemId,
-    draftId,
-    draftArchivedByThisAction,
+    draftItemId: primary?.draftItemId ?? null,
+    draftId: primary?.draftId ?? null,
+    draftArchivedByThisAction: primary?.draftArchivedByThisAction ?? false,
+    secondaryDraftCompletion: secondary,
   };
 }
 
@@ -267,6 +293,11 @@ export async function markLocalDraftItemWatchedWithoutEntry(
     draftItemId: item.id,
     draftId: draft.id,
     draftArchivedByThisAction,
+    // A Horror/Kitsch item has no watchlist entry (see this function's own
+    // doc comment) — it can never be the SAME watchlist film another
+    // active draft also drafted, so there is never a second completion to
+    // report here.
+    secondaryDraftCompletion: null,
   };
 }
 
@@ -335,69 +366,91 @@ export async function undoLocalFilmWatched(
 
   const now = clock.now().toISOString();
 
-  if (record.draftItemId) {
-    const item = await repos.drafts.getItemById(record.draftItemId);
-    if (item && item.watchedHistoryId === record.watchedHistoryId) {
-      await repos.drafts.updateItem({
-        ...item,
-        isCompleted: false,
-        completedAt: null,
-        watchedHistoryId: null,
-      });
+  async function revertDraftCompletion(completion: {
+    draftItemId: string;
+    draftId: string | null;
+    draftArchivedByThisAction: boolean;
+  }) {
+    const item = await repos.drafts.getItemById(completion.draftItemId);
+    if (!item || item.watchedHistoryId !== record.watchedHistoryId) {
+      return;
+    }
+    await repos.drafts.updateItem({
+      ...item,
+      isCompleted: false,
+      completedAt: null,
+      watchedHistoryId: null,
+    });
 
-      if (record.draftId && record.draftArchivedByThisAction) {
-        const draft = await repos.drafts.getById(
+    if (!completion.draftId || !completion.draftArchivedByThisAction) {
+      return;
+    }
+    const draft = await repos.drafts.getById(
+      params.profileId,
+      completion.draftId,
+    );
+    if (!draft || draft.status !== "archived") {
+      return;
+    }
+    // Undoing the completion that archived this draft must also undo
+    // the reward that archival granted — merely clearing
+    // `rewardsGrantedAt` below would let a later re-completion award
+    // it a SECOND time without ever reversing the first (a genuine
+    // duplicate-reward bug: watch → auto-archive → reward → undo →
+    // re-watch → reward again, for one real completion). Recomputes
+    // the exact reward via `resolveDraftCompletionReward` — safe to
+    // recompute here because it resolves the SAME currency this
+    // draft was originally granted regardless of any settings change
+    // since (see the event system's persisted-activation-context
+    // rule, `DraftRecord.sourceEventManuallyEnabled`) — then reverses
+    // exactly that amount, clamped so a balance can never go
+    // negative. `resolveEffectiveRewardCurrency` re-applies the SAME
+    // manual-event downgrade `awardDraftCompletionReward` used when
+    // granting it, so a manually-enabled event's Lifetime-Points
+    // grant is reversed from `lifetime`, never its own (never
+    // actually credited) currency.
+    if (draft.rewardsGrantedAt) {
+      const reward = await resolveDraftCompletionReward(repos, {
+        profileId: params.profileId,
+        draft,
+      });
+      if (reward.amount !== 0) {
+        const currency = resolveEffectiveRewardCurrency(reward);
+        const currentTotal = await repos.points.getBalance(
           params.profileId,
-          record.draftId,
+          currency,
         );
-        if (draft && draft.status === "archived") {
-          // Undoing the completion that archived this draft must also undo
-          // the reward that archival granted — merely clearing
-          // `rewardsGrantedAt` below would let a later re-completion award
-          // it a SECOND time without ever reversing the first (a genuine
-          // duplicate-reward bug: watch → auto-archive → reward → undo →
-          // re-watch → reward again, for one real completion). Recomputes
-          // the exact reward via `resolveDraftCompletionReward` — safe to
-          // recompute here because it resolves the SAME currency this
-          // draft was originally granted regardless of any settings change
-          // since (see the event system's persisted-activation-context
-          // rule, `DraftRecord.sourceEventManuallyEnabled`) — then reverses
-          // exactly that amount, clamped so a balance can never go
-          // negative. `resolveEffectiveRewardCurrency` re-applies the SAME
-          // manual-event downgrade `awardDraftCompletionReward` used when
-          // granting it, so a manually-enabled event's Lifetime-Points
-          // grant is reversed from `lifetime`, never its own (never
-          // actually credited) currency.
-          if (draft.rewardsGrantedAt) {
-            const reward = await resolveDraftCompletionReward(repos, {
-              profileId: params.profileId,
-              draft,
-            });
-            if (reward.amount !== 0) {
-              const currency = resolveEffectiveRewardCurrency(reward);
-              const currentTotal = await repos.points.getBalance(
-                params.profileId,
-                currency,
-              );
-              await repos.points.setBalance({
-                profileId: params.profileId,
-                currency,
-                total: Math.max(0, currentTotal - reward.amount),
-                updatedAt: now,
-              });
-            }
-          }
-          await repos.drafts.updateDraft({
-            ...draft,
-            status: "active",
-            completedAt: null,
-            freeformAchievedRank: null,
-            rewardsGrantedAt: null,
-            updatedAt: now,
-          });
-        }
+        await repos.points.setBalance({
+          profileId: params.profileId,
+          currency,
+          total: Math.max(0, currentTotal - reward.amount),
+          updatedAt: now,
+        });
       }
     }
+    await repos.drafts.updateDraft({
+      ...draft,
+      status: "active",
+      completedAt: null,
+      freeformAchievedRank: null,
+      rewardsGrantedAt: null,
+      updatedAt: now,
+    });
+  }
+
+  if (record.draftItemId) {
+    await revertDraftCompletion({
+      draftItemId: record.draftItemId,
+      draftId: record.draftId,
+      draftArchivedByThisAction: record.draftArchivedByThisAction,
+    });
+  }
+  // The same watch action can have completed a SECOND draft's item too
+  // (see `MarkWatchedOutcome.secondaryDraftCompletion`) — reversed exactly
+  // the same way, independently, since each draft resolves and rewards on
+  // its own.
+  if (record.secondaryDraftCompletion) {
+    await revertDraftCompletion(record.secondaryDraftCompletion);
   }
 
   await repos.history.deleteWatchedHistory(record.watchedHistoryId);
@@ -405,6 +458,28 @@ export async function undoLocalFilmWatched(
   return { ok: true };
 }
 
+/**
+ * Completes the matching incomplete item for this watchlist entry in
+ * EVERY currently active draft, not just one — since a normal Draft and
+ * an event's own Draft are fully independent and can both be active at
+ * once (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE"), the
+ * SAME watchlist entry can legitimately be drafted into both (e.g. a
+ * Halloween-adjacent pick is a real Watchlist entry too). Usually resolves
+ * to 0 or 1 completions; 2 only in that genuine cross-draft overlap case.
+ *
+ * Scoped directly via `listItemsForDraft(draft.id)` for each active draft
+ * — never a blind cross-draft scan by `watchlistEntryId` alone. That
+ * matters: a discarded draft keeps its own unresolved items permanently
+ * incomplete, and can reference the very same watchlist entries a new
+ * draft was just created from (the profile's watchlist isn't touched by a
+ * discard, so a new draft can freely draw from it again) — likewise, a
+ * "wanted more time" postmortem response leaves an old, archived draft's
+ * item permanently `isCompleted: false` while the entry stays active and
+ * gets re-picked into a later draft. Matching by watchlistEntryId ALONE
+ * across every draft the profile has ever had could find either of those
+ * stale items instead of a real active one; restricting the item lookup
+ * to each currently-`"active"` draft's own items avoids that.
+ */
 async function completeMatchingActiveDraftItem(
   repos: { drafts: DraftRepository },
   params: {
@@ -413,43 +488,34 @@ async function completeMatchingActiveDraftItem(
     watchedHistoryId: string;
     now: Date;
   },
-): Promise<string | null> {
-  // Resolves the CURRENT active draft first, then looks for the matching
-  // item within it, scoped directly via `listItemsForDraft(draft.id)` —
-  // never a cross-draft scan. Scoping to THIS profile's one active draft
-  // matters: a discarded draft (see event system Phase 3, "SAY GOODBYE")
-  // keeps its own unresolved items permanently incomplete, and can
-  // reference the very same watchlist entries a new draft was just
-  // created from (the profile's watchlist isn't touched by a discard, so
-  // a new draft can freely draw from it again) — likewise, a "wanted more
-  // time" postmortem response leaves an old, archived draft's item
-  // permanently `isCompleted: false` while the entry stays active and
-  // gets re-picked into a later draft. Matching by watchlistEntryId ALONE
-  // across drafts could find either of those stale items instead of the
-  // real active one; going through `listItemsForDraft(draft.id)` avoids
-  // ever fetching another draft's items in the first place, rather than
-  // fetching broadly and filtering by `draftId` afterward.
-  const draft = await repos.drafts.getActiveOrExpiredDraft(params.profileId);
-  if (!draft || draft.status !== "active") {
-    return null;
+): Promise<DraftCompletionInfo[]> {
+  const activeDrafts = await repos.drafts.listActiveDrafts(params.profileId);
+  const completions: DraftCompletionInfo[] = [];
+
+  for (const draft of activeDrafts) {
+    const items = await repos.drafts.listItemsForDraft(draft.id);
+    const incompleteItem = items.find(
+      (item) =>
+        item.watchlistEntryId === params.watchlistEntryId && !item.isCompleted,
+    );
+    if (!incompleteItem) {
+      continue;
+    }
+
+    await repos.drafts.updateItem({
+      ...incompleteItem,
+      isCompleted: true,
+      completedAt: params.now.toISOString(),
+      watchedHistoryId: params.watchedHistoryId,
+    });
+    completions.push({
+      draftItemId: incompleteItem.id,
+      draftId: draft.id,
+      draftArchivedByThisAction: false,
+    });
   }
 
-  const items = await repos.drafts.listItemsForDraft(draft.id);
-  const incompleteItem = items.find(
-    (item) =>
-      item.watchlistEntryId === params.watchlistEntryId && !item.isCompleted,
-  );
-  if (!incompleteItem) {
-    return null;
-  }
-
-  await repos.drafts.updateItem({
-    ...incompleteItem,
-    isCompleted: true,
-    completedAt: params.now.toISOString(),
-    watchedHistoryId: params.watchedHistoryId,
-  });
-  return incompleteItem.id;
+  return completions;
 }
 
 export async function listActiveWatchlist(

@@ -1321,6 +1321,7 @@ describe("event system Phase 10 — reward safety end to end (persistence/lifecy
         draftItemId: outcome.draftItemId,
         draftId: outcome.draftId,
         draftArchivedByThisAction: outcome.draftArchivedByThisAction,
+        secondaryDraftCompletion: outcome.secondaryDraftCompletion,
       },
     });
     expect(undoResult).toEqual({ ok: true });

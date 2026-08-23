@@ -86,6 +86,35 @@ export function StatsNavIcon(props: NavIconProps) {
 }
 
 /**
+ * A simplified trash can outline — hand-authored in the same style as the
+ * icons above (24×24, stroke-only, no fill) for "F* You, It's January!"
+ * (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE + EVENT
+ * ROUTING/SETTINGS FIXES" §3 — replaces the generic `lucide-react`
+ * `Snowflake` January previously borrowed, which is now reserved for a
+ * future Christmas Event instead — see `EVENT_VISUAL_THEMES`'s doc
+ * comment in `event-visual-themes.ts`). Only shown in the nav when a
+ * profile has opted into January (see `use-nav-items.ts`). Monochrome by
+ * default (plain `currentColor`); the lid gets a subtle open/close nudge
+ * on hover/focus (see docs/updates §3, "a small lid/rubbish movement on
+ * hover is acceptable"), matching the per-element micro-animation
+ * convention every other nav icon in this file already uses
+ * (`.nav-icon-trash-lid` in globals.css, reduced-motion-gated).
+ */
+export function JanuaryTrashCanNavIcon(props: NavIconProps) {
+  return (
+    <svg {...svgDefaults(props)}>
+      <g className="nav-icon-trash-lid">
+        <path d="M3 6h18" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      </g>
+      <path d="M19 6l-.867 12.142A2 2 0 0 1 16.138 20H7.862a2 2 0 0 1-1.995-1.858L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+/**
  * A simplified jack-o'-lantern outline — hand-authored in the same style
  * as the icons above (24×24, stroke-only, no fill) rather than an emoji,
  * since no lucide-react icon covers Halloween/pumpkins at all (see

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { FREEFORM_RANK_LABELS } from "@/domain/drafts/freeform";
+import { getEventDefinition } from "@/domain/events/event-registry";
 import {
   DEFAULT_HISTORICAL_DRAFT_SORT,
   sortHistoricalDraftItems,
@@ -39,6 +40,22 @@ const TIME_MODE_LABELS: Record<DraftTimeMode, string> = {
   calendar: "Calendar mode",
   timer: "Timer mode",
 };
+
+/**
+ * A draft whose owning event fixes its deadline to the event's own end
+ * (see `EventDefinition.fixedEventDeadline`, docs/updates "PROMPT B2.2 —
+ * HALLOWEEN PAGE REBUILD + DEADLINE + STATS" §3) never had a real
+ * Calendar/Timer choice — labeling it "Timer mode" here would describe a
+ * choice that was never actually made.
+ */
+function getDraftTimeModeLabel(draft: DraftRecord): string {
+  const event = draft.sourceEventId
+    ? getEventDefinition(draft.sourceEventId)
+    : null;
+  return event?.fixedEventDeadline
+    ? "Event deadline"
+    : TIME_MODE_LABELS[draft.timeMode];
+}
 
 const POSTMORTEM_LABELS: Record<PostmortemResponseType, string> = {
   wanted_more_time: "Wanted more time",
@@ -254,7 +271,7 @@ function HistoricalDraftEntry({
               />
             </p>
             <p className="text-muted-foreground text-xs">
-              {TIME_MODE_LABELS[draft.timeMode]} ·{" "}
+              {getDraftTimeModeLabel(draft)} ·{" "}
               {formatReadableDate(draft.startedAt, "medium")} –{" "}
               {formatReadableDate(draft.deadlineAt, "medium")}
             </p>

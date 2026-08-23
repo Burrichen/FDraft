@@ -10,7 +10,6 @@ import {
   replaceDraftSlot,
   rerollLocalDraftItemForMissingMetadata,
   setLocalDraftCustomName,
-  settleAndDiscardLocalDraft,
   submitLocalPostmortemResponse,
 } from "@/application/drafts/local-draft-service";
 import {
@@ -890,7 +889,7 @@ describe("createLocalDraft — DIY Challenge Film", () => {
       draftId: created.draftId,
     });
     expect(outcome.ok).toBe(true);
-    expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
+    expect(await repos.drafts.hasActiveDraft(PROFILE_ID, null)).toBe(false);
   });
 });
 
@@ -1916,7 +1915,7 @@ describe("createLocalDraftFromSelection", () => {
       ok: true,
       result: { revertedWatchlistEntryIds: [], revertedDraftItemIds: [] },
     });
-    expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
+    expect(await repos.drafts.hasActiveDraft(PROFILE_ID, null)).toBe(false);
   });
 
   it("survives an app restart/reload — a fresh database connection to the same profile still sees the DIY draft and its items", async () => {
@@ -2879,7 +2878,7 @@ describe("abandonLocalDraft", () => {
 
     expect(await repos.drafts.getById(PROFILE_ID, created.draftId)).toBeNull();
     expect(await repos.drafts.listItemsForDraft(created.draftId)).toEqual([]);
-    expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
+    expect(await repos.drafts.hasActiveDraft(PROFILE_ID, null)).toBe(false);
   });
 
   it("reverts a watch this draft caused, but never touches an unrelated watched film", async () => {
@@ -3143,192 +3142,63 @@ describe("abandonLocalDraft", () => {
     });
   });
 });
-describe("settleAndDiscardLocalDraft", () => {
+describe("archiveLocalDraftIfResolved — a discarded draft is never resurrected (defensive guard, PROMPT B2.1)", () => {
   let db: FDraftLocalDatabase;
   afterEach(async () => {
     await db?.delete();
   });
 
-  async function seedActiveDraftWithItems(
-    repos: Repositories,
-    itemCount: number,
-    overrides: Partial<
-      Parameters<Repositories["drafts"]["createDraft"]>[0]
-    > = {},
-  ) {
-    const entryIds = await seedActiveFilms(repos, itemCount);
+  it("leaves a discarded draft discarded even after completing its last item", async () => {
+    db = new FDraftLocalDatabase(`discarded-guard-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    const [entryId] = await seedActiveFilms(repos, 1);
     await repos.drafts.createDraft({
       id: "draft-1",
       profileId: PROFILE_ID,
       difficulty: "baby",
       timeMode: "timer",
-      status: "active",
-      totalFilms: itemCount,
-      randomFilmCount: itemCount,
+      // No live flow produces "discarded" anymore (the "Say Goodbye" event
+      // transition this status was originally for was removed — see
+      // docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE" §1), but an
+      // older backup can still carry one, so `archiveLocalDraftIfResolved`
+      // must keep treating it as terminal regardless of how it got there.
+      status: "discarded",
+      totalFilms: 1,
+      randomFilmCount: 1,
       challengeFilmCount: 0,
       challengeMode: null,
       startedAt: "2026-01-01T00:00:00.000Z",
       deadlineAt: "2026-02-01T00:00:00.000Z",
       timezone: "UTC",
-      completedAt: null,
+      completedAt: "2026-01-05T00:00:00.000Z",
       freeformAchievedRank: null,
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-      ...overrides,
+      updatedAt: "2026-01-05T00:00:00.000Z",
     });
-    const items = entryIds.map((entryId, index) => ({
-      id: `item-${index}`,
-      draftId: "draft-1",
-      filmId: `film-${index}`,
-      watchlistEntryId: entryId,
-      source: "random" as const,
-      challengeId: null,
-      challengeAttemptId: null,
-      challengeDisplayValue: null,
-      orderIndex: index,
-      isCompleted: false,
-      completedAt: null,
-      watchedHistoryId: null,
-      originFilmId: null,
-      substitutionReason: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-    }));
-    await repos.drafts.createItems(items);
-    return { entryIds, items };
-  }
+    await repos.drafts.createItems([
+      {
+        id: "item-0",
+        draftId: "draft-1",
+        filmId: "film-0",
+        watchlistEntryId: entryId,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: true,
+        completedAt: "2026-01-10T00:00:00.000Z",
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
 
-  it("discards an active draft with unresolved items — no postmortem required", async () => {
-    db = new FDraftLocalDatabase(`settle-discard-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveDraftWithItems(repos, 3);
-
-    const clock = new FixedClock(new Date("2026-01-15T00:00:00.000Z"));
-    const result = await settleAndDiscardLocalDraft(
-      repos,
-      { profileId: PROFILE_ID, draftId: "draft-1" },
-      { clock },
-    );
-    expect(result).toBe(true);
-
-    const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
-    expect(draft?.status).toBe("discarded");
-    expect(draft?.completedAt).toBe("2026-01-15T00:00:00.000Z");
-    expect(draft?.rewardsGrantedAt).toBe("2026-01-15T00:00:00.000Z");
-
-    // Items are left exactly as they were — this never touches them.
-    const items = await repos.drafts.listItemsForDraft("draft-1");
-    expect(items.every((item) => !item.isCompleted)).toBe(true);
-  });
-
-  it("never assigns the outgoing draft to any event — sourceEventId is untouched", async () => {
-    db = new FDraftLocalDatabase(`settle-discard-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveDraftWithItems(repos, 1, { sourceEventId: null });
-
-    await settleAndDiscardLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      draftId: "draft-1",
-    });
-
-    const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
-    expect(draft?.sourceEventId).toBeNull();
-  });
-
-  it("is idempotent: calling it twice only discards and grants rewards once", async () => {
-    db = new FDraftLocalDatabase(`settle-discard-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveDraftWithItems(repos, 1);
-
-    const first = await settleAndDiscardLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      draftId: "draft-1",
-    });
-    expect(first).toBe(true);
-    const afterFirst = await repos.drafts.getById(PROFILE_ID, "draft-1");
-
-    const second = await settleAndDiscardLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      draftId: "draft-1",
-    });
-    expect(second).toBe(false);
-    const afterSecond = await repos.drafts.getById(PROFILE_ID, "draft-1");
-    expect(afterSecond).toEqual(afterFirst);
-  });
-
-  it("leaves a draft that already auto-archived (every film watched during Say Goodbye) as archived, not discarded — only settles its rewards", async () => {
-    db = new FDraftLocalDatabase(`settle-discard-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveDraftWithItems(repos, 1);
-
-    // Simulate the last film being watched during the Say Goodbye screen,
-    // which auto-archives via the normal path (see markLocalFilmWatched ->
-    // archiveLocalDraftIfResolved) before settleAndDiscardLocalDraft runs.
-    const items = await repos.drafts.listItemsForDraft("draft-1");
-    await repos.drafts.updateItem({
-      ...items[0],
-      isCompleted: true,
-      completedAt: "2026-01-10T00:00:00.000Z",
-    });
-    const archived = await archiveLocalDraftIfResolved(repos, {
-      profileId: PROFILE_ID,
-      draftId: "draft-1",
-    });
-    expect(archived).toBe(true);
-
-    // archiveLocalDraftIfResolved itself already granted the reward as
-    // part of this normal completion (see event system Phase 5) — so
-    // settleAndDiscardLocalDraft now finds nothing left to do.
-    const draftAfterArchive = await repos.drafts.getById(PROFILE_ID, "draft-1");
-    expect(draftAfterArchive?.rewardsGrantedAt).not.toBeNull();
-
-    const result = await settleAndDiscardLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      draftId: "draft-1",
-    });
-    expect(result).toBe(false);
-
-    const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
-    expect(draft?.status).toBe("archived"); // never downgraded to discarded
-    expect(draft?.rewardsGrantedAt).toBe(draftAfterArchive?.rewardsGrantedAt);
-  });
-
-  it("returns false for a draft that doesn't exist", async () => {
-    db = new FDraftLocalDatabase(`settle-discard-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-
-    const result = await settleAndDiscardLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      draftId: "does-not-exist",
-    });
-    expect(result).toBe(false);
-  });
-
-  it("a discarded draft is never resurrected to archived — the race between watching its last film and confirming Say Goodbye", async () => {
-    db = new FDraftLocalDatabase(`settle-discard-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveDraftWithItems(repos, 1);
-
-    // Say Goodbye's confirm lands first...
-    await settleAndDiscardLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      draftId: "draft-1",
-    });
-    const discarded = await repos.drafts.getById(PROFILE_ID, "draft-1");
-    expect(discarded?.status).toBe("discarded");
-
-    // ...then a concurrently in-flight "mark last film watched" call's own
-    // archiveLocalDraftIfResolved resolves — this must be a no-op, never
-    // flipping the draft back to "archived".
-    const items = await repos.drafts.listItemsForDraft("draft-1");
-    await repos.drafts.updateItem({
-      ...items[0],
-      isCompleted: true,
-      completedAt: "2026-01-10T00:00:00.000Z",
-    });
     const resurrected = await archiveLocalDraftIfResolved(repos, {
       profileId: PROFILE_ID,
       draftId: "draft-1",
@@ -3337,5 +3207,6 @@ describe("settleAndDiscardLocalDraft", () => {
 
     const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
     expect(draft?.status).toBe("discarded");
+    expect(draft?.rewardsGrantedAt).toBeNull();
   });
 });

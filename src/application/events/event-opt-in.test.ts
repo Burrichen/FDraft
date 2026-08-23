@@ -4,7 +4,6 @@ import { setEventDateOverride } from "@/application/events/event-date-override-s
 import {
   applyEventOptIn,
   beginEventOptIn,
-  confirmSayGoodbye,
 } from "@/application/events/event-opt-in";
 import { getEventSettings } from "@/application/events/event-settings-store";
 import {
@@ -51,13 +50,13 @@ async function seedActiveFilms(repos: Repositories, count: number) {
   }
 }
 
-describe("beginEventOptIn / applyEventOptIn / confirmSayGoodbye", () => {
+describe("beginEventOptIn / applyEventOptIn", () => {
   let db: FDraftLocalDatabase;
   afterEach(async () => {
     await db?.delete();
   });
 
-  it("in January, with no active draft, applies the opt-in immediately as a normal (non-manual) activation", async () => {
+  it("in January, applies the opt-in immediately as a normal (non-manual) activation", async () => {
     db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
 
@@ -66,10 +65,7 @@ describe("beginEventOptIn / applyEventOptIn / confirmSayGoodbye", () => {
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: IN_JANUARY },
     );
-    expect(result).toEqual({
-      needsSayGoodbye: false,
-      eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-    });
+    expect(result).toEqual({ eventId: F_YOU_ITS_JANUARY_EVENT_ID });
 
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(true);
@@ -77,7 +73,7 @@ describe("beginEventOptIn / applyEventOptIn / confirmSayGoodbye", () => {
     expect(settings.manuallyEnabledEvents).toEqual([]);
   });
 
-  it("outside January, with no active draft, applies the opt-in immediately as a manual activation", async () => {
+  it("outside January, with no explicit target and nothing naturally active, is a no-op (PROMPT B2.1: no more auto-pick-a-manual-event fallback)", async () => {
     db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
 
@@ -86,20 +82,14 @@ describe("beginEventOptIn / applyEventOptIn / confirmSayGoodbye", () => {
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: OUTSIDE_JANUARY },
     );
-    expect(result).toEqual({
-      needsSayGoodbye: false,
-      eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-    });
+    expect(result).toEqual({ eventId: null });
 
     const settings = await getEventSettings(repos, PROFILE_ID);
-    expect(settings.eventsEnabled).toBe(true);
-    expect(settings.activeEvent).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
-    expect(settings.manuallyEnabledEvents).toEqual([
-      F_YOU_ITS_JANUARY_EVENT_ID,
-    ]);
+    expect(settings.eventsEnabled).toBe(false);
+    expect(settings.activeEvent).toBeNull();
   });
 
-  it("with an active draft, never touches event settings — reports needsSayGoodbye and which event/manual-ness instead", async () => {
+  it("opting into an event never touches the profile's active normal Draft (PROMPT B2.1 §1 — no more 'Say Goodbye')", async () => {
     db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     await seedActiveFilms(repos, 3);
@@ -120,86 +110,18 @@ describe("beginEventOptIn / applyEventOptIn / confirmSayGoodbye", () => {
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: IN_JANUARY },
     );
-    expect(result).toEqual({
-      needsSayGoodbye: true,
-      activeDraftId: created.draftId,
-      eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-      manuallyEnabled: false,
-    });
+    expect(result).toEqual({ eventId: F_YOU_ITS_JANUARY_EVENT_ID });
 
-    const settings = await getEventSettings(repos, PROFILE_ID);
-    expect(settings.eventsEnabled).toBe(false);
-  });
-
-  it("confirmSayGoodbye settles/discards the outgoing draft and completes the opt-in", async () => {
-    db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveFilms(repos, 2);
-    const created = await createLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      timezone: "UTC",
-      config: {
-        difficulty: "baby",
-        timeMode: "timer",
-        randomCount: 2,
-        challengeCount: 0,
-      },
-    });
-    if (!created.ok) throw new Error("unreachable");
-
-    const begin = await beginEventOptIn(
-      repos,
-      { profileId: PROFILE_ID, timezone: "UTC" },
-      { clock: IN_JANUARY },
-    );
-    if (!begin.needsSayGoodbye) throw new Error("unreachable");
-
-    await confirmSayGoodbye(repos, {
-      profileId: PROFILE_ID,
-      draftId: begin.activeDraftId,
-      eventId: begin.eventId,
-      manuallyEnabled: begin.manuallyEnabled,
-    });
-
-    // The outgoing draft is discarded and never assigned to the incoming event.
+    // The normal draft is completely untouched — still active, still a
+    // normal (non-event) draft, no rewards granted.
     const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
-    expect(draft?.status).toBe("discarded");
+    expect(draft?.status).toBe("active");
     expect(draft?.sourceEventId).toBeNull();
-    expect(draft?.rewardsGrantedAt).not.toBeNull();
+    expect(draft?.rewardsGrantedAt).toBeNull();
 
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(true);
     expect(settings.activeEvent).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
-  });
-
-  it("cancelling (never calling confirmSayGoodbye) leaves the draft active and the event off", async () => {
-    db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveFilms(repos, 1);
-    const created = await createLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      timezone: "UTC",
-      config: {
-        difficulty: "baby",
-        timeMode: "timer",
-        randomCount: 1,
-        challengeCount: 0,
-      },
-    });
-    if (!created.ok) throw new Error("unreachable");
-
-    await beginEventOptIn(
-      repos,
-      { profileId: PROFILE_ID, timezone: "UTC" },
-      { clock: IN_JANUARY },
-    );
-    // No confirmSayGoodbye call — this is what "Cancel" is: doing nothing.
-
-    const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
-    expect(draft?.status).toBe("active");
-    const settings = await getEventSettings(repos, PROFILE_ID);
-    expect(settings.eventsEnabled).toBe(false);
-    expect(settings.activeEvent).toBeNull();
   });
 
   it("applyEventOptIn sets eventsEnabled + activeEvent, preserving other event settings", async () => {
@@ -248,19 +170,13 @@ describe("beginEventOptIn / applyEventOptIn / confirmSayGoodbye", () => {
   });
 });
 
-describe("beginEventOptIn — targeting a specific event by id (audit fix: Settings' displayed event must be the one that actually activates)", () => {
+describe("beginEventOptIn — targeting a specific event by id", () => {
   let db: FDraftLocalDatabase;
   afterEach(async () => {
     await db?.delete();
   });
 
-  it("opts into The Watchlist Frontier specifically, even though it is not the first manually-activatable event in the registry", async () => {
-    // Halloween (the registry's actual second entry) can no longer be
-    // manually opted into outside its own natural window at all (see the
-    // dedicated "manualActivationAllowed: false" describe block below), so
-    // this audit-fix regression now exercises the next event that still
-    // allows manual activation — the exact same "not silently activated as
-    // whichever the auto-pick would choose" concern still applies to it.
+  it("opts into The Watchlist Frontier specifically via its manual-activation fallback — it has no natural window at all, and isn't reachable through today's UI, but a direct/explicit request still works", async () => {
     db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
 
@@ -274,54 +190,12 @@ describe("beginEventOptIn — targeting a specific event by id (audit fix: Setti
       { clock: OUTSIDE_JANUARY },
     );
 
-    expect(result).toEqual({
-      needsSayGoodbye: false,
-      eventId: WATCHLIST_FRONTIER_EVENT_ID,
-    });
+    expect(result).toEqual({ eventId: WATCHLIST_FRONTIER_EVENT_ID });
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.activeEvent).toBe(WATCHLIST_FRONTIER_EVENT_ID);
     expect(settings.manuallyEnabledEvents).toEqual([
       WATCHLIST_FRONTIER_EVENT_ID,
     ]);
-    // January — the registry's first entry — must NOT have been the one
-    // silently activated instead.
-    expect(settings.manuallyEnabledEvents).not.toContain(
-      F_YOU_ITS_JANUARY_EVENT_ID,
-    );
-  });
-
-  it("with an active draft, Say Goodbye reports the SPECIFIC requested event, not whichever one auto-pick would have chosen", async () => {
-    db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await seedActiveFilms(repos, 1);
-    const created = await createLocalDraft(repos, {
-      profileId: PROFILE_ID,
-      timezone: "UTC",
-      config: {
-        difficulty: "baby",
-        timeMode: "timer",
-        randomCount: 1,
-        challengeCount: 0,
-      },
-    });
-    if (!created.ok) throw new Error("unreachable");
-
-    const result = await beginEventOptIn(
-      repos,
-      {
-        profileId: PROFILE_ID,
-        timezone: "UTC",
-        eventId: WATCHLIST_FRONTIER_EVENT_ID,
-      },
-      { clock: OUTSIDE_JANUARY },
-    );
-
-    expect(result).toEqual({
-      needsSayGoodbye: true,
-      activeDraftId: created.draftId,
-      eventId: WATCHLIST_FRONTIER_EVENT_ID,
-      manuallyEnabled: true,
-    });
   });
 
   it("a stale/unknown requested event id fails safely — no settings change, no crash", async () => {
@@ -338,7 +212,7 @@ describe("beginEventOptIn — targeting a specific event by id (audit fix: Setti
       { clock: OUTSIDE_JANUARY },
     );
 
-    expect(result).toEqual({ needsSayGoodbye: false, eventId: null });
+    expect(result).toEqual({ eventId: null });
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(false);
     expect(settings.activeEvent).toBeNull();
@@ -358,10 +232,7 @@ describe("beginEventOptIn — targeting a specific event by id (audit fix: Setti
       { clock: IN_JANUARY },
     );
 
-    expect(result).toEqual({
-      needsSayGoodbye: false,
-      eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-    });
+    expect(result).toEqual({ eventId: F_YOU_ITS_JANUARY_EVENT_ID });
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.manuallyEnabledEvents).toEqual([]);
   });
@@ -392,10 +263,7 @@ describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 
       { clock: IN_HALLOWEEN },
     );
 
-    expect(result).toEqual({
-      needsSayGoodbye: false,
-      eventId: HALLOWEEN_EVENT_ID,
-    });
+    expect(result).toEqual({ eventId: HALLOWEEN_EVENT_ID });
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
     expect(settings.manuallyEnabledEvents).not.toContain(HALLOWEEN_EVENT_ID);
@@ -419,7 +287,7 @@ describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 
       { clock: OUTSIDE_HALLOWEEN },
     );
 
-    expect(result).toEqual({ needsSayGoodbye: false, eventId: null });
+    expect(result).toEqual({ eventId: null });
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(false);
     expect(settings.activeEvent).toBeNull();
@@ -464,10 +332,7 @@ describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 
         eventId: HALLOWEEN_EVENT_ID,
       });
 
-      expect(result).toEqual({
-        needsSayGoodbye: false,
-        eventId: HALLOWEEN_EVENT_ID,
-      });
+      expect(result).toEqual({ eventId: HALLOWEEN_EVENT_ID });
       const settings = await getEventSettings(repos, PROFILE_ID);
       expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
     } finally {

@@ -97,3 +97,50 @@ describe("HalloweenDraftCreationView — availability gate (PROMPT 21)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("HalloweenDraftCreationView — fixed Event deadline, no Calendar/Timer selector (PROMPT B2.2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("shows the real Event deadline and never offers a Calendar/Timer mode choice", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Event Deadline")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/1 november/i)).toBeInTheDocument();
+
+    // No trace of the removed mode selector anywhere on the page.
+    expect(screen.queryByText(/^Calendar$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Timer$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /calendar/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^timer$/i })).toBeNull();
+  });
+
+  it("shows the SAME deadline (1 November) regardless of where in the window 'now' falls", async () => {
+    for (const now of [
+      "2026-09-30T19:15:00.000Z",
+      "2026-10-15T00:00:00.000Z",
+      "2026-10-31T23:00:00.000Z",
+    ]) {
+      const databaseName = crypto.randomUUID();
+      await seedProfile(databaseName);
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(now));
+
+      const { unmount } = render(<Harness databaseName={databaseName} />);
+      await waitFor(() =>
+        expect(screen.getByText("Event Deadline")).toBeInTheDocument(),
+      );
+      expect(screen.getByText(/1 november/i)).toBeInTheDocument();
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+});

@@ -23,7 +23,14 @@ function Harness({ databaseName }: { databaseName: string }) {
   );
 }
 
-async function seedProfile(databaseName: string) {
+async function seedProfile(
+  databaseName: string,
+  eventSettings?: {
+    eventsEnabled: boolean;
+    activeEvent: string | null;
+    manuallyEnabledEvents?: string[];
+  },
+) {
   const db = new FDraftLocalDatabase(databaseName);
   const repos = createLocalRepositories(db);
   await repos.profiles.create({
@@ -42,10 +49,12 @@ async function seedProfile(databaseName: string) {
     dataVersion: 1,
   });
   await repos.settings.set(PROFILE_ID, "events.settings", {
-    eventsEnabled: true,
+    eventsEnabled: eventSettings?.eventsEnabled ?? true,
     eventVisualsEnabled: false,
-    activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
-    manuallyEnabledEvents: [F_YOU_ITS_JANUARY_EVENT_ID],
+    activeEvent: eventSettings?.activeEvent ?? F_YOU_ITS_JANUARY_EVENT_ID,
+    manuallyEnabledEvents: eventSettings?.manuallyEnabledEvents ?? [
+      F_YOU_ITS_JANUARY_EVENT_ID,
+    ],
   });
   await db.close();
 }
@@ -124,26 +133,26 @@ async function seedActiveJanuaryDraft(databaseName: string) {
   return created.draftId;
 }
 
-describe("EventSwitcherSection — Event visuals toggle (event system Phase 8)", () => {
+describe("EventSwitcherSection — Current Event: Event Visuals toggle (event system Phase 8)", () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("toggling Event visuals persists eventVisualsEnabled without touching eventsEnabled, activeEvent, or manuallyEnabledEvents", async () => {
+  it("toggling Event Visuals persists eventVisualsEnabled without touching eventsEnabled, activeEvent, or manuallyEnabledEvents", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName);
     const user = userEvent.setup();
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByLabelText("Event visuals")).toBeInTheDocument(),
+      expect(screen.getByLabelText("Event Visuals")).toBeInTheDocument(),
     );
-    expect(screen.getByLabelText("Event visuals")).not.toBeChecked();
+    expect(screen.getByLabelText("Event Visuals")).not.toBeChecked();
 
-    await user.click(screen.getByLabelText("Event visuals"));
+    await user.click(screen.getByLabelText("Event Visuals"));
 
     await waitFor(() =>
-      expect(screen.getByLabelText("Event visuals")).toBeChecked(),
+      expect(screen.getByLabelText("Event Visuals")).toBeChecked(),
     );
 
     const db = new FDraftLocalDatabase(databaseName);
@@ -158,7 +167,7 @@ describe("EventSwitcherSection — Event visuals toggle (event system Phase 8)",
     await db.close();
   });
 
-  it("toggling Event visuals while an active event draft exists never mutates the draft record", async () => {
+  it("toggling Event Visuals while an active event draft exists never mutates the draft record", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName);
     const draftId = await seedActiveJanuaryDraft(databaseName);
@@ -171,17 +180,17 @@ describe("EventSwitcherSection — Event visuals toggle (event system Phase 8)",
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByLabelText("Event visuals")).toBeInTheDocument(),
+      expect(screen.getByLabelText("Event Visuals")).toBeInTheDocument(),
     );
 
-    await user.click(screen.getByLabelText("Event visuals"));
+    await user.click(screen.getByLabelText("Event Visuals"));
     await waitFor(() =>
-      expect(screen.getByLabelText("Event visuals")).toBeChecked(),
+      expect(screen.getByLabelText("Event Visuals")).toBeChecked(),
     );
     // Toggle it back off too — a round trip, not just a single flip.
-    await user.click(screen.getByLabelText("Event visuals"));
+    await user.click(screen.getByLabelText("Event Visuals"));
     await waitFor(() =>
-      expect(screen.getByLabelText("Event visuals")).not.toBeChecked(),
+      expect(screen.getByLabelText("Event Visuals")).not.toBeChecked(),
     );
 
     const afterDb = new FDraftLocalDatabase(databaseName);
@@ -197,7 +206,7 @@ describe("EventSwitcherSection — Event visuals toggle (event system Phase 8)",
   });
 });
 
-describe("EventSwitcherSection — turning Events off (event system Phase 10 hardening)", () => {
+describe("EventSwitcherSection — Current Event: Event Gameplay toggle (leaving an event, event system Phase 10 hardening)", () => {
   afterEach(() => {
     cleanup();
   });
@@ -220,15 +229,19 @@ describe("EventSwitcherSection — turning Events off (event system Phase 10 har
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByLabelText("Events")).toBeInTheDocument(),
+      expect(screen.getByLabelText("Event Gameplay")).toBeInTheDocument(),
     );
-    expect(screen.getByLabelText("Events")).toBeChecked();
+    expect(screen.getByLabelText("Event Gameplay")).toBeChecked();
 
-    await user.click(screen.getByLabelText("Events"));
+    await user.click(screen.getByLabelText("Event Gameplay"));
 
-    await waitFor(() =>
-      expect(screen.getByLabelText("Events")).not.toBeChecked(),
-    );
+    await waitFor(async () => {
+      const afterDb = new FDraftLocalDatabase(databaseName);
+      const afterRepos = createLocalRepositories(afterDb);
+      const settingsAfter = await getEventSettings(afterRepos, PROFILE_ID);
+      await afterDb.close();
+      expect(settingsAfter.eventsEnabled).toBe(false);
+    });
 
     const afterDb = new FDraftLocalDatabase(databaseName);
     const afterRepos = createLocalRepositories(afterDb);
@@ -245,7 +258,7 @@ describe("EventSwitcherSection — turning Events off (event system Phase 10 har
     await afterDb.close();
 
     // The active draft — including its own sourceEventId/rewardsGrantedAt
-    // — is completely untouched by turning Events off.
+    // — is completely untouched by leaving the event.
     expect(draftAfter).toEqual(draftBefore);
     // Nothing was awarded to any currency.
     expect(lifetimeAfter).toBe(lifetimeBefore);
@@ -253,7 +266,6 @@ describe("EventSwitcherSection — turning Events off (event system Phase 10 har
     // Explicit transition behaviour: eventsEnabled/activeEvent clear, but
     // manuallyEnabledEvents (this profile's event history) is preserved,
     // not wiped — "preserve user data non-destructively."
-    expect(settingsAfter.eventsEnabled).toBe(false);
     expect(settingsAfter.activeEvent).toBeNull();
     expect(settingsAfter.manuallyEnabledEvents).toEqual([
       F_YOU_ITS_JANUARY_EVENT_ID,
@@ -261,13 +273,12 @@ describe("EventSwitcherSection — turning Events off (event system Phase 10 har
   });
 });
 
-describe("EventSwitcherSection — Halloween's always-visible restricted status (PROMPT 18)", () => {
+describe("EventSwitcherSection — Available Events (PROMPT B2.1 §4: active events only)", () => {
   beforeEach(() => {
     // Pinned outside BOTH January's real window (25–31 Jan) and Halloween's
     // real natural window (30 Sep 19:00 – 1 Nov 00:00, see
     // `event-registry.ts`) — the default for these tests; individual tests
-    // override it when they need to simulate being inside Halloween's
-    // window instead.
+    // override it when they need to simulate being inside a window.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-06-15T00:00:00.000Z"));
   });
@@ -277,30 +288,32 @@ describe("EventSwitcherSection — Halloween's always-visible restricted status 
     vi.useRealTimers();
   });
 
-  it("outside the window: shows 'Returns <date>' with no reachable Join control", async () => {
+  it("nothing naturally active and not currently joined to anything: shows 'No events are currently running.', no catalogue of inactive events to force", async () => {
     const databaseName = crypto.randomUUID();
-    await seedProfile(databaseName);
+    await seedProfile(databaseName, {
+      eventsEnabled: false,
+      activeEvent: null,
+    });
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+      expect(screen.getByText("Available Events")).toBeInTheDocument(),
     );
-
-    expect(screen.getByText(/returns 30 september/i)).toBeInTheDocument();
-    // No button anywhere lets a normal user start Halloween outside its
-    // natural window — the generic slot's own "Opt In" (for whichever
-    // OTHER manually-activatable event this profile hasn't joined yet) is
-    // unrelated and may still legitimately appear.
     expect(
-      screen.queryByRole("button", {
-        name: "I want to join the Halloween Event",
-      }),
+      screen.getByText("No events are currently running."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Halloween")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /join/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("during the window: shows 'Available now' and a working Join button", async () => {
+  it("during Halloween's window, not currently joined to anything: lists Halloween with a working Join button", async () => {
     const databaseName = crypto.randomUUID();
-    await seedProfile(databaseName);
+    await seedProfile(databaseName, {
+      eventsEnabled: false,
+      activeEvent: null,
+    });
     vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
     const user = userEvent.setup();
 
@@ -308,13 +321,10 @@ describe("EventSwitcherSection — Halloween's always-visible restricted status 
     await waitFor(() =>
       expect(screen.getByText("Halloween")).toBeInTheDocument(),
     );
-    expect(
-      screen.getByText(/available now — a normal user/i),
-    ).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", {
-        name: "I want to join the Halloween Event",
+        name: "Let me in.",
       }),
     );
 
@@ -329,9 +339,12 @@ describe("EventSwitcherSection — Halloween's always-visible restricted status 
     });
   });
 
-  it("Admin Mode's Event Test Switcher override makes it available even though the real clock is outside the window", async () => {
+  it("Admin Mode's Event Test Switcher override makes Halloween available even though the real clock is outside the window", async () => {
     const databaseName = crypto.randomUUID();
-    await seedProfile(databaseName);
+    await seedProfile(databaseName, {
+      eventsEnabled: false,
+      activeEvent: null,
+    });
     const db = new FDraftLocalDatabase(databaseName);
     const repos = createLocalRepositories(db);
     const profile = await repos.profiles.getById(PROFILE_ID);
@@ -349,9 +362,30 @@ describe("EventSwitcherSection — Halloween's always-visible restricted status 
     render(<Harness databaseName={databaseName} />);
 
     await waitFor(() =>
-      expect(
-        screen.getByText(/available now — a normal user/i),
-      ).toBeInTheDocument(),
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
     );
+    expect(
+      screen.getByRole("button", {
+        name: "Let me in.",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("already joined to an event: Halloween is never offered as a second available event, even while naturally active", async () => {
+    const databaseName = crypto.randomUUID();
+    // Already opted into January (seedProfile's default).
+    await seedProfile(databaseName);
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Current Event")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Available Events")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Let me in.",
+      }),
+    ).not.toBeInTheDocument();
   });
 });

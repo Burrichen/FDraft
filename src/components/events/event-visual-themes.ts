@@ -1,4 +1,4 @@
-import { Compass, Radio, Snowflake } from "lucide-react";
+import { Compass, Radio } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import type { EventDefinition } from "@/domain/events/event-definition";
 import {
@@ -8,23 +8,41 @@ import {
   WATCHLIST_FRONTIER_EVENT_ID,
 } from "@/domain/events/event-registry";
 import { resolveEventVisualThemeId } from "@/domain/events/event-visual-presentation";
-import { HalloweenNavIcon } from "@/components/layout/nav-icons";
+import {
+  HalloweenNavIcon,
+  JanuaryTrashCanNavIcon,
+} from "@/components/layout/nav-icons";
 import { renderHalloweenDialogDecoration } from "./halloween-dialog-decoration";
+import { renderHalloweenIntroContent } from "./halloween-intro-content";
 
 export interface EventVisualTheme {
   /** Widened from `LucideIcon` (same convention `nav-config.ts`'s `NavItem.icon` already uses) — accepts a plain lucide icon or a hand-authored SVG component like `HalloweenNavIcon`, since both are just components over `SVGProps<SVGSVGElement>`. */
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   /**
-   * Applied by a caller to the root of whatever it's theming (dialog
-   * content, page wrapper) — see `.theme-halloween` in `globals.css` (see
-   * docs/updates, "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI"). Optional so
-   * January/Frontier/Signal's plain icon-only theme is completely
-   * unaffected — `EventIntroDialog`/`EventPresentationBadge` read this
-   * generically, no per-event branch added to either.
+   * Applied by a caller to the root of whatever it's theming — today
+   * exclusively `EventIntroDialog`'s `AlertDialogContent` (see
+   * `.theme-halloween` in `globals.css`, docs/updates "PROMPT 20"). Any
+   * classes the theme's root needs belong here, not just color tokens —
+   * see docs/updates, "PROMPT B2.3 — HALLOWEEN JOIN MODAL COMPLETE
+   * REDESIGN" §1, which also folds the modal's own (much larger) sizing
+   * in. Optional so January/Frontier/Signal's plain icon-only theme is
+   * completely unaffected — read generically, no per-event branch added.
    */
   rootClassName?: string;
+  /** Applied to `EventIntroDialog`'s own `AlertDialogTitle`, generically — same "optional per-theme override, undefined preserves today's default" convention as `rootClassName` (see docs/updates, "PROMPT B2.3" §2). */
+  titleClassName?: string;
   /** Purely decorative content a caller renders alongside its own — see `EventIntroDialog`'s Halloween decoration. Always `aria-hidden` inside the renderer itself. */
   renderDecoration?: () => ReactNode;
+  /**
+   * Fully replaces `EventIntroDialog`'s generic description + bullets +
+   * footer-note body for this event (see docs/updates, "PROMPT B2.3" §3)
+   * — lets an event supply genuinely rich, word-level-emphasized copy the
+   * plain-string `EventIntroContent.description`/`bullets` shape can't
+   * express, without teaching the shared dialog anything about which
+   * event it is. Absent for every event that keeps the generic rendering
+   * (today: everyone but Halloween).
+   */
+  renderIntroContent?: () => ReactNode;
 }
 
 /**
@@ -35,15 +53,32 @@ export interface EventVisualTheme {
  * imports React or an icon library; this file is the only place that
  * does. Any future/removed theme id simply isn't a key here, which every
  * caller treats as a safe "no icon" fallback, never an error.
+ *
+ * January uses a hand-authored trash can (see docs/updates, "PROMPT B2.1
+ * — DUAL DRAFT ARCHITECTURE + EVENT ROUTING/SETTINGS FIXES" §3) — it
+ * previously borrowed `lucide-react`'s generic `Snowflake`, which is now
+ * DELIBERATELY UNUSED and reserved for a future Christmas Event instead.
+ * Do not reuse `Snowflake` for anything else; a Christmas Event isn't
+ * implemented yet (no nav tab, no page, no gameplay — see §3's "CHRISTMAS
+ * ICON RESERVATION"), but when one is, its icon is already decided.
  */
 export const EVENT_VISUAL_THEMES: Record<string, EventVisualTheme> = {
-  [F_YOU_ITS_JANUARY_EVENT_ID]: { icon: Snowflake },
+  [F_YOU_ITS_JANUARY_EVENT_ID]: { icon: JanuaryTrashCanNavIcon },
   [WATCHLIST_FRONTIER_EVENT_ID]: { icon: Compass },
   [SIGNAL_FROM_BEYOND_EVENT_ID]: { icon: Radio },
   [HALLOWEEN_EVENT_ID]: {
     icon: HalloweenNavIcon,
-    rootClassName: "theme-halloween",
+    // Roughly 65-80% of the viewport width on larger screens, capped at a
+    // sensible maximum (matches the app's own `max-w-2xl` content-column
+    // convention) — see docs/updates, "PROMPT B2.3" §1. `max-h-[85vh]` +
+    // `overflow-y-auto` keeps the much taller content from ever
+    // overflowing the viewport unusably on a short screen.
+    rootClassName:
+      "theme-halloween w-[92vw] sm:w-[80vw] md:w-[70vw] max-w-2xl max-h-[85vh] overflow-y-auto",
+    titleClassName:
+      "flex-col items-center justify-center gap-2 text-center text-4xl sm:text-5xl font-extrabold text-halloween-pumpkin [&_svg]:size-9 sm:[&_svg]:size-11",
     renderDecoration: renderHalloweenDialogDecoration,
+    renderIntroContent: renderHalloweenIntroContent,
   },
 };
 

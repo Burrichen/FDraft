@@ -1,23 +1,14 @@
 "use client";
 
 import { formatInTimeZone } from "date-fns-tz";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import { getEventSettings } from "@/application/events/event-settings-store";
-import { SayGoodbyeView } from "@/app/(app)/settings/say-goodbye-view";
+import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   getNextOccurrenceStart,
   isEventAvailable,
@@ -33,6 +24,7 @@ const POINT_CURRENCY_LABELS: Record<PointCurrency, string> = {
   misery: "Misery Points",
   signal: "Signal Points",
   bounty: "Bounty Points",
+  haunted: "Haunted Points",
 };
 
 /**
@@ -54,8 +46,15 @@ const POINT_CURRENCY_LABELS: Record<PointCurrency, string> = {
  * allocation form), without teaching this shared shell anything about
  * which event it is. A render function (not a plain node) so the caller
  * can trigger this component's own `reloadSilently` once a draft is
- * created, refreshing straight to the "active draft" card. Omitted
+ * created, refreshing straight to the "active draft" view. Omitted
  * (January) keeps today's default exactly.
+ *
+ * The active/expired draft itself is rendered by the shared
+ * `DraftLifecycleView`, scoped to THIS event's own draft slot (see
+ * docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE") — a profile's
+ * normal Draft (shown on `/drafts`) is a completely independent slot and
+ * is never shown or affected here, and opting into an event never touches
+ * it (there is no "Say Goodbye" detour anymore).
  */
 export function EventPageView({
   eventId,
@@ -78,9 +77,7 @@ export function EventPageView({
     const balance = event.pointType
       ? await repositories.points.getBalance(profileId, event.pointType)
       : null;
-    const activeDraft =
-      await repositories.drafts.getActiveOrExpiredDraft(profileId);
-    return { settings, effectiveNow, balance, activeDraft };
+    return { settings, effectiveNow, balance };
   }, [profileId, timezone, repositories, event]);
 
   const optIn = useEventOptInFlow({
@@ -95,7 +92,7 @@ export function EventPageView({
     return null;
   }
 
-  const { settings, effectiveNow, balance, activeDraft } = data;
+  const { settings, effectiveNow, balance } = data;
   const isOptedIn = settings.eventsEnabled && settings.activeEvent === event.id;
   const theme = resolveEventTheme(event, settings.eventVisualsEnabled);
   const available = isEventAvailable(
@@ -108,44 +105,6 @@ export function EventPageView({
     effectiveNow,
     timezone,
   );
-
-  if (optIn.pendingSayGoodbye) {
-    return (
-      <div className="max-w-2xl space-y-6">
-        <AlertDialog open onOpenChange={() => {}}>
-          <AlertDialogContent className="max-w-lg">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Say goodbye to your draft?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Opting in replaces your active draft. Mark anything you&apos;ve
-                watched, then confirm to close this draft out and continue —
-                whatever&apos;s left unwatched is simply let go of, not held
-                against you.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <SayGoodbyeView draftId={optIn.pendingSayGoodbye.draftId} />
-            <AlertDialogFooter>
-              <Button
-                type="button"
-                onClick={() => void optIn.confirmSayGoodbyeAction()}
-                disabled={optIn.isSaving}
-              >
-                Say Goodbye
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={optIn.cancelSayGoodbye}
-                disabled={optIn.isSaving}
-              >
-                Cancel
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -213,28 +172,20 @@ export function EventPageView({
             </Card>
           ) : null}
 
-          {activeDraft && activeDraft.sourceEventId === event.id ? (
-            <Card>
-              <CardContent className="flex items-center justify-between gap-3">
-                <p className="text-sm">
-                  You have an active draft for this event.
-                </p>
-                <Button nativeButton={false} render={<Link href="/drafts" />}>
-                  Go to your draft
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            (renderEmptyState?.(reloadSilently) ?? (
-              <Card>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm">
-                    Nothing here yet — more is coming soon.
-                  </p>
-                </CardContent>
-              </Card>
-            ))
-          )}
+          <DraftLifecycleView
+            sourceEventId={event.id}
+            emptyState={
+              renderEmptyState?.(reloadSilently) ?? (
+                <Card>
+                  <CardContent>
+                    <p className="text-muted-foreground text-sm">
+                      Nothing here yet — more is coming soon.
+                    </p>
+                  </CardContent>
+                </Card>
+              )
+            }
+          />
         </>
       )}
     </div>

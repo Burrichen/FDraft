@@ -199,7 +199,7 @@ describe("EventIntroDialog (real fake-indexeddb)", () => {
     await db.close();
   });
 
-  it("Opt In with an active draft shows the Say Goodbye flow before completing the opt-in", async () => {
+  it("Opt In with an active draft completes immediately — no Say Goodbye detour, and the draft is left completely untouched (PROMPT B2.1 §1)", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, true);
     const draftId = await seedActiveDraft(databaseName);
@@ -215,26 +215,19 @@ describe("EventIntroDialog (real fake-indexeddb)", () => {
     await user.click(screen.getByRole("button", { name: "Opt In" }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText("Say goodbye to your draft?"),
-      ).toBeInTheDocument(),
+      expect(screen.queryByText(EVENT_NAME)).not.toBeInTheDocument(),
     );
-    expect(screen.queryByText(EVENT_NAME)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Say Goodbye" }));
-
-    await waitFor(() =>
-      expect(
-        screen.queryByText("Say goodbye to your draft?"),
-      ).not.toBeInTheDocument(),
-    );
+    expect(
+      screen.queryByText("Say goodbye to your draft?"),
+    ).not.toBeInTheDocument();
 
     const db = new FDraftLocalDatabase(databaseName);
     const repos = createLocalRepositories(db);
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.activeEvent).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
     const draft = await repos.drafts.getById(PROFILE_ID, draftId);
-    expect(draft?.status).toBe("discarded");
+    expect(draft?.status).toBe("active");
+    expect(draft?.sourceEventId).toBeNull();
     await db.close();
   });
 
@@ -334,7 +327,7 @@ describe("EventIntroDialog — Halloween's exact custom button copy (PROMPT 18)"
     vi.useRealTimers();
   });
 
-  it("shows the exact 'I want to join the Halloween Event' / 'I'm not interested' labels, not the generic Opt In/Nah", async () => {
+  it("shows the exact 'Let me in.' / 'I don't want to be scared!' labels, not the generic Opt In/Nah", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, true);
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -343,15 +336,17 @@ describe("EventIntroDialog — Halloween's exact custom button copy (PROMPT 18)"
     render(<Harness databaseName={databaseName} />);
 
     await waitFor(() =>
-      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { name: "Halloween" }),
+      ).toBeInTheDocument(),
     );
     expect(
       screen.getByRole("button", {
-        name: "I want to join the Halloween Event",
+        name: "Let me in.",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "I'm not interested" }),
+      screen.getByRole("button", { name: "I don't want to be scared!" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Opt In" }),
@@ -370,12 +365,14 @@ describe("EventIntroDialog — Halloween's exact custom button copy (PROMPT 18)"
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { name: "Halloween" }),
+      ).toBeInTheDocument(),
     );
 
     await user.click(
       screen.getByRole("button", {
-        name: "I want to join the Halloween Event",
+        name: "Let me in.",
       }),
     );
 
@@ -399,7 +396,7 @@ describe("EventIntroDialog — Halloween decline does not repeatedly return (PRO
     vi.useRealTimers();
   });
 
-  it("'I'm not interested' dismisses the modal and it does not reappear on reload within the same occurrence", async () => {
+  it("'I don't want to be scared!' dismisses the modal and it does not reappear on reload within the same occurrence", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, true);
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -408,11 +405,13 @@ describe("EventIntroDialog — Halloween decline does not repeatedly return (PRO
 
     const first = render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { name: "Halloween" }),
+      ).toBeInTheDocument(),
     );
 
     await user.click(
-      screen.getByRole("button", { name: "I'm not interested" }),
+      screen.getByRole("button", { name: "I don't want to be scared!" }),
     );
     await waitFor(() =>
       expect(screen.queryByText("Halloween")).not.toBeInTheDocument(),
@@ -464,7 +463,9 @@ describe("EventIntroDialog — Halloween theme + decoration (PROMPT 20)", () => 
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { name: "Halloween" }),
+      ).toBeInTheDocument(),
     );
 
     const dialog = screen.getByRole("alertdialog");

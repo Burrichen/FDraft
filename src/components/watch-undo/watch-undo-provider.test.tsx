@@ -14,6 +14,7 @@ function record(
     draftItemId: null,
     draftId: null,
     draftArchivedByThisAction: false,
+    secondaryDraftCompletion: null,
     ...overrides,
   };
 }

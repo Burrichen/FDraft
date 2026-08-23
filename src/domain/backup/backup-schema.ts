@@ -129,6 +129,7 @@ export const pointCurrencySchema = z.enum([
   "misery",
   "signal",
   "bounty",
+  "haunted",
 ]);
 export const freeformRankSchema = z
   .enum(["below_baby", "baby", "easy", "medium", "hard", "hardcore"])

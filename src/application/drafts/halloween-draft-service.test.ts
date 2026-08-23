@@ -140,7 +140,6 @@ describe("createHalloweenLocalDraft", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        timeMode: "timer",
         effectiveNow: IN_HALLOWEEN_WINDOW,
         split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
       },
@@ -199,7 +198,6 @@ describe("createHalloweenLocalDraft", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "baby",
-        timeMode: "timer",
         effectiveNow: IN_HALLOWEEN_WINDOW,
         split: { halloweenAdjacentCount: 1, horrorCount: 1, kitschCount: 3 },
       },
@@ -222,7 +220,6 @@ describe("createHalloweenLocalDraft", () => {
       profileId: PROFILE_ID,
       timezone: "UTC",
       difficulty: "medium",
-      timeMode: "timer",
       effectiveNow: IN_HALLOWEEN_WINDOW,
       split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 1 },
     });
@@ -244,7 +241,6 @@ describe("createHalloweenLocalDraft", () => {
       profileId: PROFILE_ID,
       timezone: "UTC",
       difficulty: "baby",
-      timeMode: "timer",
       effectiveNow: IN_HALLOWEEN_WINDOW,
       split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
     });
@@ -266,7 +262,6 @@ describe("createHalloweenLocalDraft", () => {
       profileId: PROFILE_ID,
       timezone: "UTC",
       difficulty: "baby",
-      timeMode: "timer",
       effectiveNow: IN_HALLOWEEN_WINDOW,
       split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
     });
@@ -288,7 +283,6 @@ describe("createHalloweenLocalDraft", () => {
       profileId: PROFILE_ID,
       timezone: "UTC",
       difficulty: "baby" as const,
-      timeMode: "timer" as const,
       effectiveNow: IN_HALLOWEEN_WINDOW,
       split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
     };
@@ -305,6 +299,80 @@ describe("createHalloweenLocalDraft", () => {
       error: "already_active",
       message: expect.any(String),
     });
+  });
+});
+
+describe("createHalloweenLocalDraft — fixed Event deadline, no Calendar/Timer choice (PROMPT B2.2)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+    setHalloweenManifestFilmIds({ horrorFilmIds: [], kitschFilmIds: [] });
+  });
+
+  function setup() {
+    db = new FDraftLocalDatabase(`halloween-deadline-${crypto.randomUUID()}`);
+    return createLocalRepositories(db) as Repositories;
+  }
+
+  it.each([
+    [
+      "30 September at 19:15 (just after the window opens)",
+      "2026-09-30T19:15:00.000Z",
+    ],
+    ["15 October (mid-window)", "2026-10-15T00:00:00.000Z"],
+    [
+      "31 October at 23:00 (just before the window closes)",
+      "2026-10-31T23:00:00.000Z",
+    ],
+  ])(
+    "created %s always gets a deadline of exactly 1 November 00:00 UTC",
+    async (_label, effectiveNowIso) => {
+      const repos = setup();
+      await seedManyAdjacent(repos, 5);
+
+      const outcome = await createHalloweenLocalDraft(
+        repos,
+        {
+          profileId: PROFILE_ID,
+          timezone: "UTC",
+          difficulty: "baby",
+          effectiveNow: new Date(effectiveNowIso),
+          split: { halloweenAdjacentCount: 5, horrorCount: 0, kitschCount: 0 },
+        },
+        { rng: createSeededRng(1) },
+      );
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+
+      const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
+      expect(draft?.deadlineAt).toBe("2026-11-01T00:00:00.000Z");
+    },
+  );
+
+  it("the deadline is evaluated in the profile's OWN timezone, not UTC", async () => {
+    const repos = setup();
+    await seedManyAdjacent(repos, 5);
+
+    const outcome = await createHalloweenLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "America/New_York",
+        difficulty: "baby",
+        // 15 Oct, mid-afternoon America/New_York.
+        effectiveNow: new Date("2026-10-15T16:00:00.000Z"),
+        split: { halloweenAdjacentCount: 5, horrorCount: 0, kitschCount: 0 },
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
+    // Midnight 1 Nov America/New_York (still EDT, UTC-4) is 04:00 UTC —
+    // never the UTC-relative "1 Nov 00:00" a non-timezone-aware
+    // implementation would produce.
+    expect(draft?.deadlineAt).toBe("2026-11-01T04:00:00.000Z");
   });
 });
 
@@ -347,7 +415,6 @@ describe("createHalloweenLocalDraft — every difficulty (PROMPT 21)", () => {
           profileId: PROFILE_ID,
           timezone: "UTC",
           difficulty,
-          timeMode: "timer",
           effectiveNow: IN_HALLOWEEN_WINDOW,
           split,
         },
@@ -409,7 +476,6 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        timeMode: "timer",
         split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
         effectiveNow: new Date("2026-11-01T00:00:00.000Z"),
       },
@@ -436,7 +502,6 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        timeMode: "timer",
         split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
         effectiveNow: new Date("2026-09-30T18:59:00.000Z"),
       },
@@ -463,7 +528,6 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        timeMode: "timer",
         split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
         effectiveNow: new Date("2026-09-30T19:00:00.000Z"),
       },
@@ -490,7 +554,6 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        timeMode: "timer",
         split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
       },
       { rng: createSeededRng(1) },
@@ -529,7 +592,6 @@ describe("createHalloweenLocalDraft — off-watchlist films are never added to t
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        timeMode: "timer",
         effectiveNow: IN_HALLOWEEN_WINDOW,
         split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
       },

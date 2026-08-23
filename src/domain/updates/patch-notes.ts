@@ -22,6 +22,36 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.2",
+    nickname: "Trick or Treat (Beta 2)",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          "You can now run a normal Draft and a Halloween Draft at the same time — joining Halloween no longer affects any Draft already in progress.",
+          "The Halloween join invitation has been completely redesigned: much larger, with richer seasonal copy and decoration spread across the whole card.",
+          "Stats now has a Points section showing your lifetime, misery, and haunted point totals with their own icons.",
+          "Substantially improved seasonal artwork throughout Halloween: the gravestone, carve-able pumpkin (now with a genuinely decayed fourth state), and candy bowl all got a full redesign, plus more scattered decorations on the Halloween page and light seasonal touches elsewhere in the app.",
+        ],
+      },
+      {
+        heading: "Changed",
+        items: [
+          "The Halloween page now shows your active Draft directly, the same way the normal Draft page does, instead of pointing you elsewhere.",
+          "Halloween's deadline is now a single, clearly-shown date — 1 November at midnight in your own timezone — no matter when during the event you start your Draft.",
+          "Event Settings now only lets you opt into events that are currently live, rather than listing every event whether or not it's running.",
+          '"F* You, It\'s January!" now uses a trash can icon in navigation; the snowflake is being saved for a future event.',
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          '"F* You, It\'s January!" could sometimes still look active while you were on the Halloween page.',
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.1",
     nickname: "Trick or Treat (Beta)",
     sections: [

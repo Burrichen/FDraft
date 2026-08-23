@@ -115,7 +115,6 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "baby",
-        timeMode: "timer",
         split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
         effectiveNow: new Date("2026-10-15T12:00:00.000Z"),
       },
@@ -173,6 +172,7 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
       draftItemId: horrorWatched.draftItemId,
       draftId: horrorWatched.draftId,
       draftArchivedByThisAction: horrorWatched.draftArchivedByThisAction,
+      secondaryDraftCompletion: horrorWatched.secondaryDraftCompletion,
     };
     const undone = await undoLocalFilmWatched(repos, {
       profileId: PROFILE_ID,

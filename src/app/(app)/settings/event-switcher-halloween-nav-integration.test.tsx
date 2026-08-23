@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventPageView } from "@/components/events/event-page-view";
 import { NavLinks } from "@/components/layout/nav-links";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
+import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -23,7 +24,9 @@ function SettingsHarness({ databaseName }: { databaseName: string }) {
 function HalloweenPageHarness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <EventPageView eventId={HALLOWEEN_EVENT_ID} />
+      <WatchUndoProvider>
+        <EventPageView eventId={HALLOWEEN_EVENT_ID} />
+      </WatchUndoProvider>
     </ProfileProvider>
   );
 }
@@ -79,7 +82,7 @@ describe("Settings Event Switcher → nav tab → Halloween page (PROMPT 21, ful
     ).not.toBeInTheDocument();
 
     const joinButton = await screen.findByRole("button", {
-      name: "I want to join the Halloween Event",
+      name: "Let me in.",
     });
     await user.click(joinButton);
 
@@ -124,7 +127,7 @@ describe("Settings Event Switcher → nav tab → Halloween page (PROMPT 21, ful
     expect(screen.queryByText("Available now")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
-        name: "I want to join the Halloween Event",
+        name: "Let me in.",
       }),
     ).not.toBeInTheDocument();
   });

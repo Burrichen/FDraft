@@ -74,6 +74,7 @@ export function WatchToggle({
           draftItemId: outcome.draftItemId,
           draftId: outcome.draftId,
           draftArchivedByThisAction: outcome.draftArchivedByThisAction,
+          secondaryDraftCompletion: outcome.secondaryDraftCompletion,
         });
         toast.success(`Marked "${title}" as watched`);
         onMarkedWatched?.();
