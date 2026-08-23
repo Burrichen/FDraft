@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "./nav-config";
+import { useNavItems } from "./use-nav-items";
 
 interface NavLinksProps {
   className?: string;
@@ -26,10 +26,11 @@ export function NavLinks({
   onNavigate,
 }: NavLinksProps) {
   const pathname = usePathname();
+  const navItems = useNavItems();
 
   return (
     <nav className={className} aria-label="Primary">
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
         return (
@@ -50,14 +51,16 @@ export function NavLinks({
               aria-hidden="true"
               className={cn(
                 "size-[1.15rem] transition-colors duration-150",
-                isActive && "text-watchlist-green",
+                isActive &&
+                  (item.activeIconClassName ?? "text-watchlist-green"),
               )}
             />
             {item.label}
             <span
               aria-hidden="true"
               className={cn(
-                "bg-watchlist-green absolute inset-x-3 -bottom-px h-0.5 origin-center scale-x-0 rounded-full transition-transform duration-200",
+                "absolute inset-x-3 -bottom-px h-0.5 origin-center scale-x-0 rounded-full transition-transform duration-200",
+                item.activeUnderlineClassName ?? "bg-watchlist-green",
                 isActive && "scale-x-100",
               )}
             />

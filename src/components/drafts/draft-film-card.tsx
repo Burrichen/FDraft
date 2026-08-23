@@ -22,10 +22,36 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  useIsWatchedThisSessionForItem,
+  HalloweenFilmWatchToggle,
+} from "@/components/drafts/halloween-film-watch-toggle";
+import {
   useIsWatchedThisSession,
   WatchToggle,
 } from "@/components/watchlist/watch-toggle";
 import { cn } from "@/lib/utils";
+import type { DraftItemSource } from "@/repositories/records";
+
+const HALLOWEEN_SOURCE_LABELS: Partial<Record<DraftItemSource, string>> = {
+  "halloween-adjacent": "Halloween-Adjacent",
+  horror: "Horror",
+  kitsch: "Kitsch",
+};
+
+/**
+ * Pool-specific badge colors (see docs/updates, "PROMPT 20 — HIGH-EFFORT
+ * HALLOWEEN UI + APPROVED EASTER EGGS" §6) — pumpkin/purple/cream, never
+ * the generic "outline" badge or a blood-red. Shared with
+ * `drafts/history/page.tsx` so both surfaces render identical badges for
+ * the same source.
+ */
+export const HALLOWEEN_SOURCE_BADGE_CLASSNAMES: Partial<
+  Record<DraftItemSource, string>
+> = {
+  "halloween-adjacent": "bg-halloween-pumpkin/15 text-halloween-pumpkin",
+  horror: "bg-halloween-purple/20 text-halloween-purple",
+  kitsch: "bg-halloween-cream/20 text-halloween-cream-foreground",
+};
 
 export interface DraftFilmChallengeView {
   name: string;
@@ -71,6 +97,8 @@ export interface DraftFilmCardView {
   substitution: DraftFilmSubstitutionView | null;
   /** See `canEditDraftSlot` — true only for a random slot the current user/draft combination is allowed to manually replace or reroll (see docs/updates, v1.1.3 "Editable random draft slots"). Computed once by the page, never re-derived here. */
   canEdit: boolean;
+  /** See `DraftItemSource` — drives the Halloween pool badge and, for a `null` `entryId` item, which watch-toggle control renders (see docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS"). */
+  source: DraftItemSource;
 }
 
 /**
@@ -138,6 +166,17 @@ export function DraftFilmCard({
   // undoable (see docs/product-spec.md, "WATCHED FILM UNDO").
   const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const canUndo = film.isCompleted && isWatchedThisSession && film.entryId;
+  // A Horror/Kitsch item is never on the watchlist (`entryId: null` by
+  // design, not decay — see `DraftFilmCardView.source`) — it gets a
+  // separate watch-toggle path, keyed by this draft item's own id instead
+  // of a watchlist entry id (see `halloween-film-watch-toggle.tsx`).
+  const isHalloweenPoolItem =
+    !film.entryId && !!HALLOWEEN_SOURCE_LABELS[film.source];
+  const isWatchedThisSessionHalloween = useIsWatchedThisSessionForItem(
+    isHalloweenPoolItem ? film.itemId : null,
+  );
+  const canUndoHalloween =
+    film.isCompleted && isWatchedThisSessionHalloween && isHalloweenPoolItem;
   const showReroll = !film.isCompleted && film.hasNoMetadata && onReroll;
 
   async function handleReroll() {
@@ -177,11 +216,21 @@ export function DraftFilmCard({
     <div className="group relative h-full">
       {!film.isCompleted && film.entryId ? (
         <WatchToggle entryId={film.entryId} title={film.title} />
+      ) : !film.isCompleted && isHalloweenPoolItem ? (
+        <HalloweenFilmWatchToggle
+          draftItemId={film.itemId}
+          title={film.title}
+        />
       ) : null}
       {canUndo ? (
         <WatchToggle entryId={film.entryId!} title={film.title} />
+      ) : canUndoHalloween ? (
+        <HalloweenFilmWatchToggle
+          draftItemId={film.itemId}
+          title={film.title}
+        />
       ) : null}
-      {film.isCompleted && !canUndo ? (
+      {film.isCompleted && !canUndo && !canUndoHalloween ? (
         <div className="bg-watchlist-green text-primary-foreground absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-full">
           <Check aria-hidden="true" className="size-4" />
         </div>
@@ -302,6 +351,17 @@ export function DraftFilmCard({
               {SUBSTITUTION_CAPTION_PREFIX[film.substitution.reason]}{" "}
               {film.substitution.originalTitle}
             </p>
+          ) : null}
+          {HALLOWEEN_SOURCE_LABELS[film.source] ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                "border-transparent text-[0.65rem]",
+                HALLOWEEN_SOURCE_BADGE_CLASSNAMES[film.source],
+              )}
+            >
+              {HALLOWEEN_SOURCE_LABELS[film.source]}
+            </Badge>
           ) : null}
           {film.challenge ? (
             <Tooltip>

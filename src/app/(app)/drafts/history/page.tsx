@@ -7,6 +7,7 @@ import { getEventSettings } from "@/application/events/event-settings-store";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
 import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
+import { HALLOWEEN_SOURCE_BADGE_CLASSNAMES } from "@/components/drafts/draft-film-card";
 import { HistoricalDraftSortControl } from "@/components/drafts/historical-draft-sort-control";
 import { RecentlyWatchedSection } from "@/components/drafts/recently-watched-section";
 import { EventPresentationBadge } from "@/components/events/event-presentation-badge";
@@ -20,7 +21,11 @@ import {
   sortHistoricalDraftItems,
   type HistoricalDraftSortOption,
 } from "@/domain/drafts/history-sort";
-import { formatReadableCalendarDate, formatReadableDate } from "@/lib/utils";
+import {
+  cn,
+  formatReadableCalendarDate,
+  formatReadableDate,
+} from "@/lib/utils";
 import { useAsyncData } from "@/hooks/use-async-data";
 import type {
   DraftItemRecord,
@@ -364,6 +369,22 @@ function HistoricalDraftFilmGroup({
                 ) : entry.item.source === "manual" ? (
                   <Badge variant="outline" className="shrink-0 text-[0.65rem]">
                     Manual
+                  </Badge>
+                ) : entry.item.source === "halloween-adjacent" ||
+                  entry.item.source === "horror" ||
+                  entry.item.source === "kitsch" ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "shrink-0 border-transparent text-[0.65rem]",
+                      HALLOWEEN_SOURCE_BADGE_CLASSNAMES[entry.item.source],
+                    )}
+                  >
+                    {entry.item.source === "halloween-adjacent"
+                      ? "Halloween-Adjacent"
+                      : entry.item.source === "horror"
+                        ? "Horror"
+                        : "Kitsch"}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="shrink-0 text-[0.65rem]">

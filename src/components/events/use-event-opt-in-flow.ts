@@ -1,10 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import {
   beginEventOptIn,
   confirmSayGoodbye,
 } from "@/application/events/event-opt-in";
+import { getEventDefinition } from "@/domain/events/event-registry";
 import type { Repositories } from "@/repositories";
 
 export interface PendingSayGoodbye {
@@ -22,6 +24,13 @@ export interface PendingSayGoodbye {
  * same opt-in lifecycle as Settings without duplicating any of it — both
  * surfaces call `beginEventOptIn`/`confirmSayGoodbye` through this one
  * hook, never their own copy of this logic.
+ *
+ * Also the ONE place "join → land on the event's own page" happens (see
+ * docs/updates, "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE") — after
+ * either successful opt-in path, if the event defines a `page`, this
+ * navigates there before calling the caller's `onOptedIn`. An event with
+ * no `page` (Frontier, Signal from Beyond) simply doesn't navigate
+ * anywhere, exactly as today.
  */
 export function useEventOptInFlow(params: {
   profileId: string | null;
@@ -31,9 +40,20 @@ export function useEventOptInFlow(params: {
   onError?: (message: string) => void;
 }) {
   const { profileId, timezone, repositories, onOptedIn, onError } = params;
+  const router = useRouter();
   const [pendingSayGoodbye, setPendingSayGoodbye] =
     useState<PendingSayGoodbye | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const navigateToEventPage = useCallback(
+    (eventId: string) => {
+      const page = getEventDefinition(eventId)?.page;
+      if (page) {
+        router.push(page.route);
+      }
+    },
+    [router],
+  );
 
   const beginOptIn = useCallback(
     async (eventId?: string) => {
@@ -52,6 +72,9 @@ export function useEventOptInFlow(params: {
             manuallyEnabled: result.manuallyEnabled,
           });
         } else {
+          if (result.eventId) {
+            navigateToEventPage(result.eventId);
+          }
           await onOptedIn();
         }
       } catch (cause) {
@@ -64,7 +87,14 @@ export function useEventOptInFlow(params: {
         setIsSaving(false);
       }
     },
-    [profileId, timezone, repositories, onOptedIn, onError],
+    [
+      profileId,
+      timezone,
+      repositories,
+      onOptedIn,
+      onError,
+      navigateToEventPage,
+    ],
   );
 
   const confirmSayGoodbyeAction = useCallback(async () => {
@@ -77,6 +107,7 @@ export function useEventOptInFlow(params: {
         eventId: pendingSayGoodbye.eventId,
         manuallyEnabled: pendingSayGoodbye.manuallyEnabled,
       });
+      navigateToEventPage(pendingSayGoodbye.eventId);
       setPendingSayGoodbye(null);
       await onOptedIn();
     } catch (cause) {
@@ -88,7 +119,14 @@ export function useEventOptInFlow(params: {
     } finally {
       setIsSaving(false);
     }
-  }, [profileId, pendingSayGoodbye, repositories, onOptedIn, onError]);
+  }, [
+    profileId,
+    pendingSayGoodbye,
+    repositories,
+    onOptedIn,
+    onError,
+    navigateToEventPage,
+  ]);
 
   const cancelSayGoodbye = useCallback(() => setPendingSayGoodbye(null), []);
 

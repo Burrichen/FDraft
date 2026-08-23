@@ -27,6 +27,7 @@ async function seedFullProfile(repos: Repositories) {
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   });
@@ -331,6 +332,7 @@ describe("buildProfileBackup", () => {
         defaultPage: "watchlist",
         franchiseChronologicalOrder: false,
         adminMode: false,
+        halloweenPumpkinState: "uncarved",
       },
       dataVersion: 1,
     });

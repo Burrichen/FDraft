@@ -946,6 +946,15 @@ export interface AbandonLocalDraftResult {
    * watch-undo-provider.tsx`).
    */
   revertedWatchlistEntryIds: string[];
+  /**
+   * Every completed item this draft reverted, entry-based or not (see
+   * `revertedWatchlistEntryIds` for the entry-based subset alone) — a
+   * Halloween Horror/Kitsch item has no watchlist entry, so its pending
+   * session "Undo" record (keyed by `draftItemId` — see
+   * `watch-undo-provider.tsx`'s `clearUndoForItem`) can only be found this
+   * way.
+   */
+  revertedDraftItemIds: string[];
 }
 export type AbandonLocalDraftOutcome =
   | { ok: true; result: AbandonLocalDraftResult }
@@ -996,10 +1005,16 @@ export async function abandonLocalDraft(
 
   const items = await repos.drafts.listItemsForDraft(draft.id);
   const revertedWatchlistEntryIds: string[] = [];
+  const revertedDraftItemIds: string[] = [];
   for (const item of items) {
-    if (!item.isCompleted || !item.watchedHistoryId || !item.watchlistEntryId) {
+    if (!item.isCompleted || !item.watchedHistoryId) {
       continue;
     }
+    // `watchlistEntryId` is legitimately `null` for a Halloween Horror/
+    // Kitsch item (see `DraftItemRecord.watchlistEntryId`'s doc comment)
+    // — `undoLocalFilmWatched` already handles that case by skipping the
+    // watchlist-entry reactivation step, so this reverts both kinds
+    // identically rather than silently skipping the entry-less ones.
     await undoLocalFilmWatched(
       repos,
       {
@@ -1015,12 +1030,18 @@ export async function abandonLocalDraft(
       },
       deps,
     );
-    revertedWatchlistEntryIds.push(item.watchlistEntryId);
+    if (item.watchlistEntryId) {
+      revertedWatchlistEntryIds.push(item.watchlistEntryId);
+    }
+    revertedDraftItemIds.push(item.id);
   }
 
   await repos.drafts.deleteDraft(draft.id);
 
-  return { ok: true, result: { revertedWatchlistEntryIds } };
+  return {
+    ok: true,
+    result: { revertedWatchlistEntryIds, revertedDraftItemIds },
+  };
 }
 
 export interface SubmitLocalPostmortemResponseResult {

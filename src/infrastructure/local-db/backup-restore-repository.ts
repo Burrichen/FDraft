@@ -4,6 +4,7 @@ import { resolveDefaultPage } from "@/domain/profiles/default-page";
 import {
   resolveAdminMode,
   resolveFranchiseChronologicalOrder,
+  resolveHalloweenPumpkinState,
 } from "@/domain/profiles/profile";
 import type { LocalProfile } from "@/domain/profiles/profile";
 import { resolveProfileTimezone } from "@/domain/profiles/timezone";
@@ -219,6 +220,12 @@ export class LocalBackupRestoreRepository implements BackupRestoreRepository {
         // `adminMode` key at all, resolved to `false` rather than
         // restoring `undefined`.
         adminMode: resolveAdminMode(backup.profile.settings.adminMode),
+        // Same normalization — a backup made before this setting existed
+        // has no `halloweenPumpkinState` key at all, resolved to
+        // `"uncarved"` rather than restoring `undefined`.
+        halloweenPumpkinState: resolveHalloweenPumpkinState(
+          backup.profile.settings.halloweenPumpkinState,
+        ),
       },
       dataVersion: currentSchemaVersion,
     };

@@ -17,9 +17,11 @@ import { resolveEventTheme } from "./event-visual-themes";
  * registered `EventDefinition` (safe fallback for a removed/unknown
  * event, matching the same fallback `resolveDraftCompletionReward`
  * already uses for reward currency). When the event IS resolved but has
- * no recognized `visualTheme` (e.g. Halloween), this still shows the
- * plain name badge, just without an icon — only the icon specifically is
- * what "falls back," not the fact that the draft belongs to a real event.
+ * no recognized `visualTheme` (every currently-registered event happens
+ * to have one today, but this stays a real, tested fallback for whenever
+ * that isn't true), this still shows the plain name badge, just without
+ * an icon — only the icon specifically is what "falls back," not the
+ * fact that the draft belongs to a real event.
  */
 export function EventPresentationBadge({
   sourceEventId,

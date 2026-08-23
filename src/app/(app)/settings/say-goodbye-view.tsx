@@ -63,6 +63,7 @@ export function SayGoodbyeView({ draftId }: { draftId: string }) {
           // Nor is manual-replace/reroll — a draft about to be discarded
           // has nothing left to edit.
           canEdit: false,
+          source: item.source,
         };
       });
       return { filmCards };

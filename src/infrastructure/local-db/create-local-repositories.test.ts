@@ -15,6 +15,7 @@ function profile(id: string): LocalProfile {
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   };

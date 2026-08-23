@@ -18,12 +18,19 @@ import {
   SIGNAL_FROM_BEYOND_EVENT_ID,
   WATCHLIST_FRONTIER_EVENT_ID,
 } from "@/domain/events/event-registry";
-import { markLocalFilmWatched } from "@/application/watchlist/local-watchlist-service";
+import {
+  markLocalDraftItemWatchedWithoutEntry,
+  markLocalFilmWatched,
+} from "@/application/watchlist/local-watchlist-service";
 import { createSeededRng } from "@/domain/shared/rng";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
-import type { DraftItemRecord, Repositories } from "@/repositories";
+import type {
+  DraftItemRecord,
+  DraftRecord,
+  Repositories,
+} from "@/repositories";
 
 const PROFILE_ID = "alex";
 
@@ -1907,7 +1914,7 @@ describe("createLocalDraftFromSelection", () => {
     });
     expect(outcome).toEqual({
       ok: true,
-      result: { revertedWatchlistEntryIds: [] },
+      result: { revertedWatchlistEntryIds: [], revertedDraftItemIds: [] },
     });
     expect(await repos.drafts.hasActiveDraft(PROFILE_ID)).toBe(false);
   });
@@ -2867,7 +2874,7 @@ describe("abandonLocalDraft", () => {
     });
     expect(outcome).toEqual({
       ok: true,
-      result: { revertedWatchlistEntryIds: [] },
+      result: { revertedWatchlistEntryIds: [], revertedDraftItemIds: [] },
     });
 
     expect(await repos.drafts.getById(PROFILE_ID, created.draftId)).toBeNull();
@@ -2919,7 +2926,10 @@ describe("abandonLocalDraft", () => {
     });
     expect(outcome).toEqual({
       ok: true,
-      result: { revertedWatchlistEntryIds: [items[0].watchlistEntryId] },
+      result: {
+        revertedWatchlistEntryIds: [items[0].watchlistEntryId],
+        revertedDraftItemIds: [items[0].id],
+      },
     });
 
     // The film watched to complete the draft is back on the watchlist,
@@ -2954,6 +2964,85 @@ describe("abandonLocalDraft", () => {
       const entry = await repos.watchlist.getEntryById(PROFILE_ID, entryId);
       expect(entry?.isActive).toBe(true);
     }
+  });
+
+  it("reverts a completed Halloween off-watchlist item (null watchlistEntryId) instead of silently skipping it", async () => {
+    db = new FDraftLocalDatabase(`abandon-no-entry-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await repos.films.create({
+      id: "horror-film-1",
+      title: "The Exorcist",
+      releaseYear: 1973,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const draft: DraftRecord = {
+      id: "halloween-draft-1",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "active",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      deadlineAt: "2026-02-01T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: null,
+      freeformAchievedRank: null,
+      sourceEventId: HALLOWEEN_EVENT_ID,
+      sourceEventManuallyEnabled: null,
+      rewardsGrantedAt: null,
+      customName: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await repos.drafts.createDraft(draft);
+    await repos.drafts.createItems([
+      {
+        id: "horror-item-1",
+        draftId: draft.id,
+        filmId: "horror-film-1",
+        watchlistEntryId: null,
+        source: "horror",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    const watched = await markLocalDraftItemWatchedWithoutEntry(repos, {
+      profileId: PROFILE_ID,
+      draftItemId: "horror-item-1",
+      profileTimezone: "UTC",
+    });
+    expect(watched.ok).toBe(true);
+
+    const outcome = await abandonLocalDraft(repos, {
+      profileId: PROFILE_ID,
+      draftId: draft.id,
+    });
+    expect(outcome).toEqual({
+      ok: true,
+      result: {
+        revertedWatchlistEntryIds: [],
+        revertedDraftItemIds: ["horror-item-1"],
+      },
+    });
+
+    const remainingHistory = await repos.history.listWatchedHistory(PROFILE_ID);
+    expect(remainingHistory).toHaveLength(0);
+    expect(await repos.drafts.getById(PROFILE_ID, draft.id)).toBeNull();
   });
 
   it("allows a fresh draft to be created normally afterward", async () => {

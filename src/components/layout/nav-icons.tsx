@@ -84,3 +84,34 @@ export function StatsNavIcon(props: NavIconProps) {
     </svg>
   );
 }
+
+/**
+ * A simplified jack-o'-lantern outline — hand-authored in the same style
+ * as the icons above (24×24, stroke-only, no fill) rather than an emoji,
+ * since no lucide-react icon covers Halloween/pumpkins at all (see
+ * docs/updates, "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE",
+ * "NAVIGATION ICON RULE"). Only shown in the nav when a profile has
+ * opted into Halloween (see `use-nav-items.ts`). Monochrome by default
+ * (plain `currentColor`); takes Halloween orange when active via
+ * `use-nav-items.ts`'s `activeIconClassName` (see `nav-links.tsx`), not
+ * anything hardcoded here. The mouth gets a subtle candlelight-flicker on
+ * hover/focus (see docs/updates, "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI"),
+ * matching the per-element micro-animation convention every other nav
+ * icon in this file already uses (`.nav-icon-halloween-flicker` in
+ * globals.css, reduced-motion-gated).
+ */
+export function HalloweenNavIcon(props: NavIconProps) {
+  return (
+    <svg {...svgDefaults(props)}>
+      <path d="M11 6V4.5a1 1 0 0 1 2 0V6" />
+      <path d="M4 10.5a8 4.5 0 0 1 16 0v3a8 4.5 0 0 1-16 0z" />
+      <path d="M12 6v12" />
+      <path d="M8 11.5h2l-1 2.5z" />
+      <path d="M14 11.5h2l-1 2.5z" />
+      <path
+        className="nav-icon-halloween-flicker"
+        d="M9 16.5c1 1.2 5 1.2 6 0"
+      />
+    </svg>
+  );
+}

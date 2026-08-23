@@ -193,6 +193,7 @@ describe("cross-profile isolation (real fake-indexeddb, two profiles, one shared
         defaultPage: "watchlist" as const,
         franchiseChronologicalOrder: false,
         adminMode: false,
+        halloweenPumpkinState: "uncarved" as const,
       },
       dataVersion: 1,
     };

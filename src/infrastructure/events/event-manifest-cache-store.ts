@@ -1,7 +1,5 @@
-import {
-  parseEventManifest,
-  type EventManifest,
-} from "@/domain/events/event-manifest-schema";
+import type { EventManifest } from "@/domain/events/event-manifest-schema";
+import { parseEventManifest } from "@/domain/events/event-manifest-schema";
 
 /**
  * The locally-cached copy of an event's remote manifest — deliberately
@@ -11,22 +9,42 @@ import {
  * and re-fetching per profile switch would be wasteful and pointless).
  * Losing this is harmless — worst case, FDraft re-fetches or falls back
  * to the bundled default (see `january-manifest-service.ts`).
+ *
+ * Generic over `T` (see docs/updates, "PROMPT 19 — HALLOWEEN DRAFT
+ * MECHANICS") so Halloween's differently-shaped two-list manifest
+ * (`HalloweenManifest`) can reuse this exact storage mechanism instead of
+ * a duplicate cache-store class — the eventId-keyed localStorage scheme
+ * already has nothing January-specific about it. Defaults to
+ * `EventManifest` so every pre-existing January call site keeps compiling
+ * unchanged; only `LocalStorageEventManifestCacheStore`'s constructor now
+ * takes an explicit `parse` function rather than hardcoding
+ * `parseEventManifest` internally.
  */
-export interface CachedEventManifest {
-  manifest: EventManifest;
+export interface CachedEventManifest<T = EventManifest> {
+  manifest: T;
   /** ISO 8601 — when this copy was fetched, for staleness checks. */
   fetchedAt: string;
 }
 
-export interface EventManifestCacheStore {
-  get(eventId: string): CachedEventManifest | null;
-  set(eventId: string, cached: CachedEventManifest): void;
+export interface EventManifestCacheStore<T = EventManifest> {
+  get(eventId: string): CachedEventManifest<T> | null;
+  set(eventId: string, cached: CachedEventManifest<T>): void;
 }
 
 const KEY_PREFIX = "fdraft:event-manifest-cache:";
 
-export class LocalStorageEventManifestCacheStore implements EventManifestCacheStore {
-  get(eventId: string): CachedEventManifest | null {
+export class LocalStorageEventManifestCacheStore<
+  T = EventManifest,
+> implements EventManifestCacheStore<T> {
+  constructor(
+    private readonly parse: (
+      value: unknown,
+    ) => T | null = parseEventManifest as unknown as (
+      value: unknown,
+    ) => T | null,
+  ) {}
+
+  get(eventId: string): CachedEventManifest<T> | null {
     const raw = window.localStorage.getItem(KEY_PREFIX + eventId);
     if (!raw) {
       return null;
@@ -36,7 +54,7 @@ export class LocalStorageEventManifestCacheStore implements EventManifestCacheSt
         manifest?: unknown;
         fetchedAt?: unknown;
       };
-      const manifest = parseEventManifest(parsed.manifest);
+      const manifest = this.parse(parsed.manifest);
       if (!manifest || typeof parsed.fetchedAt !== "string") {
         return null;
       }
@@ -48,20 +66,22 @@ export class LocalStorageEventManifestCacheStore implements EventManifestCacheSt
     }
   }
 
-  set(eventId: string, cached: CachedEventManifest): void {
+  set(eventId: string, cached: CachedEventManifest<T>): void {
     window.localStorage.setItem(KEY_PREFIX + eventId, JSON.stringify(cached));
   }
 }
 
 /** An in-memory stand-in for tests and any environment without `window`. */
-export class InMemoryEventManifestCacheStore implements EventManifestCacheStore {
-  private store = new Map<string, CachedEventManifest>();
+export class InMemoryEventManifestCacheStore<
+  T = EventManifest,
+> implements EventManifestCacheStore<T> {
+  private store = new Map<string, CachedEventManifest<T>>();
 
-  get(eventId: string): CachedEventManifest | null {
+  get(eventId: string): CachedEventManifest<T> | null {
     return this.store.get(eventId) ?? null;
   }
 
-  set(eventId: string, cached: CachedEventManifest): void {
+  set(eventId: string, cached: CachedEventManifest<T>): void {
     this.store.set(eventId, cached);
   }
 }

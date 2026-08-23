@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocalDraft } from "@/application/drafts/local-draft-service";
+import { setEventDateOverride } from "@/application/events/event-date-override-store";
 import {
   applyEventOptIn,
   beginEventOptIn,
@@ -9,6 +10,7 @@ import { getEventSettings } from "@/application/events/event-settings-store";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
+  WATCHLIST_FRONTIER_EVENT_ID,
 } from "@/domain/events/event-registry";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -252,23 +254,35 @@ describe("beginEventOptIn — targeting a specific event by id (audit fix: Setti
     await db?.delete();
   });
 
-  it("opts into Halloween specifically, even though it is not the first manually-activatable event in the registry", async () => {
+  it("opts into The Watchlist Frontier specifically, even though it is not the first manually-activatable event in the registry", async () => {
+    // Halloween (the registry's actual second entry) can no longer be
+    // manually opted into outside its own natural window at all (see the
+    // dedicated "manualActivationAllowed: false" describe block below), so
+    // this audit-fix regression now exercises the next event that still
+    // allows manual activation — the exact same "not silently activated as
+    // whichever the auto-pick would choose" concern still applies to it.
     db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
 
     const result = await beginEventOptIn(
       repos,
-      { profileId: PROFILE_ID, timezone: "UTC", eventId: HALLOWEEN_EVENT_ID },
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: WATCHLIST_FRONTIER_EVENT_ID,
+      },
       { clock: OUTSIDE_JANUARY },
     );
 
     expect(result).toEqual({
       needsSayGoodbye: false,
-      eventId: HALLOWEEN_EVENT_ID,
+      eventId: WATCHLIST_FRONTIER_EVENT_ID,
     });
     const settings = await getEventSettings(repos, PROFILE_ID);
-    expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
-    expect(settings.manuallyEnabledEvents).toEqual([HALLOWEEN_EVENT_ID]);
+    expect(settings.activeEvent).toBe(WATCHLIST_FRONTIER_EVENT_ID);
+    expect(settings.manuallyEnabledEvents).toEqual([
+      WATCHLIST_FRONTIER_EVENT_ID,
+    ]);
     // January — the registry's first entry — must NOT have been the one
     // silently activated instead.
     expect(settings.manuallyEnabledEvents).not.toContain(
@@ -294,14 +308,18 @@ describe("beginEventOptIn — targeting a specific event by id (audit fix: Setti
 
     const result = await beginEventOptIn(
       repos,
-      { profileId: PROFILE_ID, timezone: "UTC", eventId: HALLOWEEN_EVENT_ID },
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: WATCHLIST_FRONTIER_EVENT_ID,
+      },
       { clock: OUTSIDE_JANUARY },
     );
 
     expect(result).toEqual({
       needsSayGoodbye: true,
       activeDraftId: created.draftId,
-      eventId: HALLOWEEN_EVENT_ID,
+      eventId: WATCHLIST_FRONTIER_EVENT_ID,
       manuallyEnabled: true,
     });
   });
@@ -346,5 +364,114 @@ describe("beginEventOptIn — targeting a specific event by id (audit fix: Setti
     });
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.manuallyEnabledEvents).toEqual([]);
+  });
+});
+
+describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 18)", () => {
+  let db: FDraftLocalDatabase;
+  const IN_HALLOWEEN = new FixedClock(new Date("2026-10-15T20:00:00.000Z"));
+  const OUTSIDE_HALLOWEEN = new FixedClock(
+    new Date("2026-06-15T00:00:00.000Z"),
+  );
+
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("succeeds when naturally available, and is never recorded as manually enabled", async () => {
+    db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+
+    const result = await beginEventOptIn(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: HALLOWEEN_EVENT_ID,
+      },
+      { clock: IN_HALLOWEEN },
+    );
+
+    expect(result).toEqual({
+      needsSayGoodbye: false,
+      eventId: HALLOWEEN_EVENT_ID,
+    });
+    const settings = await getEventSettings(repos, PROFILE_ID);
+    expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
+    expect(settings.manuallyEnabledEvents).not.toContain(HALLOWEEN_EVENT_ID);
+    // Joining Halloween specifically also force-enables Event Visuals by
+    // default (see `EventDefinition.enableVisualsOnOptIn`) — unique to
+    // Halloween; no other event does this.
+    expect(settings.eventVisualsEnabled).toBe(true);
+  });
+
+  it("fails — no settings change — when requested outside its natural window with no Admin override", async () => {
+    db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+
+    const result = await beginEventOptIn(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: HALLOWEEN_EVENT_ID,
+      },
+      { clock: OUTSIDE_HALLOWEEN },
+    );
+
+    expect(result).toEqual({ needsSayGoodbye: false, eventId: null });
+    const settings = await getEventSettings(repos, PROFILE_ID);
+    expect(settings.eventsEnabled).toBe(false);
+    expect(settings.activeEvent).toBeNull();
+  });
+
+  it("succeeds outside the real window when Admin Mode's Event Test Switcher simulates a date inside it", async () => {
+    db = new FDraftLocalDatabase(`event-optin-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await repos.profiles.create({
+      id: PROFILE_ID,
+      displayName: "Alex",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastOpenedAt: "2026-01-01T00:00:00.000Z",
+      timezone: "UTC",
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist",
+        franchiseChronologicalOrder: false,
+        adminMode: true,
+        halloweenPumpkinState: "uncarved",
+      },
+      dataVersion: 1,
+    });
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T20:00:00.000Z",
+    });
+
+    // The real clock is OUTSIDE Halloween's window — only the Admin
+    // override, resolved via `getEffectiveEventDate` inside
+    // `beginEventOptIn` itself (using its default `SystemClock`, not an
+    // injected `FixedClock`), should make this succeed. Pinned via fake
+    // timers so this doesn't depend on whatever date the suite happens to
+    // run on.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(OUTSIDE_HALLOWEEN.now());
+    try {
+      const result = await beginEventOptIn(repos, {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: HALLOWEEN_EVENT_ID,
+      });
+
+      expect(result).toEqual({
+        needsSayGoodbye: false,
+        eventId: HALLOWEEN_EVENT_ID,
+      });
+      const settings = await getEventSettings(repos, PROFILE_ID);
+      expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

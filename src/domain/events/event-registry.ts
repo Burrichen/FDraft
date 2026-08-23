@@ -57,20 +57,38 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
   // `resolveEventVisualThemeId` depends on what that mapping contains.
   visualTheme: F_YOU_ITS_JANUARY_EVENT_ID,
   manualActivationAllowed: true,
+  // See docs/updates, "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE" — a
+  // dedicated temporary page proving the generic Event Page framework
+  // without touching any of the mechanics above. Nav icon is resolved
+  // separately (see `src/components/layout/use-nav-items.ts`), reusing
+  // this event's existing Snowflake visual theme rather than a new icon.
+  page: { route: "/events/january", navLabel: "January" },
 };
 
 /**
  * FDraft's second real event (see docs/product-spec.md, event system
- * Phase 6). Deliberately minimal: nothing in the project defines
- * Halloween's actual calendar window, a dedicated reward currency, or any
- * curated/genre-restricted film list, so none of that is invented here —
- * per the event system's own rule (see `EventEligibilityRules`'s doc
- * comment), an unconfigured/empty value is the honest default, not a
- * fabricated one:
- *  - `availability` is entirely `null` — no natural window is defined
- *    yet, so this event is never naturally available and can only ever be
- *    turned on manually (`manualActivationAllowed`), exactly like any
- *    other manual-only event the registry might hold.
+ * Phase 6). This phase ("PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE")
+ * gives it a real, permanent, annually-recurring natural window and its
+ * own temporary page; its actual drafting content stays deliberately
+ * minimal beyond that — nothing in the project defines a dedicated reward
+ * currency, curated/genre-restricted film list, or draft-pool generation
+ * yet, so none of that is invented here (per the event system's own rule,
+ * see `EventEligibilityRules`'s doc comment, an unconfigured/empty value
+ * is the honest default, not a fabricated one):
+ *  - `availability.recurringMonthDayRange` is 30 September 19:00 through
+ *    1 November 00:00 (exclusive), evaluated in the profile's own
+ *    timezone every year via `isEventAvailable` — the canonical window.
+ *  - `manualActivationAllowed: false` — unlike every other event, a
+ *    normal user cannot manually start Halloween outside this window at
+ *    all (see `resolveEventToOptInto`, `event-opt-in.ts`, which only
+ *    falls back to `manualActivationAllowed` when NOT naturally
+ *    available). Admin Mode's Event Test Switcher can still make it
+ *    naturally available for testing, since that flows through the same
+ *    `getEffectiveEventDate`-backed `isEventAvailable` check — no special
+ *    Halloween-only testing path exists.
+ *  - `page`/`enableVisualsOnOptIn` back the join flow: joining shows the
+ *    temporary Halloween page and turns Event Visuals on by default,
+ *    without creating a draft.
  *  - `eligibilityRules` leaves both `requiredGenres` and `curatedFilmIds`
  *    unset — `resolveEligibleCandidates()` (`event-eligibility.ts`)
  *    treats that as "no restriction," so a Halloween-owned draft draws
@@ -80,9 +98,12 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
  *    Halloween anywhere in the project (the reserved-but-unused
  *    `"signal"`/`"bounty"` currencies are not this event's to claim
  *    unilaterally), so completions earn generic/Lifetime Points, the same
- *    as a normal draft, in both normal and manual activation today.
- *  - `visualTheme` is `null` — no Halloween visual assets/theme exist in
- *    the project yet.
+ *    as a normal draft.
+ *  - `visualTheme` is this event's own id (see docs/updates, "PROMPT 20 —
+ *    HIGH-EFFORT HALLOWEEN UI + APPROVED EASTER EGGS") — a real Kitsch
+ *    Halloween theme (see `src/components/events/event-visual-themes.ts`);
+ *    its nav icon, a hand-authored jack-o'-lantern, is resolved separately
+ *    in `src/components/layout/use-nav-items.ts`.
  */
 export const HALLOWEEN_EVENT_ID = "halloween";
 
@@ -93,22 +114,42 @@ const HALLOWEEN: EventDefinition = {
     startsAt: null,
     endsAt: null,
     recurringMonths: null,
-    recurringMonthDayRange: null,
+    recurringMonthDayRange: {
+      startMonth: 9,
+      startDay: 30,
+      startHour: 19,
+      startMinute: 0,
+      endMonth: 11,
+      endDay: 1,
+      endHour: 0,
+      endMinute: 0,
+    },
   },
   draftRules: {},
   eligibilityRules: { requiredGenres: null, curatedFilmIds: null },
   intro: {
     description:
-      "A themed drafting event — its exact rules and dates are still being finalized.",
+      "Halloween has arrived — a full seasonal event with its own space in FDraft.",
     bullets: [
-      "Uses your normal FDraft watchlist and drafting rules for now",
-      "Draft completions currently earn the same points as a normal draft",
-      "You can opt in manually any time from Settings",
+      "Its own temporary Halloween page, open for the season",
+      "A dedicated Halloween Draft, built just for the event",
+      "Three seasonal film pools to draft from",
+      "Seasonal styling across the app while it's active",
+      "A few hidden interactions to find — we're not telling",
     ],
+    primaryActionLabel: "I want to join the Halloween Event",
+    secondaryActionLabel: "I'm not interested",
   },
   pointType: null,
-  visualTheme: null,
-  manualActivationAllowed: true,
+  // See docs/updates, "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI + APPROVED
+  // EASTER EGGS" — Halloween now has a real Kitsch Halloween theme (see
+  // `src/components/events/event-visual-themes.ts`), reusing this event's
+  // own id as its theme id, the same convention every other themed event
+  // already follows.
+  visualTheme: HALLOWEEN_EVENT_ID,
+  manualActivationAllowed: false,
+  page: { route: "/events/halloween", navLabel: "Halloween" },
+  enableVisualsOnOptIn: true,
 };
 
 /**

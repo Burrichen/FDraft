@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getAvailabilityCycleId, isEventAvailable } from "./event-availability";
+import {
+  getAvailabilityCycleId,
+  getNextOccurrenceStart,
+  isEventAvailable,
+} from "./event-availability";
 
 describe("isEventAvailable", () => {
   it("no fixed window and no recurring months — never naturally available (manual-only)", () => {
@@ -381,5 +385,176 @@ describe("getAvailabilityCycleId — recurringMonthDayRange", () => {
         "Pacific/Kiritimati",
       ),
     ).toBe("2026");
+  });
+});
+
+describe("isEventAvailable — recurringMonthDayRange with hour/minute precision (Halloween, PROMPT 18)", () => {
+  // 30 September 19:00 through 1 November 00:00, exclusive — Halloween's
+  // real, permanent natural window (see event-registry.ts).
+  const availability = {
+    startsAt: null,
+    endsAt: null,
+    recurringMonths: null,
+    recurringMonthDayRange: {
+      startMonth: 9,
+      startDay: 30,
+      startHour: 19,
+      startMinute: 0,
+      endMonth: 11,
+      endDay: 1,
+      endHour: 0,
+      endMinute: 0,
+    },
+  };
+
+  it("is NOT available at 30 September 18:59", () => {
+    expect(
+      isEventAvailable(
+        availability,
+        new Date("2026-09-30T18:59:00.000Z"),
+        "UTC",
+      ),
+    ).toBe(false);
+  });
+
+  it("IS available at exactly 30 September 19:00 — the inclusive start", () => {
+    expect(
+      isEventAvailable(
+        availability,
+        new Date("2026-09-30T19:00:00.000Z"),
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("is available on 1 October", () => {
+    expect(
+      isEventAvailable(
+        availability,
+        new Date("2026-10-01T12:00:00.000Z"),
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("is available on 31 October, right up to 23:59", () => {
+    expect(
+      isEventAvailable(
+        availability,
+        new Date("2026-10-31T23:59:00.000Z"),
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("is NOT available at exactly 1 November 00:00 — the exclusive end", () => {
+    expect(
+      isEventAvailable(
+        availability,
+        new Date("2026-11-01T00:00:00.000Z"),
+        "UTC",
+      ),
+    ).toBe(false);
+  });
+
+  it("is evaluated in the profile's own timezone, not UTC", () => {
+    // 30 September 18:30 UTC is already 19:30 in a UTC+1 zone — available
+    // there, not yet in UTC.
+    const instant = new Date("2026-09-30T18:30:00.000Z");
+    expect(isEventAvailable(availability, instant, "Europe/Paris")).toBe(true);
+    expect(isEventAvailable(availability, instant, "UTC")).toBe(false);
+  });
+
+  it("absent hour/minute fields (e.g. January's range) still behave exactly as whole-day-inclusive", () => {
+    const dayOnly = {
+      startsAt: null,
+      endsAt: null,
+      recurringMonths: null,
+      recurringMonthDayRange: {
+        startMonth: 1,
+        startDay: 25,
+        endMonth: 1,
+        endDay: 31,
+      },
+    };
+    expect(
+      isEventAvailable(dayOnly, new Date("2026-01-25T00:00:00.000Z"), "UTC"),
+    ).toBe(true);
+    expect(
+      isEventAvailable(dayOnly, new Date("2026-01-31T23:59:59.000Z"), "UTC"),
+    ).toBe(true);
+    expect(
+      isEventAvailable(dayOnly, new Date("2026-02-01T00:00:00.000Z"), "UTC"),
+    ).toBe(false);
+  });
+});
+
+describe("getNextOccurrenceStart", () => {
+  const halloween = {
+    startsAt: null,
+    endsAt: null,
+    recurringMonths: null,
+    recurringMonthDayRange: {
+      startMonth: 9,
+      startDay: 30,
+      startHour: 19,
+      startMinute: 0,
+      endMonth: 11,
+      endDay: 1,
+      endHour: 0,
+      endMinute: 0,
+    },
+  };
+
+  it("returns this year's start when it's still ahead of now", () => {
+    const next = getNextOccurrenceStart(
+      halloween,
+      new Date("2026-06-15T00:00:00.000Z"),
+      "UTC",
+    );
+    expect(next).toEqual(new Date("2026-09-30T19:00:00.000Z"));
+  });
+
+  it("rolls forward to next year's start once this year's window has already passed", () => {
+    const next = getNextOccurrenceStart(
+      halloween,
+      new Date("2026-12-01T00:00:00.000Z"),
+      "UTC",
+    );
+    expect(next).toEqual(new Date("2027-09-30T19:00:00.000Z"));
+  });
+
+  it("rolls forward while the window is currently active too — there's no 'next' during it", () => {
+    const next = getNextOccurrenceStart(
+      halloween,
+      new Date("2026-10-15T00:00:00.000Z"),
+      "UTC",
+    );
+    expect(next).toEqual(new Date("2027-09-30T19:00:00.000Z"));
+  });
+
+  it("is computed in the profile's own timezone", () => {
+    const next = getNextOccurrenceStart(
+      halloween,
+      new Date("2026-06-15T00:00:00.000Z"),
+      "America/New_York",
+    );
+    // 19:00 America/New_York on 30 Sep 2026 (EDT, UTC-4) is 23:00 UTC.
+    expect(next).toEqual(new Date("2026-09-30T23:00:00.000Z"));
+  });
+
+  it("returns null for an availability shape with no recurringMonthDayRange", () => {
+    expect(
+      getNextOccurrenceStart(
+        {
+          startsAt: null,
+          endsAt: null,
+          recurringMonths: [6, 7, 8],
+          recurringMonthDayRange: null,
+        },
+        new Date("2026-06-15T00:00:00.000Z"),
+        "UTC",
+      ),
+    ).toBeNull();
   });
 });

@@ -31,6 +31,7 @@ async function seedProfile(databaseName: string) {
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   });

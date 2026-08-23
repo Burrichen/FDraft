@@ -33,6 +33,7 @@ async function seedProfile(repos: Repositories, profileId: string) {
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   });

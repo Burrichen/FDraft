@@ -1,3 +1,4 @@
+import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   getAvailabilityCycleId,
   isEventAvailable,
@@ -5,7 +6,7 @@ import {
 import type { EventDefinition } from "@/domain/events/event-definition";
 import { EVENT_DEFINITIONS } from "@/domain/events/event-registry";
 import type { Clock } from "@/domain/time/clock";
-import { SystemClock } from "@/domain/time/clock";
+import type { ProfileRepository } from "@/repositories/profile-repository";
 import type { SettingsRepository } from "@/repositories/settings-repository";
 import { getEventDismissals } from "./event-dismissal-store";
 import { getEventSettings } from "./event-settings-store";
@@ -37,12 +38,13 @@ export interface EventIntroCandidate {
  * stay reachable only through Settings, unchanged from Phase 5.
  */
 export async function resolveEventIntroToShow(
-  repos: { settings: SettingsRepository },
+  repos: { settings: SettingsRepository; profiles: ProfileRepository },
   params: { profileId: string; timezone: string },
   deps: { clock?: Clock } = {},
 ): Promise<EventIntroCandidate | null> {
-  const clock = deps.clock ?? new SystemClock();
-  const now = clock.now();
+  const now = await getEffectiveEventDate(repos, params.profileId, {
+    clock: deps.clock,
+  });
 
   const eventSettings = await getEventSettings(repos, params.profileId);
   if (!eventSettings.eventsEnabled) {

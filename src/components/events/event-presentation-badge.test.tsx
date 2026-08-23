@@ -1,10 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-import {
-  F_YOU_ITS_JANUARY_EVENT_ID,
-  HALLOWEEN_EVENT_ID,
-} from "@/domain/events/event-registry";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { F_YOU_ITS_JANUARY_EVENT_ID } from "@/domain/events/event-registry";
 import { EventPresentationBadge } from "./event-presentation-badge";
+import * as eventVisualThemes from "./event-visual-themes";
 
 describe("EventPresentationBadge", () => {
   afterEach(() => {
@@ -56,14 +54,25 @@ describe("EventPresentationBadge", () => {
   });
 
   it("falls back to a plain name badge, no icon, for an event with no recognized visual theme", () => {
-    render(
-      <EventPresentationBadge
-        sourceEventId={HALLOWEEN_EVENT_ID}
-        eventVisualsEnabled={true}
-      />,
-    );
-    expect(screen.getByText("Halloween")).toBeInTheDocument();
-    const badge = screen.getByText("Halloween").closest("span");
-    expect(badge?.querySelector("svg")).not.toBeInTheDocument();
+    // Every currently-registered event happens to have a visual theme
+    // today — this exercises the badge's own fallback path directly
+    // (rather than depending on a real themeless event existing) so the
+    // "no icon, still shows the name" guarantee stays covered regardless.
+    const spy = vi
+      .spyOn(eventVisualThemes, "resolveEventTheme")
+      .mockReturnValue(undefined);
+    try {
+      render(
+        <EventPresentationBadge
+          sourceEventId={F_YOU_ITS_JANUARY_EVENT_ID}
+          eventVisualsEnabled={true}
+        />,
+      );
+      expect(screen.getByText("F* You, It's January!")).toBeInTheDocument();
+      const badge = screen.getByText("F* You, It's January!").closest("span");
+      expect(badge?.querySelector("svg")).not.toBeInTheDocument();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

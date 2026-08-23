@@ -19,7 +19,8 @@ export type MarkWatchedErrorCode = "not_found" | "not_active";
 export type MarkWatchedOutcome =
   | {
       ok: true;
-      watchlistEntryId: string;
+      /** `null` for a Halloween Horror/Kitsch draft item with no watchlist entry at all — see `markLocalDraftItemWatchedWithoutEntry`. */
+      watchlistEntryId: string | null;
       filmId: string;
       /** The watched-history record this specific action created — the key `undoLocalFilmWatched` uses to reverse exactly this action and nothing else (see docs/product-spec.md, "WATCHED FILM UNDO"). */
       watchedHistoryId: string;
@@ -41,7 +42,8 @@ export type MarkWatchedOutcome =
  * UNDO", "SESSION-ONLY STATE").
  */
 export interface WatchSessionUndoRecord {
-  watchlistEntryId: string;
+  /** `null` for a Halloween Horror/Kitsch draft item — see `markLocalDraftItemWatchedWithoutEntry`. `draftItemId` is always non-null in that case, since such a film only ever exists as a draft item. */
+  watchlistEntryId: string | null;
   filmId: string;
   watchedHistoryId: string;
   draftItemId: string | null;
@@ -168,11 +170,121 @@ export async function markLocalFilmWatched(
 }
 
 /**
- * Reverses exactly one prior `markLocalFilmWatched` call — the "UNDO
- * SEMANTICS" rule from docs/product-spec.md, "WATCHED FILM UNDO": reactivate
- * the watchlist entry, revert the draft item it completed (and, if that
- * completion is what archived the draft, revert the draft back to active),
- * and delete the *exact* watched-history record that action created.
+ * The parallel of `markLocalFilmWatched` for a draft item with NO
+ * watchlist entry at all — a Halloween Horror/Kitsch film (see
+ * docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS" §11: "marking them
+ * watched must work... do not automatically create/remove a Watchlist
+ * entry"). `markLocalFilmWatched` genuinely cannot handle this case — every
+ * step of it is keyed off a real `WatchlistEntryRecord` — so this is a
+ * separate, smaller entry point keyed directly by `draftItemId` instead:
+ * writes a `WatchedHistoryRecord` with `watchlistEntryId: null`, completes
+ * the item, and runs the same completion-archival check
+ * `markLocalFilmWatched` does. Never touches `WatchlistRepository` at all.
+ */
+export async function markLocalDraftItemWatchedWithoutEntry(
+  repos: {
+    watchlist: WatchlistRepository;
+    drafts: DraftRepository;
+    history: HistoryRepository;
+    points: PointsRepository;
+    settings: SettingsRepository;
+  },
+  params: {
+    profileId: string;
+    draftItemId: string;
+    profileTimezone: string;
+  },
+  deps: {
+    idGenerator?: IdGenerator;
+    clock?: Clock;
+    archiveIfResolved?: typeof archiveLocalDraftIfResolved;
+  } = {},
+): Promise<MarkWatchedOutcome> {
+  const idGenerator = deps.idGenerator ?? defaultIdGenerator;
+  const clock = deps.clock ?? new SystemClock();
+
+  const item = await repos.drafts.getItemById(params.draftItemId);
+  if (!item) {
+    return { ok: false, error: "not_found", message: "Draft item not found." };
+  }
+  if (item.watchlistEntryId) {
+    return {
+      ok: false,
+      error: "not_found",
+      message:
+        "This film has a watchlist entry — use the normal watch action instead.",
+    };
+  }
+  if (item.isCompleted) {
+    return {
+      ok: false,
+      error: "not_active",
+      message: "This film is already marked watched.",
+    };
+  }
+
+  const draft = await repos.drafts.getById(params.profileId, item.draftId);
+  if (!draft || draft.status !== "active") {
+    return {
+      ok: false,
+      error: "not_active",
+      message: "This draft is not active.",
+    };
+  }
+
+  const now = clock.now();
+  const watchedHistoryId = idGenerator.generate();
+  await repos.history.addWatchedHistory({
+    id: watchedHistoryId,
+    profileId: params.profileId,
+    filmId: item.filmId,
+    watchlistEntryId: null,
+    source: "app_watchlist_action",
+    watchedDate: formatInTimeZone(now, params.profileTimezone, "yyyy-MM-dd"),
+    createdAt: now.toISOString(),
+  });
+
+  await repos.drafts.updateItem({
+    ...item,
+    isCompleted: true,
+    completedAt: now.toISOString(),
+    watchedHistoryId,
+  });
+
+  let draftArchivedByThisAction = false;
+  if (deps.archiveIfResolved) {
+    draftArchivedByThisAction = await deps.archiveIfResolved(repos, {
+      profileId: params.profileId,
+      draftId: draft.id,
+    });
+  }
+
+  return {
+    ok: true,
+    watchlistEntryId: null,
+    filmId: item.filmId,
+    watchedHistoryId,
+    draftItemId: item.id,
+    draftId: draft.id,
+    draftArchivedByThisAction,
+  };
+}
+
+/**
+ * Reverses exactly one prior `markLocalFilmWatched` (or
+ * `markLocalDraftItemWatchedWithoutEntry`) call — the "UNDO SEMANTICS" rule
+ * from docs/product-spec.md, "WATCHED FILM UNDO": reactivate the watchlist
+ * entry (when there is one — see below), revert the draft item it
+ * completed (and, if that completion is what archived the draft, revert
+ * the draft back to active), and delete the *exact* watched-history record
+ * that action created.
+ *
+ * `record.watchlistEntryId` is `null` for a Halloween Horror/Kitsch draft
+ * item (see `DraftItemRecord.watchlistEntryId`'s doc comment) — there is no
+ * watchlist entry to look up or reactivate in that case, so this skips
+ * that whole step and proceeds straight to the draft-item/watched-history
+ * reversal below, which already keys purely off `record.draftItemId`/
+ * `record.watchedHistoryId`/`record.draftId`.
  *
  * Every step is guarded by re-checking that the record it's about to touch
  * is still, provably, the one this action produced — `item.watchedHistoryId
@@ -197,29 +309,31 @@ export async function undoLocalFilmWatched(
   const clock = deps.clock ?? new SystemClock();
   const { record } = params;
 
-  const entry = await repos.watchlist.getEntryById(
-    params.profileId,
-    record.watchlistEntryId,
-  );
-  if (!entry) {
-    return {
-      ok: false,
-      error: "not_found",
-      message: "Watchlist entry not found.",
-    };
+  if (record.watchlistEntryId) {
+    const entry = await repos.watchlist.getEntryById(
+      params.profileId,
+      record.watchlistEntryId,
+    );
+    if (!entry) {
+      return {
+        ok: false,
+        error: "not_found",
+        message: "Watchlist entry not found.",
+      };
+    }
+
+    if (!entry.isActive && entry.removedReason === "watched") {
+      await repos.watchlist.updateEntry({
+        ...entry,
+        isActive: true,
+        removedAt: null,
+        removedReason: null,
+        updatedAt: clock.now().toISOString(),
+      });
+    }
   }
 
   const now = clock.now().toISOString();
-
-  if (!entry.isActive && entry.removedReason === "watched") {
-    await repos.watchlist.updateEntry({
-      ...entry,
-      isActive: true,
-      removedAt: null,
-      removedReason: null,
-      updatedAt: now,
-    });
-  }
 
   if (record.draftItemId) {
     const item = await repos.drafts.getItemById(record.draftItemId);

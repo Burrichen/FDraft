@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "event": "halloween",
+  "updatedAt": "2026-08-23T00:00:00.000Z",
+  "horror": [
+    { "title": "Halloween", "year": 1978 },
+    { "title": "A Nightmare on Elm Street", "year": 1984 },
+    { "title": "The Exorcist", "year": 1973 }
+  ],
+  "kitsch": [
+    { "title": "Hocus Pocus", "year": 1993 },
+    { "title": "Beetlejuice", "year": 1988 },
+    { "title": "The Nightmare Before Christmas", "year": 1993 }
+  ]
+}

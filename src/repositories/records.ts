@@ -26,7 +26,22 @@ export type DraftTimeMode = "calendar" | "timer";
  */
 export type DraftStatus = "active" | "expired" | "archived" | "discarded";
 export type DraftChallengeMode = "choose" | "decide";
-export type DraftItemSource = "random" | "challenge" | "manual";
+/**
+ * `"halloween-adjacent"`/`"horror"`/`"kitsch"` (FDraft v1.2, "PROMPT 19 —
+ * HALLOWEEN DRAFT MECHANICS") are the three Halloween Draft pools — never
+ * Random/Challenge/Manual slots, and never represented as Challenge Engine
+ * challenges. A `"horror"`/`"kitsch"` item's `watchlistEntryId` is
+ * routinely `null` (see `DraftItemRecord.watchlistEntryId`'s doc comment)
+ * — those films are drawn from the global curated lists and are not
+ * required to be on the profile's own watchlist.
+ */
+export type DraftItemSource =
+  | "random"
+  | "challenge"
+  | "manual"
+  | "halloween-adjacent"
+  | "horror"
+  | "kitsch";
 /**
  * Why a draft item's `filmId` differs from `originFilmId` (see
  * `DraftItemRecord.originFilmId`) — `null` whenever it doesn't. FDraft
@@ -252,6 +267,13 @@ export interface DraftItemRecord {
   id: string;
   draftId: string;
   filmId: string;
+  /**
+   * `null` for a Halloween `"horror"`/`"kitsch"` item drawn from the
+   * global curated lists rather than the profile's own watchlist (see
+   * `DraftItemSource`) — deliberately, not merely as later decay. Any
+   * logic keying off this field must treat `null` as a normal, expected
+   * case for those two sources, not an error state.
+   */
   watchlistEntryId: string | null;
   source: DraftItemSource;
   challengeId: string | null;

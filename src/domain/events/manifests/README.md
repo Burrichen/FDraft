@@ -1,8 +1,13 @@
 # Event manifests
 
 This folder holds the **globally curated film lists** for events that need
-one (currently: `fuck-you-its-january.json`, for `F* You, It's January!`'s
-curated whitelist — see docs/updates, "GLOBAL CURATED JANUARY LIST").
+one:
+
+- `fuck-you-its-january.json` — `F* You, It's January!`'s curated whitelist
+  (see docs/updates, "GLOBAL CURATED JANUARY LIST"). A single `films` array.
+- `halloween.json` — Halloween's two curated pools (see docs/updates,
+  "PROMPT 19 — HALLOWEEN DRAFT MECHANICS"). Two arrays instead of one —
+  see "Halloween's two lists" below for what each means.
 
 Each file here is edited **directly in this repo** and serves two roles at
 once:
@@ -42,13 +47,35 @@ Only `title` is required — `tmdbId`/`letterboxdSlug`/`year` are all
 optional, but include whichever you have; a bare title/year match is the
 least reliable of the three.
 
-A curated film only ever becomes draft-eligible for a profile that already
-has it on their own ACTIVE watchlist — adding a film here never adds it to
-anyone's watchlist automatically (see docs/updates, "WHITELIST MATCHING").
+A curated January film only ever becomes draft-eligible for a profile that
+already has it on their own ACTIVE watchlist — adding a film here never
+adds it to anyone's watchlist automatically (see docs/updates, "WHITELIST
+MATCHING"). **Halloween's Horror/Kitsch films are different** — see below.
+
+## Halloween's two lists (`halloween.json`)
+
+Unlike January's whitelist (an eligibility bonus on top of the normal
+watchlist pool), Halloween's `horror` and `kitsch` arrays ARE the pool a
+Halloween Draft draws from — a film listed here does **not** need to be on
+anyone's watchlist. Each entry uses the exact same shape as a January
+entry (`tmdbId`/`letterboxdSlug`/`title`/`year` — only `title` required).
+
+- **`horror`** — "Popular, iconic or otherwise on-brand Horror films
+  suitable for the Halloween Event." Selected for the Draft's Horror pool.
+- **`kitsch`** — "Halloween-themed, seasonal, campy, spooky, gothic or
+  family Halloween films which are not necessarily Horror." Selected for
+  the Draft's Kitsch pool.
+
+A film listed in either array that doesn't already exist locally is
+created automatically (title/year only, never fabricated metadata) the
+first time it's needed, then enriched via the normal metadata provider
+when online — see `resolve-or-create-halloween-films.ts`. Keep this file
+small — a handful of genuinely iconic, uncontroversial titles per list is
+enough for testing; it is not meant to be an exhaustive catalogue.
 
 ## Publishing a change
 
-1. Edit `fuck-you-its-january.json` in this folder.
+1. Edit `fuck-you-its-january.json` or `halloween.json` in this folder.
 2. Bump `updatedAt` to the current time (informational only — nothing
    parses it for staleness; the app's own local cache has its own
    independent freshness check).
@@ -57,7 +84,8 @@ anyone's watchlist automatically (see docs/updates, "WHITELIST MATCHING").
 Every FDraft installation refreshes its cached copy once a day (or sooner,
 via Settings → "Refresh event data", useful for testing a change
 immediately) — see `JANUARY_MANIFEST_STALE_AFTER_MS` in
-`january-manifest-service.ts` to adjust that interval.
+`january-manifest-service.ts` (`HALLOWEEN_MANIFEST_STALE_AFTER_MS` in
+`halloween-manifest-service.ts`) to adjust that interval.
 
 If a fetch ever fails (no network, GitHub unreachable, malformed JSON), the
 app falls back to its last good cached copy, or to this bundled file if it

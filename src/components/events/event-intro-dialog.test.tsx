@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocalDraft } from "@/application/drafts/local-draft-service";
 import { getEventDismissals } from "@/application/events/event-dismissal-store";
 import { getEventSettings } from "@/application/events/event-settings-store";
-import { F_YOU_ITS_JANUARY_EVENT_ID } from "@/domain/events/event-registry";
+import {
+  F_YOU_ITS_JANUARY_EVENT_ID,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -43,6 +46,7 @@ async function seedProfile(
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   });
@@ -320,5 +324,152 @@ describe("EventIntroDialog (real fake-indexeddb)", () => {
       expect(screen.getByText("Page content")).toBeInTheDocument(),
     );
     expect(screen.queryByText(EVENT_NAME)).not.toBeInTheDocument();
+  });
+});
+
+describe("EventIntroDialog — Halloween's exact custom button copy (PROMPT 18)", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.useRealTimers();
+  });
+
+  it("shows the exact 'I want to join the Halloween Event' / 'I'm not interested' labels, not the generic Opt In/Nah", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, true);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "I want to join the Halloween Event",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "I'm not interested" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Opt In" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nah" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("joining Halloween applies immediately (no active draft), never showing the generic labels either", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, true);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "I want to join the Halloween Event",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("Halloween")).not.toBeInTheDocument(),
+    );
+
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    const settings = await getEventSettings(repos, PROFILE_ID);
+    await db.close();
+    expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
+    expect(settings.eventVisualsEnabled).toBe(true);
+  });
+});
+
+describe("EventIntroDialog — Halloween decline does not repeatedly return (PROMPT 21)", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.useRealTimers();
+  });
+
+  it("'I'm not interested' dismisses the modal and it does not reappear on reload within the same occurrence", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, true);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+    const user = userEvent.setup();
+
+    const first = render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "I'm not interested" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Halloween")).not.toBeInTheDocument(),
+    );
+
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    const dismissals = await getEventDismissals(repos, PROFILE_ID);
+    expect(dismissals[HALLOWEEN_EVENT_ID]).toBeTruthy();
+    // Declining is not permanent — Halloween stays reachable from Settings.
+    const settings = await getEventSettings(repos, PROFILE_ID);
+    expect(settings.activeEvent).toBeNull();
+    await db.close();
+
+    first.unmount();
+    cleanup();
+
+    // Simulates reopening the app later the SAME occurrence — a fresh mount
+    // against the same database, same simulated moment.
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Page content")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Halloween")).not.toBeInTheDocument();
+
+    // Still doesn't return a day later, still within the same occurrence.
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+    cleanup();
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Page content")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Halloween")).not.toBeInTheDocument();
+  });
+});
+
+describe("EventIntroDialog — Halloween theme + decoration (PROMPT 20)", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.useRealTimers();
+  });
+
+  it("Halloween's modal gets the Kitsch Halloween theme class and its own decoration, generically via EventVisualTheme", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, true);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.className).toContain("theme-halloween");
+    // The decoration cluster is purely aria-hidden.
+    expect(dialog.querySelector('[aria-hidden="true"]')).not.toBeNull();
   });
 });

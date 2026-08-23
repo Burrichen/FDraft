@@ -34,7 +34,10 @@ export function RegenerateDraftButton({
   onRegenerated,
 }: {
   draftId: string;
-  onRegenerated: (revertedWatchlistEntryIds: string[]) => void;
+  onRegenerated: (
+    revertedWatchlistEntryIds: string[],
+    revertedDraftItemIds: string[],
+  ) => void;
 }) {
   const { activeProfile, repositories } = useProfileContext();
   const [open, setOpen] = useState(false);
@@ -53,7 +56,10 @@ export function RegenerateDraftButton({
         return;
       }
       setOpen(false);
-      onRegenerated(outcome.result.revertedWatchlistEntryIds);
+      onRegenerated(
+        outcome.result.revertedWatchlistEntryIds,
+        outcome.result.revertedDraftItemIds,
+      );
     } catch (cause) {
       toast.error(
         cause instanceof Error

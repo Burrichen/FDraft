@@ -110,7 +110,14 @@ export const draftStatusSchema = z.enum([
   "discarded",
 ]);
 export const draftChallengeModeSchema = z.enum(["choose", "decide"]).nullable();
-export const draftItemSourceSchema = z.enum(["random", "challenge", "manual"]);
+export const draftItemSourceSchema = z.enum([
+  "random",
+  "challenge",
+  "manual",
+  "halloween-adjacent",
+  "horror",
+  "kitsch",
+]);
 export const draftItemSubstitutionReasonSchema = z.enum([
   "franchise_order",
   "missing_metadata",
@@ -173,6 +180,12 @@ export const profileSettingsSchema = z.object({
   // such key; `resolveAdminMode()` falls back to `false` wherever this is
   // READ.
   adminMode: z.boolean().optional(),
+  // Optional for the same reason — a backup exported before this setting
+  // existed has no such key; `resolveHalloweenPumpkinState()` falls back
+  // to `"uncarved"` wherever this is READ.
+  halloweenPumpkinState: z
+    .enum(["uncarved", "carved", "lit", "rotting"])
+    .optional(),
 });
 
 export const backupProfileSchema = z.object({

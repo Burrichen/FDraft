@@ -187,6 +187,7 @@ export default function DraftsPage() {
           // view (see `editableFilmCards` below), so toggling Admin Mode
           // elsewhere doesn't require a full reload to take effect here.
           canEdit: false,
+          source: item.source,
         };
       });
 
@@ -350,14 +351,22 @@ export default function DraftsPage() {
     setReplacingItemId(draftItemId);
   }
 
-  function handleRegenerated(revertedWatchlistEntryIds: string[]) {
-    // Each reverted entry's watch has already been undone server-side by
+  function handleRegenerated(
+    revertedWatchlistEntryIds: string[],
+    revertedDraftItemIds: string[],
+  ) {
+    // Each reverted item's watch has already been undone server-side by
     // `abandonLocalDraft` — any pending session "Undo" record for it now
     // points at a draft item that no longer exists, so it's cleared here
     // rather than left to surface a confusing/no-op Undo button (see
-    // `components/watch-undo/watch-undo-provider.tsx`).
+    // `components/watch-undo/watch-undo-provider.tsx`). Entry-based items
+    // are keyed by `entryId`; a Halloween off-watchlist item has none and
+    // is keyed by `draftItemId` instead — `clearUndoForItem` handles both.
     for (const entryId of revertedWatchlistEntryIds) {
       watchUndo.clearUndo(entryId);
+    }
+    for (const draftItemId of revertedDraftItemIds) {
+      watchUndo.clearUndoForItem(null, draftItemId);
     }
     void reload();
   }

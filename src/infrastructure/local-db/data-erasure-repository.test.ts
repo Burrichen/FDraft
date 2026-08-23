@@ -24,6 +24,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         defaultPage: "watchlist" as const,
         franchiseChronologicalOrder: false,
         adminMode: false,
+        halloweenPumpkinState: "uncarved" as const,
       },
       dataVersion: 1,
     };
@@ -202,6 +203,7 @@ describe("LocalDataErasureRepository.eraseProfileCompletely", () => {
         defaultPage: "watchlist",
         franchiseChronologicalOrder: false,
         adminMode: false,
+        halloweenPumpkinState: "uncarved",
       },
       dataVersion: 1,
     });

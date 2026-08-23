@@ -16,6 +16,23 @@ interface WatchUndoContextValue {
   registerWatched: (record: WatchSessionUndoRecord) => void;
   clearUndo: (watchlistEntryId: string) => void;
   /**
+   * The generalized lookup/clear pair behind `getRecord`/`clearUndo` (see
+   * docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS") — a Halloween
+   * Horror/Kitsch draft item has no watchlist entry (`entryId: null`), so
+   * it's tracked by `draftItemId` instead. Pass whichever identifier
+   * applies; exactly one of the two should be non-null for any real call
+   * site. `getRecord(entryId)`/`clearUndo(entryId)` remain thin wrappers
+   * over these for every existing, unmodified `WatchToggle` call site.
+   */
+  getRecordForItem: (
+    entryId: string | null,
+    draftItemId: string | null,
+  ) => WatchSessionUndoRecord | undefined;
+  clearUndoForItem: (
+    entryId: string | null,
+    draftItemId: string | null,
+  ) => void;
+  /**
    * Every watchlist entry id with a pending undo. A page that only queries
    * *currently active* watchlist entries (e.g. the main Watchlist page)
    * needs this to keep showing a film watched earlier this session after
@@ -61,9 +78,11 @@ export function WatchUndoProvider({ children }: { children: ReactNode }) {
   >(() => new Map());
 
   const registerWatched = useCallback((record: WatchSessionUndoRecord) => {
+    const key = record.watchlistEntryId ?? record.draftItemId;
+    if (!key) return;
     setRecords((prev) => {
       const next = new Map(prev);
-      next.set(record.watchlistEntryId, record);
+      next.set(key, record);
       return next;
     });
   }, []);
@@ -77,12 +96,44 @@ export function WatchUndoProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const getRecordForItem = useCallback(
+    (entryId: string | null, draftItemId: string | null) => {
+      const key = entryId ?? draftItemId;
+      return key ? records.get(key) : undefined;
+    },
+    [records],
+  );
+
+  const clearUndoForItem = useCallback(
+    (entryId: string | null, draftItemId: string | null) => {
+      const key = entryId ?? draftItemId;
+      if (!key) return;
+      setRecords((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    },
+    [],
+  );
+
   const value = useMemo<WatchUndoContextValue>(
     () => ({
       getRecord: (watchlistEntryId) => records.get(watchlistEntryId),
       registerWatched,
       clearUndo,
-      listPendingEntryIds: () => Array.from(records.keys()),
+      getRecordForItem,
+      clearUndoForItem,
+      // Specifically watchlist-entry-scoped (see the interface doc
+      // comment on `WatchUndoContextValue`) — a Halloween off-watchlist
+      // item's record is keyed by `draftItemId` instead and must never
+      // be reported here, since consumers of this list (e.g. the
+      // Watchlist page) only ever look up real watchlist entries.
+      listPendingEntryIds: () =>
+        Array.from(records.values())
+          .map((record) => record.watchlistEntryId)
+          .filter((id): id is string => id !== null),
       getPendingArchivedDraftId: () => {
         for (const record of records.values()) {
           if (record.draftArchivedByThisAction && record.draftId) {
@@ -92,7 +143,7 @@ export function WatchUndoProvider({ children }: { children: ReactNode }) {
         return null;
       },
     }),
-    [records, registerWatched, clearUndo],
+    [records, registerWatched, clearUndo, getRecordForItem, clearUndoForItem],
   );
 
   return (

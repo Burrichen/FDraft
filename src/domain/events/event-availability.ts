@@ -1,30 +1,63 @@
-import { formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import type { EventAvailability } from "./event-definition";
 
 /**
+ * A monotonic ordinal for a (month, day, hour, minute) wall-clock moment —
+ * NOT a real calendar computation (month is scaled by 31 regardless of how
+ * many days that month actually has), only ever used to ORDER two moments
+ * against each other, never to do date arithmetic. Safe because both sides
+ * of every comparison come from real calendar values (`formatInTimeZone`
+ * output, or a `recurringMonthDayRange` a human wrote), so the "gaps" this
+ * scaling leaves for day values a short month never reaches are simply
+ * never compared against.
+ */
+function toMonthDayOrdinal(
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+): number {
+  return ((month * 31 + day) * 24 + hour) * 60 + minute;
+}
+
+/**
  * Whether `now` (in the given timezone) falls within an annually-recurring
- * month/day range, inclusive on both ends — see `EventAvailability.
- * recurringMonthDayRange`'s doc comment for the "within one calendar year,
- * start ≤ end" scope this supports. A plain (month, day) tuple comparison
- * rather than constructing real `Date` instants for the boundaries — once
- * `formatInTimeZone` has resolved the correct wall-clock month/day for
- * `now` in the target timezone, comparing those two small integers is both
- * simpler and just as DST-safe as any instant-based arithmetic would be.
+ * month/day range — see `EventAvailability.recurringMonthDayRange`'s doc
+ * comment for the "within one calendar year, start ≤ end" scope this
+ * supports, and for its optional hour/minute fields. The start boundary is
+ * inclusive; the end boundary is exclusive — `endHour`/`endMinute`
+ * defaulting to end-of-day (24:00) is what makes a day-only range (no
+ * end time set, e.g. January's) still include the ENTIRE last day, exactly
+ * as before this function gained time-of-day precision. Comparing
+ * `toMonthDayOrdinal` outputs rather than constructing real `Date`
+ * instants for the boundaries is both simpler and just as DST-safe as any
+ * instant-based arithmetic would be, once `formatInTimeZone` has resolved
+ * the correct wall-clock components for `now` in the target timezone.
  */
 function isWithinMonthDayRange(
   range: NonNullable<EventAvailability["recurringMonthDayRange"]>,
   now: Date,
   timezone: string,
 ): boolean {
-  const currentMonth = Number(formatInTimeZone(now, timezone, "M"));
-  const currentDay = Number(formatInTimeZone(now, timezone, "d"));
-  const afterOrOnStart =
-    currentMonth > range.startMonth ||
-    (currentMonth === range.startMonth && currentDay >= range.startDay);
-  const beforeOrOnEnd =
-    currentMonth < range.endMonth ||
-    (currentMonth === range.endMonth && currentDay <= range.endDay);
-  return afterOrOnStart && beforeOrOnEnd;
+  const current = toMonthDayOrdinal(
+    Number(formatInTimeZone(now, timezone, "M")),
+    Number(formatInTimeZone(now, timezone, "d")),
+    Number(formatInTimeZone(now, timezone, "H")),
+    Number(formatInTimeZone(now, timezone, "m")),
+  );
+  const start = toMonthDayOrdinal(
+    range.startMonth,
+    range.startDay,
+    range.startHour ?? 0,
+    range.startMinute ?? 0,
+  );
+  const end = toMonthDayOrdinal(
+    range.endMonth,
+    range.endDay,
+    range.endHour ?? 24,
+    range.endMinute ?? 0,
+  );
+  return current >= start && current < end;
 }
 
 /**
@@ -113,4 +146,47 @@ export function getAvailabilityCycleId(
     return availability.startsAt;
   }
   return null;
+}
+
+/**
+ * When a `recurringMonthDayRange` event next STARTS, relative to `now` —
+ * powers "Returns 30 September at 7:00 PM"-style Settings/Event Page copy
+ * for an event that isn't naturally available right now (see docs/updates,
+ * "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE"). `null` for any other
+ * `EventAvailability` shape — a fixed one-off window has no meaningful
+ * "next" occurrence, and this phase has no UI need for one on
+ * `recurringMonths`-shaped events.
+ *
+ * Builds this year's candidate start via the same wall-clock-components
+ * `fromZonedTime` technique the Event Test Switcher uses; if that instant
+ * is still ahead of `now`, it's the answer, otherwise the range already
+ * started (or is currently active) this year, so next year's is returned.
+ * Deliberately does not check `isEventAvailable` itself — call that first
+ * if you need to distinguish "returns later" from "available right now."
+ */
+export function getNextOccurrenceStart(
+  availability: EventAvailability,
+  now: Date,
+  timezone: string,
+): Date | null {
+  const range = availability.recurringMonthDayRange;
+  if (!range) {
+    return null;
+  }
+  const currentYear = Number(formatInTimeZone(now, timezone, "yyyy"));
+  const buildCandidate = (year: number) =>
+    fromZonedTime(
+      new Date(
+        year,
+        range.startMonth - 1,
+        range.startDay,
+        range.startHour ?? 0,
+        range.startMinute ?? 0,
+      ),
+      timezone,
+    );
+  const thisYear = buildCandidate(currentYear);
+  return thisYear.getTime() > now.getTime()
+    ? thisYear
+    : buildCandidate(currentYear + 1);
 }

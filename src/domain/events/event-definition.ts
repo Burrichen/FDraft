@@ -36,20 +36,34 @@ export interface EventAvailability {
   /** 1–12 (January = 1), or `null` for a fixed `startsAt`/`endsAt` window (or no natural window) instead. */
   recurringMonths: number[] | null;
   /**
-   * An annually-recurring window within a calendar month, inclusive on
-   * both ends (e.g. `{ startMonth: 1, startDay: 25, endMonth: 1, endDay: 31 }`
-   * for 25–31 January every year) — `null` when this event doesn't use
-   * this finer granularity. Only supports a range that stays within a
-   * single calendar year in chronological (start ≤ end) order; a range
-   * that wraps across a year boundary (e.g. late December into early
-   * January) isn't handled by `isEventAvailable`/`getAvailabilityCycleId`
-   * today — no currently-registered event needs one.
+   * An annually-recurring window within a calendar month (e.g.
+   * `{ startMonth: 1, startDay: 25, endMonth: 1, endDay: 31 }` for 25–31
+   * January every year) — `null` when this event doesn't use this finer
+   * granularity. Only supports a range that stays within a single
+   * calendar year in chronological (start ≤ end) order; a range that
+   * wraps across a year boundary (e.g. late December into early January)
+   * isn't handled by `isEventAvailable`/`getAvailabilityCycleId` today —
+   * no currently-registered event needs one.
+   *
+   * `startHour`/`startMinute`/`endHour`/`endMinute` are optional
+   * time-of-day precision on top of the day range (e.g. Halloween's
+   * "30 September 19:00 through 1 November 00:00") — all four default to
+   * day-boundary when absent (`startHour`/`startMinute` default to 0,
+   * `endHour`/`endMinute` default to end-of-day), which is exactly what
+   * reproduces today's whole-day-inclusive behaviour for an event like
+   * January that never sets them. The start boundary is inclusive; the
+   * end boundary (whichever of day-only or day+time it resolves to) is
+   * exclusive — see `isWithinMonthDayRange`.
    */
   recurringMonthDayRange: {
     startMonth: number;
     startDay: number;
+    startHour?: number;
+    startMinute?: number;
     endMonth: number;
     endDay: number;
+    endHour?: number;
+    endMinute?: number;
   } | null;
 }
 
@@ -101,6 +115,26 @@ export interface EventIntroContent {
   description: string;
   /** Short, concrete list of what this event changes or offers — rendered as bullet points. */
   bullets: string[];
+  /** Overrides the modal's default "Opt In" label — for an event that needs its own exact join copy (see docs/updates, "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE"). Absent means "Opt In". */
+  primaryActionLabel?: string;
+  /** Overrides the modal's default "Nah" label. Absent means "Nah". */
+  secondaryActionLabel?: string;
+}
+
+/**
+ * A dedicated, temporary FDraft page an event can expose (see
+ * docs/updates, "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE") — pure
+ * data, no React here, so this file keeps its "no React" rule; the actual
+ * icon component is resolved separately by the components layer (see
+ * `src/components/layout/use-nav-items.ts`), the same split `visualTheme`
+ * (a plain id, resolved to a component in `event-visual-themes.ts`)
+ * already uses.
+ */
+export interface EventPageContent {
+  /** e.g. "/events/halloween" — must be a plain, non-dynamic static route. */
+  route: string;
+  /** Short label for the nav tab, e.g. "Halloween". */
+  navLabel: string;
 }
 
 export interface EventDefinition {
@@ -114,6 +148,10 @@ export interface EventDefinition {
   pointType: PointCurrency | null;
   /** Identifier for a visual theme a later phase will define and apply — `null` for no theme. */
   visualTheme: string | null;
-  /** Whether a profile can opt into this event manually via `EventSettings.manuallyEnabledEvents`, independent of `availability`. */
+  /** Whether a profile can opt into this event manually via `EventSettings.manuallyEnabledEvents`, independent of `availability`. `false` for an event that must only ever be joined during its real (or Admin-simulated) natural window — see Halloween. */
   manualActivationAllowed: boolean;
+  /** A dedicated temporary page for this event, or `null`/absent for none. */
+  page?: EventPageContent | null;
+  /** When true, opting into this event also force-enables `EventSettings.eventVisualsEnabled` — a genuinely opt-in-time default, not something the generic opt-in flow does for every event. Absent/false preserves today's behaviour (opt-in and visuals stay fully decoupled). */
+  enableVisualsOnOptIn?: boolean;
 }

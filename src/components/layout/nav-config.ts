@@ -11,6 +11,10 @@ export interface NavItem {
   label: string;
   /** Wider than `LucideIcon` on purpose — accepts the custom, per-element-animatable icons in `nav-icons.tsx` alongside any plain `lucide-react` icon, since both are just components over `SVGProps<SVGSVGElement>`. */
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Overrides `nav-links.tsx`'s default `text-watchlist-green` active-icon color — see docs/updates, "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI": Halloween's nav tab takes Halloween orange instead of the generic active green. Omitted for every static item and every other event. */
+  activeIconClassName?: string;
+  /** Same idea as `activeIconClassName`, for the active-state underline (default `bg-watchlist-green`). */
+  activeUnderlineClassName?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [

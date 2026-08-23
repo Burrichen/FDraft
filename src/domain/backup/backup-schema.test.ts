@@ -46,6 +46,25 @@ describe("backupV1Schema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a backup with halloweenPumpkinState set, and one predating it entirely (minimalBackup already covers the latter)", () => {
+    const backup = minimalBackup();
+    backup.profile.settings = {
+      reducedMotion: false,
+      halloweenPumpkinState: "rotting",
+    };
+    expect(backupV1Schema.safeParse(backup).success).toBe(true);
+  });
+
+  it("rejects an invalid halloweenPumpkinState value", () => {
+    const backup = minimalBackup();
+    backup.profile.settings = {
+      reducedMotion: false,
+      // @ts-expect-error — deliberately invalid, this is what we're testing
+      halloweenPumpkinState: "on-fire",
+    };
+    expect(backupV1Schema.safeParse(backup).success).toBe(false);
+  });
+
   it("accepts a fully-populated backup with one row in every collection", () => {
     const backup = minimalBackup();
     backup.films.push({

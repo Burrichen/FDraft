@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatInTimeZone } from "date-fns-tz";
+import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
-import { isEventAvailable } from "@/domain/events/event-availability";
+import {
+  getNextOccurrenceStart,
+  isEventAvailable,
+} from "@/domain/events/event-availability";
 import { EVENT_DEFINITIONS } from "@/domain/events/event-registry";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
@@ -47,10 +52,14 @@ export function EventSwitcherSection() {
   const profileId = activeProfile?.id ?? null;
   const timezone = activeProfile?.timezone ?? null;
 
-  const { data: settings, reloadSilently } = useAsyncData(async () => {
+  const { data, reloadSilently } = useAsyncData(async () => {
     if (!profileId) return null;
-    return getEventSettings(repositories, profileId);
-  }, [profileId]);
+    const [settings, effectiveNow] = await Promise.all([
+      getEventSettings(repositories, profileId),
+      getEffectiveEventDate(repositories, profileId),
+    ]);
+    return { settings, effectiveNow };
+  }, [profileId, repositories]);
 
   const optIn = useEventOptInFlow({
     profileId,
@@ -60,16 +69,33 @@ export function EventSwitcherSection() {
     onError: (message) => toast.error(message),
   });
 
-  if (!activeProfile || !settings) {
+  if (!activeProfile || !data) {
     return null;
   }
+  const { settings, effectiveNow } = data;
 
+  // Only ever true for a manually-activatable event — for one of those,
+  // this was always true regardless of natural availability (manual
+  // activation works any time), so dropping the OR here doesn't change
+  // their behaviour at all. A restricted event (manualActivationAllowed:
+  // false, e.g. Halloween) is deliberately excluded from this generic
+  // slot — it gets its own always-visible status block below instead, so
+  // it's never shown twice.
   const availableEvent = EVENT_DEFINITIONS.find(
     (event) =>
+      settings.activeEvent !== event.id && event.manualActivationAllowed,
+  );
+
+  // Every event that can ONLY ever be joined during its own natural (or
+  // Admin-simulated) window — today just Halloween, but genuinely
+  // data-driven: any future non-manual recurring event gets this same
+  // always-visible "Available Now" / "Returns <date>" row for free, with
+  // no new conditional logic anywhere.
+  const restrictedEvents = EVENT_DEFINITIONS.filter(
+    (event) =>
       settings.activeEvent !== event.id &&
-      (event.manualActivationAllowed ||
-        (timezone !== null &&
-          isEventAvailable(event.availability, new Date(), timezone))),
+      !event.manualActivationAllowed &&
+      event.availability.recurringMonthDayRange,
   );
 
   async function handleEventVisualsChange(value: boolean) {
@@ -230,6 +256,50 @@ export function EventSwitcherSection() {
             </Button>
           </div>
         ) : null}
+
+        {timezone
+          ? restrictedEvents.map((event) => {
+              const available = isEventAvailable(
+                event.availability,
+                effectiveNow,
+                timezone,
+              );
+              const nextStart = getNextOccurrenceStart(
+                event.availability,
+                effectiveNow,
+                timezone,
+              );
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between gap-3 border-t pt-4"
+                >
+                  <div>
+                    <p className="text-foreground text-sm font-medium">
+                      {event.name}
+                    </p>
+                    <p className="text-muted-foreground text-sm">
+                      {available
+                        ? "Available now — a normal user can only start this during its natural period."
+                        : nextStart
+                          ? `Returns ${formatInTimeZone(nextStart, timezone, "d MMMM 'at' h:mm a")}.`
+                          : "Not currently active."}
+                    </p>
+                  </div>
+                  {available ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void optIn.beginOptIn(event.id)}
+                      disabled={optIn.isSaving}
+                    >
+                      {event.intro.primaryActionLabel ?? "Opt In"}
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            })
+          : null}
       </CardContent>
     </Card>
   );

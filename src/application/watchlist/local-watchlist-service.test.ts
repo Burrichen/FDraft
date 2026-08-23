@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { archiveLocalDraftIfResolved } from "@/application/drafts/local-draft-service";
 import {
+  markLocalDraftItemWatchedWithoutEntry,
   markLocalFilmWatched,
   undoLocalFilmWatched,
   type WatchSessionUndoRecord,
@@ -1041,5 +1042,287 @@ describe("undoLocalFilmWatched", () => {
       error: "not_found",
       message: expect.any(String),
     });
+  });
+});
+
+async function createActiveHalloweenDraftWithOffWatchlistItem(
+  repos: Repositories,
+  overrides: { isCompleted?: boolean } = {},
+) {
+  await repos.films.create({
+    id: "horror-film-1",
+    title: "The Exorcist",
+    releaseYear: 1973,
+    letterboxdSlug: null,
+    letterboxdUri: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const draft: DraftRecord = {
+    id: "halloween-draft-1",
+    profileId: PROFILE_ID,
+    difficulty: "baby",
+    timeMode: "timer",
+    status: "active",
+    totalFilms: 1,
+    randomFilmCount: 1,
+    challengeFilmCount: 0,
+    challengeMode: null,
+    startedAt: "2026-01-01T00:00:00.000Z",
+    deadlineAt: "2026-02-01T00:00:00.000Z",
+    timezone: "UTC",
+    completedAt: null,
+    freeformAchievedRank: null,
+    sourceEventId: "halloween",
+    sourceEventManuallyEnabled: null,
+    rewardsGrantedAt: null,
+    customName: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  await repos.drafts.createDraft(draft);
+  await repos.drafts.createItems([
+    {
+      id: "horror-item-1",
+      draftId: draft.id,
+      filmId: "horror-film-1",
+      watchlistEntryId: null,
+      source: "horror",
+      challengeId: null,
+      challengeAttemptId: null,
+      challengeDisplayValue: null,
+      orderIndex: 0,
+      isCompleted: overrides.isCompleted ?? false,
+      completedAt: null,
+      watchedHistoryId: null,
+      originFilmId: null,
+      substitutionReason: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    },
+  ]);
+  return { draft };
+}
+
+describe("markLocalDraftItemWatchedWithoutEntry", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("marks an off-watchlist draft item watched without touching any watchlist entry", async () => {
+    db = new FDraftLocalDatabase(`mark-no-entry-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await createActiveHalloweenDraftWithOffWatchlistItem(repos);
+
+    const outcome = await markLocalDraftItemWatchedWithoutEntry(repos, {
+      profileId: PROFILE_ID,
+      draftItemId: "horror-item-1",
+      profileTimezone: "UTC",
+    });
+
+    expect(outcome).toEqual({
+      ok: true,
+      watchlistEntryId: null,
+      filmId: "horror-film-1",
+      watchedHistoryId: expect.any(String),
+      draftItemId: "horror-item-1",
+      draftId: "halloween-draft-1",
+      draftArchivedByThisAction: false,
+    });
+
+    const item = await repos.drafts.getItemById("horror-item-1");
+    expect(item?.isCompleted).toBe(true);
+    expect(item?.watchedHistoryId).not.toBeNull();
+
+    const history = await repos.history.listWatchedHistory(PROFILE_ID);
+    expect(history).toHaveLength(1);
+    expect(history[0].watchlistEntryId).toBeNull();
+    expect(history[0].filmId).toBe("horror-film-1");
+  });
+
+  it("archives the draft when this completion resolves it", async () => {
+    db = new FDraftLocalDatabase(
+      `mark-no-entry-archive-${crypto.randomUUID()}`,
+    );
+    const repos = createLocalRepositories(db);
+    await createActiveHalloweenDraftWithOffWatchlistItem(repos);
+
+    const outcome = await markLocalDraftItemWatchedWithoutEntry(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        draftItemId: "horror-item-1",
+        profileTimezone: "UTC",
+      },
+      { archiveIfResolved: archiveLocalDraftIfResolved },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.draftArchivedByThisAction).toBe(true);
+
+    const draft = await repos.drafts.getById(PROFILE_ID, "halloween-draft-1");
+    expect(draft?.status).toBe("archived");
+  });
+
+  it("refuses to mark an already-completed item watched again", async () => {
+    db = new FDraftLocalDatabase(`mark-no-entry-dup-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await createActiveHalloweenDraftWithOffWatchlistItem(repos, {
+      isCompleted: true,
+    });
+
+    const outcome = await markLocalDraftItemWatchedWithoutEntry(repos, {
+      profileId: PROFILE_ID,
+      draftItemId: "horror-item-1",
+      profileTimezone: "UTC",
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      error: "not_active",
+      message: expect.any(String),
+    });
+  });
+
+  it("refuses a draft item that DOES have a watchlist entry — use the normal path instead", async () => {
+    db = new FDraftLocalDatabase(
+      `mark-no-entry-wrong-path-${crypto.randomUUID()}`,
+    );
+    const repos = createLocalRepositories(db);
+    const entry = await seedFilmAndEntry(repos);
+    const draft: DraftRecord = {
+      id: "draft-1",
+      profileId: PROFILE_ID,
+      difficulty: "baby",
+      timeMode: "timer",
+      status: "active",
+      totalFilms: 1,
+      randomFilmCount: 1,
+      challengeFilmCount: 0,
+      challengeMode: null,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      deadlineAt: "2026-02-01T00:00:00.000Z",
+      timezone: "UTC",
+      completedAt: null,
+      freeformAchievedRank: null,
+      sourceEventId: null,
+      sourceEventManuallyEnabled: null,
+      rewardsGrantedAt: null,
+      customName: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await repos.drafts.createDraft(draft);
+    await repos.drafts.createItems([
+      {
+        id: "item-1",
+        draftId: draft.id,
+        filmId: entry.filmId,
+        watchlistEntryId: entry.id,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    const outcome = await markLocalDraftItemWatchedWithoutEntry(repos, {
+      profileId: PROFILE_ID,
+      draftItemId: "item-1",
+      profileTimezone: "UTC",
+    });
+    expect(outcome.ok).toBe(false);
+  });
+});
+
+describe("undoLocalFilmWatched — off-watchlist item (null watchlistEntryId)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("round-trips watch → undo → re-watch for an off-watchlist item, never touching WatchlistRepository", async () => {
+    db = new FDraftLocalDatabase(`undo-no-entry-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db);
+    await createActiveHalloweenDraftWithOffWatchlistItem(repos);
+
+    const watched = await markLocalDraftItemWatchedWithoutEntry(repos, {
+      profileId: PROFILE_ID,
+      draftItemId: "horror-item-1",
+      profileTimezone: "UTC",
+    });
+    expect(watched.ok).toBe(true);
+    if (!watched.ok) return;
+
+    const record: WatchSessionUndoRecord = {
+      watchlistEntryId: watched.watchlistEntryId,
+      filmId: watched.filmId,
+      watchedHistoryId: watched.watchedHistoryId,
+      draftItemId: watched.draftItemId,
+      draftId: watched.draftId,
+      draftArchivedByThisAction: watched.draftArchivedByThisAction,
+    };
+
+    const undone = await undoLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      record,
+    });
+    expect(undone).toEqual({ ok: true });
+
+    const item = await repos.drafts.getItemById("horror-item-1");
+    expect(item?.isCompleted).toBe(false);
+    expect(item?.watchedHistoryId).toBeNull();
+    const history = await repos.history.listWatchedHistory(PROFILE_ID);
+    expect(history).toHaveLength(0);
+
+    // Re-watching after undo works cleanly.
+    const rewatched = await markLocalDraftItemWatchedWithoutEntry(repos, {
+      profileId: PROFILE_ID,
+      draftItemId: "horror-item-1",
+      profileTimezone: "UTC",
+    });
+    expect(rewatched.ok).toBe(true);
+  });
+
+  it("reverses the archive when undoing the completion that caused it", async () => {
+    db = new FDraftLocalDatabase(
+      `undo-no-entry-archive-${crypto.randomUUID()}`,
+    );
+    const repos = createLocalRepositories(db);
+    await createActiveHalloweenDraftWithOffWatchlistItem(repos);
+
+    const watched = await markLocalDraftItemWatchedWithoutEntry(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        draftItemId: "horror-item-1",
+        profileTimezone: "UTC",
+      },
+      { archiveIfResolved: archiveLocalDraftIfResolved },
+    );
+    expect(watched.ok).toBe(true);
+    if (!watched.ok) return;
+    expect(watched.draftArchivedByThisAction).toBe(true);
+
+    await undoLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      record: {
+        watchlistEntryId: watched.watchlistEntryId,
+        filmId: watched.filmId,
+        watchedHistoryId: watched.watchedHistoryId,
+        draftItemId: watched.draftItemId,
+        draftId: watched.draftId,
+        draftArchivedByThisAction: watched.draftArchivedByThisAction,
+      },
+    });
+
+    const draft = await repos.drafts.getById(PROFILE_ID, "halloween-draft-1");
+    expect(draft?.status).toBe("active");
   });
 });

@@ -20,9 +20,13 @@ const { version } = JSON.parse(
   readFileSync(path.join(ROOT, "package.json"), "utf8"),
 ) as { version: string };
 
-if (!/^\d+\.\d+\.\d+$/.test(version)) {
+// Full semver core plus an optional pre-release suffix (e.g. "1.2.0-beta.1")
+// — both tauri.conf.json and Cargo.toml's `version` fields accept this via
+// the `semver` crate, same as npm/Cargo itself, so pre-release builds sync
+// through cleanly rather than needing a separate un-tagged version scheme.
+if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(version)) {
   throw new Error(
-    `package.json's version ("${version}") isn't a plain x.y.z — Tauri's config requires exactly that format.`,
+    `package.json's version ("${version}") isn't a valid semver core (x.y.z, optionally with a -prerelease suffix) — Tauri's config requires that format.`,
   );
 }
 

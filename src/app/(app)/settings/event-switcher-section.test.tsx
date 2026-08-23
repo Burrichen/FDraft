@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLocalDraft } from "@/application/drafts/local-draft-service";
+import { setEventDateOverride } from "@/application/events/event-date-override-store";
 import { getEventSettings } from "@/application/events/event-settings-store";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
@@ -36,6 +37,7 @@ async function seedProfile(databaseName: string) {
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   });
@@ -259,34 +261,97 @@ describe("EventSwitcherSection — turning Events off (event system Phase 10 har
   });
 });
 
-describe("EventSwitcherSection — the displayed available event is the one that actually activates (audit fix)", () => {
-  afterEach(() => {
-    cleanup();
+describe("EventSwitcherSection — Halloween's always-visible restricted status (PROMPT 18)", () => {
+  beforeEach(() => {
+    // Pinned outside BOTH January's real window (25–31 Jan) and Halloween's
+    // real natural window (30 Sep 19:00 – 1 Nov 00:00, see
+    // `event-registry.ts`) — the default for these tests; individual tests
+    // override it when they need to simulate being inside Halloween's
+    // window instead.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-15T00:00:00.000Z"));
   });
 
-  it("clicking Opt In next to Halloween activates Halloween, not the registry's first entry (January)", async () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("outside the window: shows 'Returns <date>' with no reachable Join control", async () => {
     const databaseName = crypto.randomUUID();
-    // Already opted into January — this pushes Halloween (the registry's
-    // next manually-activatable entry) into the "available now" slot.
     await seedProfile(databaseName);
-    const user = userEvent.setup();
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
       expect(screen.getByText("Halloween")).toBeInTheDocument(),
     );
 
-    await user.click(screen.getByRole("button", { name: "Opt In" }));
+    expect(screen.getByText(/returns 30 september/i)).toBeInTheDocument();
+    // No button anywhere lets a normal user start Halloween outside its
+    // natural window — the generic slot's own "Opt In" (for whichever
+    // OTHER manually-activatable event this profile hasn't joined yet) is
+    // unrelated and may still legitimately appear.
+    expect(
+      screen.queryByRole("button", {
+        name: "I want to join the Halloween Event",
+      }),
+    ).not.toBeInTheDocument();
+  });
 
+  it("during the window: shows 'Available now' and a working Join button", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.queryByText("Halloween")).not.toBeInTheDocument(),
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(/available now — a normal user/i),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "I want to join the Halloween Event",
+      }),
     );
 
+    await waitFor(async () => {
+      const db = new FDraftLocalDatabase(databaseName);
+      const repos = createLocalRepositories(db);
+      const settings = await getEventSettings(repos, PROFILE_ID);
+      await db.close();
+      expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
+      // Naturally available — never recorded as manually enabled.
+      expect(settings.manuallyEnabledEvents).not.toContain(HALLOWEEN_EVENT_ID);
+    });
+  });
+
+  it("Admin Mode's Event Test Switcher override makes it available even though the real clock is outside the window", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
     const db = new FDraftLocalDatabase(databaseName);
     const repos = createLocalRepositories(db);
-    const settings = await getEventSettings(repos, PROFILE_ID);
+    const profile = await repos.profiles.getById(PROFILE_ID);
+    await repos.profiles.update({
+      ...profile!,
+      settings: { ...profile!.settings, adminMode: true },
+    });
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T20:00:00.000Z",
+    });
     await db.close();
-    expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
-    expect(settings.manuallyEnabledEvents).toContain(HALLOWEEN_EVENT_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/available now — a normal user/i),
+      ).toBeInTheDocument(),
+    );
   });
 });

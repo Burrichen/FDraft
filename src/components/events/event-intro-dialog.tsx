@@ -15,7 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { useProfileContext } from "@/components/profiles/profile-provider";
-import { resolveEventTheme } from "./event-visual-themes";
+import {
+  resolveEventPresentationTheme,
+  resolveEventTheme,
+} from "./event-visual-themes";
 import { useEventOptInFlow } from "./use-event-opt-in-flow";
 import { SayGoodbyeView } from "@/app/(app)/settings/say-goodbye-view";
 
@@ -78,9 +81,18 @@ export function EventIntroDialog() {
           if (!next) void handleDismiss();
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          className={
+            candidate
+              ? resolveEventPresentationTheme(candidate.event)?.rootClassName
+              : undefined
+          }
+        >
           {candidate ? (
             <>
+              {resolveEventPresentationTheme(
+                candidate.event,
+              )?.renderDecoration?.()}
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
                   {(() => {
@@ -107,19 +119,19 @@ export function EventIntroDialog() {
                 ))}
               </ul>
               <p className="text-muted-foreground text-xs">
-                Not ready? Saying nah isn&apos;t permanent — you can still opt
-                in later from Settings.
+                Not ready? This isn&apos;t permanent — you can still opt in
+                later from Settings while it&apos;s available.
               </p>
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={optIn.isSaving}>
-                  Nah
+                  {candidate.event.intro.secondaryActionLabel ?? "Nah"}
                 </AlertDialogCancel>
                 <Button
                   type="button"
                   onClick={() => void optIn.beginOptIn(candidate.event.id)}
                   disabled={optIn.isSaving}
                 >
-                  Opt In
+                  {candidate.event.intro.primaryActionLabel ?? "Opt In"}
                 </Button>
               </AlertDialogFooter>
             </>

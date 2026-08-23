@@ -22,6 +22,20 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.1",
+    nickname: "Trick or Treat (Beta)",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          "A beta build for hands-on testing of the new Halloween Event, live 30 September – 31 October. Opt in from the header, or via a one-time invitation when the window opens.",
+          "Halloween Draft: a new Draft type split across three linked pools — Halloween-adjacent films from your own Watchlist, plus a curated Horror list and a curated Kitsch list — with three sliders to choose how many films come from each.",
+          "The Halloween page, its Draft, and the opt-in invitation get a seasonal pumpkin/purple theme, plus three small clickable extras to find: an old gravestone, a carve-able pumpkin, and a candy bowl.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.1.3",
     nickname: "Recast",
     sections: [

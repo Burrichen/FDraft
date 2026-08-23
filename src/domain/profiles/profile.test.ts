@@ -4,6 +4,8 @@ import {
   createProfile,
   DEFAULT_PROFILE_SETTINGS,
   InvalidProfileNameError,
+  nextHalloweenPumpkinState,
+  resolveHalloweenPumpkinState,
   touchLastOpened,
 } from "./profile";
 
@@ -96,5 +98,29 @@ describe("touchLastOpened", () => {
       new FixedClock(new Date("2026-06-01T00:00:00.000Z")),
     );
     expect(profile.lastOpenedAt).toBe("2026-01-01T00:00:00.000Z");
+  });
+});
+
+describe("resolveHalloweenPumpkinState", () => {
+  it("passes through a valid value", () => {
+    expect(resolveHalloweenPumpkinState("carved")).toBe("carved");
+    expect(resolveHalloweenPumpkinState("lit")).toBe("lit");
+    expect(resolveHalloweenPumpkinState("rotting")).toBe("rotting");
+  });
+
+  it("falls back to 'uncarved' for undefined, garbage, or a pre-existing profile record", () => {
+    expect(resolveHalloweenPumpkinState(undefined)).toBe("uncarved");
+    expect(resolveHalloweenPumpkinState(null)).toBe("uncarved");
+    expect(resolveHalloweenPumpkinState("not-a-real-state")).toBe("uncarved");
+    expect(resolveHalloweenPumpkinState(42)).toBe("uncarved");
+  });
+});
+
+describe("nextHalloweenPumpkinState", () => {
+  it("cycles uncarved → carved → lit → rotting → uncarved", () => {
+    expect(nextHalloweenPumpkinState("uncarved")).toBe("carved");
+    expect(nextHalloweenPumpkinState("carved")).toBe("lit");
+    expect(nextHalloweenPumpkinState("lit")).toBe("rotting");
+    expect(nextHalloweenPumpkinState("rotting")).toBe("uncarved");
   });
 });

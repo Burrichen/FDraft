@@ -1,16 +1,21 @@
 import { settleAndDiscardLocalDraft } from "@/application/drafts/local-draft-service";
+import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
 import { isEventAvailable } from "@/domain/events/event-availability";
 import type { EventDefinition } from "@/domain/events/event-definition";
-import { EVENT_DEFINITIONS } from "@/domain/events/event-registry";
+import {
+  EVENT_DEFINITIONS,
+  getEventDefinition,
+} from "@/domain/events/event-registry";
 import type { Clock } from "@/domain/time/clock";
 import { SystemClock } from "@/domain/time/clock";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
 import type { PointsRepository } from "@/repositories/points-repository";
+import type { ProfileRepository } from "@/repositories/profile-repository";
 import type { SettingsRepository } from "@/repositories/settings-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 
@@ -20,6 +25,7 @@ type EventOptInRepos = {
   history: HistoryRepository;
   settings: SettingsRepository;
   points: PointsRepository;
+  profiles: ProfileRepository;
 };
 
 /**
@@ -115,12 +121,10 @@ export async function beginEventOptIn(
   params: { profileId: string; timezone: string; eventId?: string },
   deps: { clock?: Clock } = {},
 ): Promise<BeginEventOptInResult> {
-  const clock = deps.clock ?? new SystemClock();
-  const candidate = resolveEventToOptInto(
-    clock.now(),
-    params.timezone,
-    params.eventId,
-  );
+  const now = await getEffectiveEventDate(repos, params.profileId, {
+    clock: deps.clock,
+  });
+  const candidate = resolveEventToOptInto(now, params.timezone, params.eventId);
   const hasActiveDraft = await repos.drafts.hasActiveDraft(params.profileId);
 
   if (!hasActiveDraft) {
@@ -152,16 +156,28 @@ export async function beginEventOptIn(
   };
 }
 
-/** The actual event-settings mutation "opting in" performs — shared by the no-active-draft path above and `confirmSayGoodbye` below, so there is exactly one place this write happens. */
+/**
+ * The actual event-settings mutation "opting in" performs — shared by the
+ * no-active-draft path above and `confirmSayGoodbye` below, so there is
+ * exactly one place this write happens. `EventDefinition.
+ * enableVisualsOnOptIn` (see docs/updates, "PROMPT 18 — EVENT PAGES +
+ * HALLOWEEN LIFECYCLE") force-enables `eventVisualsEnabled` for an event
+ * that opts into that — today only Halloween — while every other event's
+ * opt-in leaves it exactly as it was, preserving the pre-existing "opt-in
+ * and visuals are fully decoupled" behaviour.
+ */
 export async function applyEventOptIn(
   repos: { settings: SettingsRepository },
   params: { profileId: string; eventId: string; manuallyEnabled: boolean },
 ): Promise<void> {
   const current = await getEventSettings(repos, params.profileId);
+  const enableVisualsByDefault =
+    getEventDefinition(params.eventId)?.enableVisualsOnOptIn ?? false;
   await setEventSettings(repos, params.profileId, {
     ...current,
     eventsEnabled: true,
     activeEvent: params.eventId,
+    eventVisualsEnabled: enableVisualsByDefault || current.eventVisualsEnabled,
     manuallyEnabledEvents:
       params.manuallyEnabled &&
       !current.manuallyEnabledEvents.includes(params.eventId)

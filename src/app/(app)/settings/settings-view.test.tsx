@@ -43,6 +43,7 @@ async function seedProfile(
       defaultPage: "watchlist",
       franchiseChronologicalOrder: false,
       adminMode: false,
+      halloweenPumpkinState: "uncarved",
     },
     dataVersion: 1,
   });
@@ -183,5 +184,46 @@ describe("SettingsView — profile management (real fake-indexeddb)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     expect(screen.getByText("Sam")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsView — Event Testing is gated behind Admin Mode", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("is completely hidden when Admin Mode is off", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, "alex", "Alex");
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Settings")).toBeInTheDocument(),
+    );
+
+    expect(
+      screen.queryByLabelText("Event Date Override"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("appears once Admin Mode is turned on, without a reload", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, "alex", "Alex");
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Admin Mode")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByLabelText("Event Date Override"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Admin Mode"));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Event Date Override")).toBeInTheDocument(),
+    );
   });
 });

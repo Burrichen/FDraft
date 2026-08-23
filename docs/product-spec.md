@@ -1982,6 +1982,160 @@ generated in.
 
 ---
 
+## EVENT SYSTEM
+
+FDraft supports time-boxed or manually-activatable **Events** — optional,
+opt-in seasonal or thematic modes that layer on top of the normal
+Watchlist/Draft experience without ever being required. The engine itself
+is fully data-driven (one `EventDefinition` per event; no event's id or
+name is ever hardcoded into the shared opt-in/eligibility/nav/theming
+code) so a new event is new data, not new plumbing. Two profile-level
+toggles govern it everywhere: **Events** (opt into an event's own
+drafting rules and reward currency at all) and **Event visuals**
+(purely cosmetic theming, independent of the first).
+
+An event can define, all optionally: a natural recurring availability
+window (`recurringMonthDayRange`, evaluated in the profile's OWN
+timezone); whether a normal user may also start it manually outside that
+window (`manualActivationAllowed`); eligibility rules narrowing which
+films qualify for its drafts; a dedicated point currency; a visual theme;
+and a dedicated temporary Event page (`EventDefinition.page`) with its
+own nav tab, shown only while a profile is opted into that specific
+event.
+
+Manually activating an event outside its natural window always downgrades
+its reward to the generic/Lifetime currency — only completing a draft
+during the event's own natural window (or, for testing, an Admin-simulated
+date inside it) ever banks that event's real currency.
+
+### Admin Event Testing (TEMPORARY developer tooling)
+
+Settings' "Event Testing" section — visible ONLY while a profile's own
+**Admin Mode** setting is on — lets a developer simulate a specific date/
+time for event-availability checks (`getEffectiveEventDate`), completely
+independent of the real system clock used everywhere else in the app
+(draft deadlines, watched-history timestamps, backup export times, and
+metadata refresh timestamps are never affected, by construction — nothing
+outside the event-availability/opt-in/nav code path ever calls
+`getEffectiveEventDate`). Turning Admin Mode off immediately suspends the
+override and resumes real time; turning it back on restores the exact
+same simulated configuration without needing to re-select it. Both the
+Admin Mode flag and the simulated-date configuration are ordinary
+per-profile persisted settings, so they survive an app restart or update
+exactly like any other setting.
+
+**This whole feature is temporary, testing-only tooling** — it exists so
+Halloween's exact boundary behavior (and any future event's) can be
+verified without waiting for the real calendar date, and is expected to
+be removed once it's no longer needed for that purpose. It must never be
+required for a normal user to experience any event correctly.
+
+---
+
+## HALLOWEEN EVENT
+
+Halloween is FDraft's flagship seasonal Event — a real, annually-recurring
+window with its own dedicated Draft type, three curated film pools, a
+temporary Event page, and light seasonal ("Kitsch Halloween") visual
+theming.
+
+### Natural window
+
+**30 September at 19:00 through 1 November at 00:00, exclusive — evaluated
+in the profile's own timezone**, every year. Halloween cannot be manually
+started outside this window at all (`manualActivationAllowed: false`, the
+only event with this restriction) — a normal user reaches it only by
+opting in while it's naturally live. Admin Event Testing can simulate
+being inside (or outside) the window for verification purposes.
+
+### Halloween Draft — three linked pools
+
+A Halloween Draft's total film count always matches its difficulty, using
+the exact same difficulty film counts every other draft uses (Baby 5 /
+Easy 8 / Medium 10 / Hard 12 / Hardcore 20 — no Freeform mode). Unlike a
+normal Random/Challenge draft, a Halloween Draft's films come from three
+linked pools whose counts always sum to exactly the selected difficulty:
+
+- **Halloween-adjacent** — a film already on the profile's own ACTIVE
+  Letterboxd Watchlist that ALSO carries "Horror" as a genre tag in its
+  real, already-enriched metadata (matched case-insensitively). A film
+  with no genre metadata yet, or genres that don't include Horror, does
+  not qualify through this pool — genre is never inferred from title,
+  poster, rating, or keywords.
+- **Horror** — drawn from a single, globally-curated Horror list
+  maintained centrally (not the profile's own Watchlist). Intended to
+  contain popular, iconic, or otherwise on-brand Horror films suitable
+  for the event. A Horror-pool film does not need to be on anyone's
+  Watchlist.
+- **Kitsch** — drawn from a second, globally-curated list, also
+  maintained centrally. Intended to contain Halloween-themed, seasonal,
+  campy, spooky, gothic, or family Halloween films that are not
+  necessarily Horror. Also does not need to be on anyone's Watchlist.
+
+A film that would qualify for more than one pool (e.g. a Watchlist Horror
+film that also appears in the global Horror list) still appears at most
+ONCE in a generated draft — pools are drawn sequentially with cross-pool
+exclusion, never with replacement. Horror/Kitsch films drafted from
+outside a profile's Watchlist are never automatically added to it, and
+marking one watched never creates or removes a Watchlist entry as a side
+effect — every ordinary Draft rule (progress, watched/undo, completion,
+History, sorting, stats) still applies to them.
+
+Halloween Draft creation itself is gated on the SAME natural window (via
+`getEffectiveEventDate`, so Admin's simulated date works identically for
+testing) — once the window closes, no new Halloween Draft can be created,
+though a profile that stayed opted in keeps its Event page, and every
+already-archived Halloween draft remains fully visible in History exactly
+as before.
+
+### Editing the Horror and Kitsch lists
+
+Both lists live in one small, hand-edited, versioned JSON file —
+`src/domain/events/manifests/halloween.json` — documented field-by-field
+in `src/domain/events/manifests/README.md`. That same file is BOTH the
+small bundled fallback shipped in every build AND the live file every
+installation periodically re-fetches straight from this repository's
+`main` branch, so publishing a Horror/Kitsch list change is: edit the
+file, bump its `updatedAt`, commit and push to `main` — no new FDraft
+release required. Online, FDraft validates and caches whatever it
+fetches; offline, it uses its last good cached copy; with no cache at
+all, it falls back to the small bundled list; a malformed or invalid
+fetch is treated exactly like a network failure and never overwrites a
+previously-good cache.
+
+An entry in either list identifies a film by (in order of preference) a
+stable TMDB id, a Letterboxd slug, or a plain title/year pair. A listed
+film with no local match yet is created locally the first time it's
+needed (title/year only — nothing is ever fabricated) and enriched via
+the normal metadata provider when online, without ever touching anyone's
+personal Watchlist.
+
+### Event Page and icon
+
+Halloween uses its own temporary Event page (`/events/halloween`) and its
+own temporary primary-navigation tab, shown only while a profile is
+currently opted into Halloween — both disappear again if the profile
+opts out or Events are turned off. The navigation icon is a hand-authored,
+original FDraft-style vector icon (a simplified jack-o'-lantern outline,
+matching every other nav icon's stroke weight/style) — never an emoji.
+
+### Seasonal visual theming and easter eggs
+
+While opted in, Halloween's page and its controls take on a "Kitsch
+Halloween" palette (pumpkin orange / deep purple / warm cream / charcoal)
+instead of FDraft's usual green — deliberately NOT a gore or
+black-and-red horror aesthetic. The page includes three small, approved
+interactive details for profiles to discover on their own; per the
+project's own convention, this document intentionally does not enumerate
+their exact mechanics here. At a high level: one is purely session-only
+(nothing about it is ever saved), one persists a small piece of
+per-profile state the same way any other profile setting does, and one is
+a rare, deliberately one-time visual moment reachable only from Settings
+while Halloween is active. None of them can affect drafts, watched state,
+or any other real data.
+
+---
+
 ## STATE / CONSISTENCY
 
 Do not let important state live only in React component state.
@@ -5143,3 +5297,63 @@ ready-to-restart`, or `error`) mounted once in `AppShell`, above
   custom release-management tooling beyond the one version-sync script
   that already existed; no attempt to disable or work around Windows
   security warnings.
+
+### Phase 10 — Event system, the Halloween Event, and release hardening
+
+Introduced FDraft's data-driven Event system (see "EVENT SYSTEM" above)
+across several prompts: Admin Mode's temporary Event Testing switcher
+(simulated event-availability dates via one central `getEffectiveEventDate`
+function, deliberately never touching real timestamps); a generic Event
+Page framework and opt-in/decline modal shared by every event; and
+Halloween's real annually-recurring window, its three-pool Draft (Halloween-
+adjacent / Horror / Kitsch), and the globally-curated Horror/Kitsch
+manifest infrastructure (reusing the same fetch/cache/fallback pipeline
+January's own curated list already established, rather than a second
+subsystem). A later high-effort pass gave Halloween its own "Kitsch
+Halloween" visual theme (new color tokens, a scoped re-skin class,
+per-item nav accent overrides) and three approved, restrained interactive
+details, plus a Settings-only, explicitly-labeled one-time visual moment.
+
+- **The hardest architectural gap:** the existing candidate-eligibility/
+  watched-state pipeline was built entirely around a real
+  `WatchlistEntryRecord`. Horror/Kitsch films are drafted from a global
+  list and explicitly must NOT require Watchlist membership, so a genuinely
+  new parallel path was added for marking/undoing a watched film with no
+  watchlist entry at all (`markLocalDraftItemWatchedWithoutEntry`) —
+  `undoLocalFilmWatched` now treats a `null` watchlist entry as a normal,
+  expected case rather than an error. History, backup/restore, and
+  progress/stats/sorting needed zero changes — they were already agnostic
+  to a null entry.
+- **A real cross-profile bug found during hardening.** Switching profiles
+  via the header menu never navigates or remounts the current page, so a
+  gravestone easter egg already revealed for one profile would keep
+  showing revealed — and the WRONG profile's name — the instant a second
+  profile became active on the same page, without that profile ever
+  earning the reveal. Fixed by keying that part of the page tree on the
+  active profile id, forcing a fresh mount (and fresh session-only state)
+  on every profile switch.
+- **Expiry enforcement.** Halloween Draft creation is gated on the same
+  natural-window check the opt-in flow already used (via
+  `getEffectiveEventDate`, so Admin's simulated date still works for
+  testing) — deliberately scoped to Halloween's own dedicated creation
+  function only, leaving the older, generic `createLocalDraft`/January
+  path's intentionally-unchanged behavior alone.
+- **Testing.** Full boundary coverage for the natural window (the instant
+  before/at/after both edges, in a non-UTC profile timezone); every
+  difficulty's allocation exercised through the real draft-creation
+  service (not just the pure allocation math); a chained integration test
+  covering opt-in → nav tab → the real Event page; a full
+  create → watch → undo → re-watch → complete → History lifecycle test for
+  a draft mixing Watchlist and Event-only films; an explicit regression
+  test proving watched-history timestamps stay on the real clock even with
+  an active Admin override; and an explicit regression test proving the
+  three easter eggs' session-only state never appears in an exported
+  backup. `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), the full
+  unit/integration suite, a dedicated Halloween end-to-end Playwright spec,
+  the production web build, and the Tauri static-export build are all
+  clean.
+- **What this phase does NOT do, on purpose:** no additional easter eggs
+  beyond the three approved ones plus the one Settings-only visual moment;
+  no change to how any OTHER event (January, Watchlist Frontier, Signal
+  from Beyond) behaves; Admin Event Testing remains explicitly temporary,
+  developer-only tooling, not a real product feature.

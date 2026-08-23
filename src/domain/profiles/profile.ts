@@ -52,6 +52,46 @@ export interface ProfileSettings {
    * its own Settings copy.
    */
   adminMode: boolean;
+  /**
+   * The Halloween pumpkin easter egg's persisted state (see docs/updates,
+   * "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI + APPROVED EASTER EGGS" §9) —
+   * per-profile like every other setting here, so it survives app
+   * restarts and round-trips through backup/restore for free via
+   * `profileSettingsSchema`, but never leaks between profiles. Read
+   * through `resolveHalloweenPumpkinState()`, never trusted directly, so
+   * a profile record predating this setting (or a corrupted value)
+   * resolves to `"uncarved"` rather than breaking.
+   */
+  halloweenPumpkinState: HalloweenPumpkinState;
+}
+
+/** See `ProfileSettings.halloweenPumpkinState`. */
+export type HalloweenPumpkinState = "uncarved" | "carved" | "lit" | "rotting";
+
+const HALLOWEEN_PUMPKIN_STATE_ORDER: HalloweenPumpkinState[] = [
+  "uncarved",
+  "carved",
+  "lit",
+  "rotting",
+];
+
+/** A profile record predating this setting (or holding a corrupted value) resolves to `"uncarved"` — the same "never trust the stored value directly" convention `resolveAdminMode` follows. */
+export function resolveHalloweenPumpkinState(
+  value: unknown,
+): HalloweenPumpkinState {
+  return (HALLOWEEN_PUMPKIN_STATE_ORDER as string[]).includes(value as string)
+    ? (value as HalloweenPumpkinState)
+    : "uncarved";
+}
+
+/** Cycles `uncarved → carved → lit → rotting → uncarved` (see docs/updates, PROMPT 20 §9) — a pure function so the click handler is trivially testable without a component. */
+export function nextHalloweenPumpkinState(
+  current: HalloweenPumpkinState,
+): HalloweenPumpkinState {
+  const index = HALLOWEEN_PUMPKIN_STATE_ORDER.indexOf(current);
+  return HALLOWEEN_PUMPKIN_STATE_ORDER[
+    (index + 1) % HALLOWEEN_PUMPKIN_STATE_ORDER.length
+  ];
 }
 
 export interface LocalProfile {
@@ -69,6 +109,7 @@ export const DEFAULT_PROFILE_SETTINGS: ProfileSettings = {
   defaultPage: DEFAULT_PAGE_FALLBACK,
   franchiseChronologicalOrder: false,
   adminMode: false,
+  halloweenPumpkinState: "uncarved",
 };
 
 /** A profile record predating this setting has no such property at all — resolves to the required default (`false`, unchanged drafting behaviour) rather than `undefined`. Every reader must route through this, never the stored value directly. */

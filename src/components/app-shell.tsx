@@ -3,6 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
+import { refreshHalloweenManifest } from "@/application/events/halloween-manifest-service";
 import { refreshJanuaryManifest } from "@/application/events/january-manifest-service";
 import { EventIntroDialog } from "@/components/events/event-intro-dialog";
 import { Header } from "@/components/layout/header";
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/updates/update-dialog";
 import { UpdateProvider } from "@/components/updates/update-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
+import { parseHalloweenManifest } from "@/domain/events/halloween-manifest-schema";
 import { LocalStorageEventManifestCacheStore } from "@/infrastructure/events/event-manifest-cache-store";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
@@ -56,6 +58,13 @@ function AppShellContent({ children }: { children: ReactNode }) {
     void refreshJanuaryManifest({
       cacheStore: new LocalStorageEventManifestCacheStore(),
       films: repositories.films,
+    });
+    void refreshHalloweenManifest({
+      cacheStore: new LocalStorageEventManifestCacheStore(
+        parseHalloweenManifest,
+      ),
+      films: repositories.films,
+      unresolvedMetadata: repositories.unresolvedMetadata,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

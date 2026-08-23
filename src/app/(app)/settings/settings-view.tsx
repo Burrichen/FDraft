@@ -6,10 +6,14 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { resolveAdminMode } from "@/domain/profiles/profile";
 import { AdminModeSection } from "./admin-mode-section";
 import { DataBackupSection } from "./data-backup-section";
 import { DefaultPageSection } from "./default-page-section";
 import { EventSwitcherSection } from "./event-switcher-section";
+import { EventTestingSection } from "./event-testing-section";
+import { HalloweenManifestSection } from "./halloween-manifest-section";
+import { HauntedSection } from "./haunted-section";
 import { JanuaryManifestSection } from "./january-manifest-section";
 import { FranchiseOrderSection } from "./franchise-order-section";
 import { MetadataSection } from "./metadata-section";
@@ -53,6 +57,7 @@ export function SettingsView() {
   if (!activeProfile) {
     return null;
   }
+  const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -111,6 +116,12 @@ export function SettingsView() {
       <EventSwitcherSection />
 
       <JanuaryManifestSection />
+
+      <HalloweenManifestSection />
+
+      <HauntedSection />
+
+      {adminModeEnabled ? <EventTestingSection /> : null}
 
       <UpdatesSection />
 

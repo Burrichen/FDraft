@@ -64,20 +64,46 @@ describe("event-registry", () => {
     expect(event?.visualTheme).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
   });
 
+  it("has a dedicated temporary Event Page", () => {
+    const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
+    expect(event?.page).toEqual({
+      route: "/events/january",
+      navLabel: "January",
+    });
+  });
+
   it("getEventDefinition returns null for an unknown id", () => {
     expect(getEventDefinition("some-unregistered-event")).toBeNull();
   });
 
   describe("Halloween", () => {
-    it("has no defined natural availability window — manual activation only, since no real date exists yet", () => {
+    it("has a real, annually-recurring natural window — 30 September 19:00 through 1 November 00:00 exclusive — and cannot be manually started outside it", () => {
       const event = getEventDefinition(HALLOWEEN_EVENT_ID);
       expect(event?.availability).toEqual({
         startsAt: null,
         endsAt: null,
         recurringMonths: null,
-        recurringMonthDayRange: null,
+        recurringMonthDayRange: {
+          startMonth: 9,
+          startDay: 30,
+          startHour: 19,
+          startMinute: 0,
+          endMonth: 11,
+          endDay: 1,
+          endHour: 0,
+          endMinute: 0,
+        },
       });
-      expect(event?.manualActivationAllowed).toBe(true);
+      expect(event?.manualActivationAllowed).toBe(false);
+    });
+
+    it("has a dedicated temporary Event Page and force-enables Event Visuals on join", () => {
+      const event = getEventDefinition(HALLOWEEN_EVENT_ID);
+      expect(event?.page).toEqual({
+        route: "/events/halloween",
+        navLabel: "Halloween",
+      });
+      expect(event?.enableVisualsOnOptIn).toBe(true);
     });
 
     it("has no dedicated reward currency defined yet — resolves to generic/Lifetime Points", () => {
@@ -94,15 +120,19 @@ describe("event-registry", () => {
       });
     });
 
-    it("has no visual theme defined yet", () => {
+    it("uses its own id as its visual theme id (see PROMPT 20 — HIGH-EFFORT HALLOWEEN UI)", () => {
       const event = getEventDefinition(HALLOWEEN_EVENT_ID);
-      expect(event?.visualTheme).toBeNull();
+      expect(event?.visualTheme).toBe(HALLOWEEN_EVENT_ID);
     });
 
-    it("supplies intro content for the generic event introduction modal", () => {
+    it("supplies intro content for the generic event introduction modal, with its own exact join/decline button copy", () => {
       const event = getEventDefinition(HALLOWEEN_EVENT_ID);
       expect(event?.intro.description.length).toBeGreaterThan(0);
       expect(event?.intro.bullets.length).toBeGreaterThan(0);
+      expect(event?.intro.primaryActionLabel).toBe(
+        "I want to join the Halloween Event",
+      );
+      expect(event?.intro.secondaryActionLabel).toBe("I'm not interested");
     });
   });
 

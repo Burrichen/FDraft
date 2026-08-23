@@ -72,7 +72,10 @@ describe("RegenerateDraftButton", () => {
   it("confirming calls abandonLocalDraft with the right ids and forwards the reverted entries", async () => {
     vi.mocked(abandonLocalDraft).mockResolvedValue({
       ok: true,
-      result: { revertedWatchlistEntryIds: ["entry-1", "entry-2"] },
+      result: {
+        revertedWatchlistEntryIds: ["entry-1", "entry-2"],
+        revertedDraftItemIds: ["item-1", "item-2"],
+      },
     });
     const user = userEvent.setup();
     const onRegenerated = vi.fn();
@@ -85,7 +88,10 @@ describe("RegenerateDraftButton", () => {
     );
 
     await waitFor(() =>
-      expect(onRegenerated).toHaveBeenCalledWith(["entry-1", "entry-2"]),
+      expect(onRegenerated).toHaveBeenCalledWith(
+        ["entry-1", "entry-2"],
+        ["item-1", "item-2"],
+      ),
     );
     expect(abandonLocalDraft).toHaveBeenCalledWith(mockRepositories, {
       profileId: "profile-1",

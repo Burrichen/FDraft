@@ -28,6 +28,7 @@ function baseFilm(
     hasNoMetadata: false,
     substitution: null,
     canEdit: false,
+    source: "random",
     ...overrides,
   };
 }

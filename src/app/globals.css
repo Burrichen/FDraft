@@ -46,6 +46,14 @@
   --color-watchlist-orange-foreground: var(--watchlist-orange-foreground);
   --color-watchlist-yellow: var(--watchlist-yellow);
   --color-watchlist-yellow-foreground: var(--watchlist-yellow-foreground);
+  --color-halloween-pumpkin: var(--halloween-pumpkin);
+  --color-halloween-pumpkin-foreground: var(--halloween-pumpkin-foreground);
+  --color-halloween-purple: var(--halloween-purple);
+  --color-halloween-purple-foreground: var(--halloween-purple-foreground);
+  --color-halloween-cream: var(--halloween-cream);
+  --color-halloween-cream-foreground: var(--halloween-cream-foreground);
+  --color-halloween-charcoal: var(--halloween-charcoal);
+  --color-halloween-charcoal-foreground: var(--halloween-charcoal-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -108,6 +116,37 @@
   --watchlist-orange-foreground: oklch(0.15 0.03 60);
   --watchlist-yellow: oklch(0.85 0.17 100);
   --watchlist-yellow-foreground: oklch(0.16 0.03 100);
+
+  /* Kitsch Halloween palette (see docs/updates, "PROMPT 20 — HIGH-EFFORT
+     HALLOWEEN UI + APPROVED EASTER EGGS") — deliberately its own tokens,
+     not a reuse of --watchlist-orange (already "challenge/highlight"
+     elsewhere). Burnt pumpkin, deep purple, warm cream, a purple-shifted
+     charcoal distinct from the app's own neutral background — old
+     decorations and candy, never gore/black-red horror cliché. */
+  --halloween-pumpkin: oklch(0.68 0.16 45);
+  --halloween-pumpkin-foreground: oklch(0.16 0.02 45);
+  --halloween-purple: oklch(0.38 0.09 300);
+  --halloween-purple-foreground: oklch(0.94 0.02 300);
+  --halloween-cream: oklch(0.9 0.03 80);
+  --halloween-cream-foreground: oklch(0.2 0.02 80);
+  --halloween-charcoal: oklch(0.15 0.012 290);
+  --halloween-charcoal-foreground: oklch(0.92 0.01 290);
+}
+
+/**
+ * Scoped Halloween re-skin — wrap any subtree in this class to reroute the
+ * app's own semantic tokens (already read by every Button/Slider/focus
+ * ring) to the Halloween palette above, without touching a single shared
+ * UI primitive. "The Halloween page primarily replaces FDraft green with
+ * Halloween orange" (see docs/updates, PROMPT 20 §2).
+ */
+.theme-halloween {
+  --primary: var(--halloween-pumpkin);
+  --primary-foreground: var(--halloween-pumpkin-foreground);
+  --ring: oklch(0.68 0.16 45 / 50%);
+  --accent: var(--halloween-purple);
+  --accent-foreground: var(--halloween-purple-foreground);
+  --secondary: color-mix(in oklch, var(--halloween-purple) 30%, var(--card));
 }
 
 @layer base {
@@ -292,6 +331,101 @@
     }
     100% {
       transform: scaleY(1);
+    }
+  }
+
+  .group:hover .nav-icon-halloween-flicker,
+  .group:focus-visible .nav-icon-halloween-flicker {
+    animation: nav-halloween-flicker 900ms ease-in-out;
+  }
+  @keyframes nav-halloween-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    20% {
+      opacity: 0.4;
+    }
+    35% {
+      opacity: 1;
+    }
+    55% {
+      opacity: 0.55;
+    }
+    70% {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+ * Halloween easter-egg animations (see docs/updates, "PROMPT 20 —
+ * HIGH-EFFORT HALLOWEEN UI + APPROVED EASTER EGGS"). Same convention as
+ * the nav micro-animations above: motion lives entirely inside
+ * `prefers-reduced-motion: no-preference`; each component supplies its own
+ * reduced-motion fallback (an instant/opacity-only change) in JS/className
+ * logic rather than relying on these rules simply not firing.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .halloween-gravestone-shake-soft {
+    animation: halloween-shake-soft 320ms ease-in-out;
+  }
+  @keyframes halloween-shake-soft {
+    0%,
+    100% {
+      transform: translateX(0) rotate(0deg);
+    }
+    25% {
+      transform: translateX(-1.5px) rotate(-0.6deg);
+    }
+    75% {
+      transform: translateX(1.5px) rotate(0.6deg);
+    }
+  }
+
+  .halloween-gravestone-shake-hard {
+    animation: halloween-shake-hard 420ms ease-in-out;
+  }
+  @keyframes halloween-shake-hard {
+    0%,
+    100% {
+      transform: translateX(0) rotate(0deg);
+    }
+    20% {
+      transform: translateX(-3px) rotate(-1.4deg);
+    }
+    45% {
+      transform: translateX(2.5px) rotate(1.2deg);
+    }
+    70% {
+      transform: translateX(-1.5px) rotate(-0.6deg);
+    }
+  }
+
+  .halloween-gravestone-chip {
+    animation: halloween-chip-fall 700ms ease-in forwards;
+  }
+  @keyframes halloween-chip-fall {
+    0% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(10px) rotate(35deg);
+      opacity: 0;
+    }
+  }
+
+  .halloween-bat-sway {
+    animation: halloween-bat-sway 4s ease-in-out infinite;
+  }
+  @keyframes halloween-bat-sway {
+    0%,
+    100% {
+      transform: rotate(-4deg);
+    }
+    50% {
+      transform: rotate(4deg);
     }
   }
 }

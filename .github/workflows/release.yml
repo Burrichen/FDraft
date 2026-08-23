@@ -60,6 +60,21 @@ jobs:
 
       - run: pnpm run sync-desktop-version
 
+      # A version with a semver pre-release suffix (e.g. "1.2.0-beta.1") is
+      # a hands-on-testing build, never the "latest" release — mark it as a
+      # GitHub prerelease automatically so publishing it can't accidentally
+      # trigger auto-update on real installs. Derived from the tag itself
+      # (not hardcoded) so every future pre-release tag gets this for free.
+      - name: Determine prerelease flag from the tag's semver suffix
+        id: prerelease-check
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # The updater reads THIS text, not whatever the release page shows
       # after a manual edit — see the script's own doc comment for why
       # that distinction is the whole reason the in-app update dialog
@@ -86,4 +101,4 @@ jobs:
           releaseName: "FDraft ${{ github.ref_name }}"
           releaseBody: ${{ steps.patch-notes.outputs.body }}
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ steps.prerelease-check.outputs.is_prerelease }}
