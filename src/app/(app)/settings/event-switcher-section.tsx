@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -11,25 +12,33 @@ import { useEventDiscovery } from "@/components/events/event-discovery-provider"
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { getEventDefinition } from "@/domain/events/event-registry";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { describeEventAvailabilityWindow } from "./event-availability-copy";
 
 /**
- * The Settings page's Event section (see docs/product-spec.md, event
+ * The Settings page's Events section (see docs/product-spec.md, event
  * system Phase 2/5/6; revised by docs/updates, "EVENT LIFECYCLE REPAIR"
- * §2/§9). A normal user can now ONLY ever join an event that's CURRENTLY
- * naturally active — there is no catalogue of inactive events a normal
- * user can force on outside their natural window. Two states:
+ * §2/§9 and "SETTINGS INFORMATION ARCHITECTURE REBUILD" §4/§5). A normal
+ * user can now ONLY ever join an event that's CURRENTLY naturally active —
+ * there is no catalogue of inactive events a normal user can force on
+ * outside their natural window, and there is no Event Testing tooling
+ * here at all (that lives in Developer — see `developer-section.tsx`).
+ * Two states:
  *
- *  - Not currently in an event: "AVAILABLE EVENTS" lists every naturally-
- *    active, not-yet-joined event with a Join button, or a plain "No
- *    events are currently running." message when nothing qualifies.
- *  - Currently in one: "CURRENT EVENT" names it and exposes its two
- *    independent toggles — "Event Visuals" (purely cosmetic) and "Event
- *    Gameplay" (full participation; turning it off leaves the event —
- *    settings only, never touches any Draft, normal or the event's own).
+ *  - Not currently in an event: "Available now" lists every naturally-
+ *    active, not-yet-joined event (with its natural window and a Join
+ *    button), or a plain "No events are currently running" message when
+ *    nothing qualifies. A previously-declined event still appears here
+ *    while its occurrence is naturally active (declining only suppresses
+ *    the introduction modal, never the ability to join from here).
+ *  - Currently in one: "Current Event" names it, offers an "Open <event>"
+ *    link straight to its page, and exposes its two independent toggles —
+ *    "Event Visuals" (purely cosmetic) and "Event Gameplay" (full
+ *    participation; turning it off leaves the event — settings only,
+ *    never touches any Draft, normal or the event's own).
  *
  * "Current Event" itself is still `EventSettings.activeEvent`/
  * `eventsEnabled` directly (unchanged) — deliberately NOT gated on the
@@ -37,7 +46,7 @@ import { useAsyncData } from "@/hooks/use-async-data";
  * gameplay/reward-currency settings concern (see §9), not a page/nav
  * existence one: a profile should still be able to see and adjust its
  * Visuals setting, or explicitly leave, even after the event's natural
- * window has closed. "Available Events" DOES read the shared
+ * window has closed. "Available now" DOES read the shared
  * `EventDiscoveryProvider` snapshot (see docs/updates, "EVENT LIFECYCLE
  * REPAIR" §4), so it correctly excludes anything already joined through
  * occurrence-participation even in the (currently unreachable) case where
@@ -142,19 +151,29 @@ export function EventSwitcherSection() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Events</CardTitle>
-      </CardHeader>
       <CardContent className="space-y-4">
         {isCurrentlyJoined && currentEvent ? (
           <>
-            <div>
-              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Current Event
-              </p>
-              <p className="text-foreground text-sm font-medium">
-                {currentEvent.name}
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  Current Event
+                </p>
+                <p className="text-foreground text-sm font-medium">
+                  {currentEvent.name}
+                </p>
+              </div>
+              {currentEvent.page ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href={currentEvent.page.route} />}
+                >
+                  Open {currentEvent.name}
+                </Button>
+              ) : null}
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t pt-4">
@@ -211,32 +230,49 @@ export function EventSwitcherSection() {
         ) : (
           <div>
             <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-              Available Events
+              Available now
             </p>
             {availableEvents.length === 0 ? (
-              <p className="text-muted-foreground mt-2 text-sm">
-                No events are currently running.
-              </p>
+              <div className="mt-2 space-y-1">
+                <p className="text-muted-foreground text-sm">
+                  No events are currently running.
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  Seasonal events will appear here when available.
+                </p>
+              </div>
             ) : (
               <ul className="mt-2 space-y-3">
-                {availableEvents.map((event) => (
-                  <li
-                    key={event.id}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <p className="text-foreground text-sm font-medium">
-                      {event.name}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void optIn.beginOptIn(event.id)}
-                      disabled={optIn.isSaving}
+                {availableEvents.map((event) => {
+                  const availabilityWindow = describeEventAvailabilityWindow(
+                    event.availability,
+                  );
+                  return (
+                    <li
+                      key={event.id}
+                      className="flex items-center justify-between gap-3"
                     >
-                      {event.intro.primaryActionLabel ?? "Join"}
-                    </Button>
-                  </li>
-                ))}
+                      <div>
+                        <p className="text-foreground text-sm font-medium">
+                          {event.name}
+                        </p>
+                        {availabilityWindow ? (
+                          <p className="text-muted-foreground text-sm">
+                            {availabilityWindow}
+                          </p>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void optIn.beginOptIn(event.id)}
+                        disabled={optIn.isSaving}
+                      >
+                        {event.intro.primaryActionLabel ?? "Join"}
+                      </Button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

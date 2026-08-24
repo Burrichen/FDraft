@@ -19,7 +19,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { downloadTextFile } from "./download-file";
@@ -109,7 +108,6 @@ export function DataBackupSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Data & Backups</CardTitle>
         <CardDescription>
           FDraft stores your data on this device. Export a backup if you want to
           move your profile to another device, or to protect it from browser or

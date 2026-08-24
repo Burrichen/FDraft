@@ -79,7 +79,7 @@ describe("Settings Event Switcher → nav tab → Halloween page (EVENT LIFECYCL
 
     // Before joining: no Halloween nav tab, and Settings lists it as
     // available to join. `findByRole` (retrying), not `getByRole` — the
-    // "Available Events" heading itself renders before the shared
+    // "Available now" heading itself renders before the shared
     // discovery snapshot resolves, so a plain `getByRole` right after
     // could run against a still-empty list.
     const joinButton = await screen.findByRole("button", {

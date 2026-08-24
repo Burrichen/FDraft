@@ -22,6 +22,20 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.4",
+    nickname: "Trick or Treat (Beta 4)",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          "Settings has been reorganised into clear sections — Profile, General, Events, Watchlist & Metadata, Data & Backups, Updates, and Developer — and now uses the available screen width on desktop instead of a single narrow column.",
+          "Events in Settings is now much simpler: it only ever lists events that are actually running right now, each with its dates and a Join button, or a plain message when nothing is currently running.",
+          "Testing-only tools (the simulated event date, and the two event-data refresh buttons) now live under Settings → Developer, and only appear once Admin Mode is turned on.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.3",
     nickname: "Trick or Treat (Beta 3)",
     sections: [

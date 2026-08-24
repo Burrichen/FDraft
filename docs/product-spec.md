@@ -5800,3 +5800,81 @@ fixedEventDeadline` is a new, generic opt-in flag (not a Halloween-only
   `EventSettings.activeEvent`/`manuallyEnabledEvents` (still load-bearing
   for gameplay); no change to The Watchlist Frontier/Signal from Beyond's
   own mechanics.
+
+### Phase 16 — Settings information architecture rebuild
+
+Settings reorganised into named sections (Profile, General, Events,
+Watchlist & Metadata, Data & Backups, Updates, Developer) after a full
+inventory of the pre-existing page — presentation only, no stored setting
+removed or behaviourally changed beyond what's called out below.
+
+- **`SettingsSection`** (`src/app/(app)/settings/settings-section.tsx`) —
+  the shared uppercase-kicker heading + description wrapper every group
+  renders under. Deliberately not a `Card` itself, since a section can
+  hold several related cards (Watchlist & Metadata holds both Metadata and
+  Re-import) without a second, redundant border around all of them.
+- **Layout** (`settings-view.tsx`) widened from a single centered
+  `max-w-2xl` column to an explicit two-column grid (`lg:grid-cols-2`,
+  collapsing to one stacked column below `lg`) inside the app shell's own
+  `max-w-6xl` content area — explicit column assignment (Profile/General/
+  Events on the left; Watchlist & Metadata/Data & Backups/Updates/
+  Developer on the right), not CSS grid auto-placement, so related
+  sections always land together rather than an unrelated one landing
+  beside them by row-major accident.
+- **General** combines Default Page and Franchise Order into one shared
+  card (`general-section.tsx`) instead of each getting its own — the one
+  place this phase actually merges settings, since both are genuinely
+  trivial single-row toggles.
+- **Events** (`event-switcher-section.tsx`) restyled to match the brief's
+  mock exactly: "Available now" (was "Available Events") lists each
+  naturally-active, unjoined event with a new human-readable window
+  description (`event-availability-copy.ts` — e.g. "30 September, 7pm –
+  31 October", reading the registry's own month/day/hour values directly
+  rather than resolving a timezone instant) alongside its Join button, and
+  shows both lines of the empty-state copy when nothing is running. A
+  joined event's card gained an "Open `<event>`" link straight to its
+  page. The underlying join/decline/leave logic, and the exact
+  `intro.primaryActionLabel` button text (e.g. Halloween's "Let me in."),
+  are completely unchanged — only copy and layout around them are new.
+  `HauntedSection` sits directly below, still gated purely on Halloween
+  being joined and active, NOT on Admin Mode — it's a seasonal easter egg
+  for every user, not a developer tool, so its pre-existing unconditional
+  visibility is preserved.
+- **Developer** (`developer-section.tsx`) is the only thing gated on
+  Admin Mode. Turning it on reveals `EventTestingSection` (unchanged
+  internally — it already carried its own compact "TEST DATE ACTIVE"
+  indicator) plus `HalloweenManifestSection`/`JanuaryManifestSection`,
+  reclassified here from their previous unconditional, always-visible
+  placement: both are dev/testing affordances by their own pre-existing
+  doc comments ("mainly useful for testing"), so hiding them behind Admin
+  Mode is a deliberate, small behaviour change made in the spirit of this
+  phase's goal (normal users no longer see testing tools by default), not
+  an oversight.
+- **No "Appearance & Accessibility" section was created.** Direct
+  inspection found no implemented appearance control anywhere in FDraft —
+  the app is permanently dark (`globals.css`'s `.dark` class applied
+  unconditionally on `<html>`, no theme toggle exists), and no
+  "performance mode"/"visual intensity" setting exists either.
+  `ProfileSettings.reducedMotion` is a real, persisted per-profile field,
+  but nothing in the app ever reads it — every actual reduced-motion
+  behaviour is driven directly by the OS-level `prefers-reduced-motion`
+  media query, independent of this stored field. Building a toggle for a
+  field with no observable effect would be exactly the "fake setting
+  simply to fill the section" this rebuild was told not to create; the
+  stored field itself is untouched.
+- **Testing.** New `event-availability-copy.test.ts` (window-description
+  formatting, including Halloween's midnight-end-displays-as-previous-day
+  case); new `EventSwitcherSection` tests for the window description, the
+  "Open `<event>`" link, and a previously-declined event still being
+  offered here while its occurrence is naturally active; every renamed
+  string ("Available now") updated across its own tests and the
+  `halloween-join-modal` e2e spec. Full suite (156 files / 1,749 tests),
+  lint, strict typecheck, production build, `pnpm run build:desktop-
+frontend`, and `cargo check` all clean; the Settings/Events-relevant e2e
+  specs pass (four pre-existing, unrelated flaky failures — Draft-creation
+  and metadata-request-count timing, in subsystems this phase never
+  touched — were confirmed to fail identically on the pre-change baseline
+  via `git stash`, ruling out a regression). Verified live in a real
+  browser at desktop (1440px, confirming the two-column layout and the
+  Developer reveal) and mobile (375px, confirming single-column stacking)
+  widths.

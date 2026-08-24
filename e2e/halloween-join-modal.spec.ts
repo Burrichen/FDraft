@@ -60,7 +60,7 @@ async function forceEventsEnabled(page: import("@playwright/test").Page) {
 
 /**
  * Returns the modal's own root, scoped so every subsequent query is
- * unambiguous — Settings' "Available Events" list (`EventSwitcherSection`)
+ * unambiguous — Settings' "Available now" list (`EventSwitcherSection`)
  * also renders a "Let me in." button on the SAME page once the profile is
  * eligible, so any un-scoped `getByRole("button", { name: "Let me in." })`
  * would match two real, independent buttons at once.
@@ -80,7 +80,7 @@ async function openHalloweenJoinModal(page: import("@playwright/test").Page) {
 
   await forceEventsEnabled(page);
 
-  // A page not competing with Settings' own "Available Events" inline
+  // A page not competing with Settings' own "Available now" inline
   // Join button/card, so the global modal is unambiguously the only
   // "Let me in." surface present.
   await page.goto("/watchlist");
@@ -241,6 +241,6 @@ test.describe("Halloween join modal — decline flow", () => {
     await expect(dialog).not.toBeVisible();
 
     await page.goto("/settings");
-    await expect(page.getByText("Available Events")).toBeVisible();
+    await expect(page.getByText("Available now")).toBeVisible();
   });
 });

@@ -6,21 +6,46 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { resolveAdminMode } from "@/domain/profiles/profile";
-import { AdminModeSection } from "./admin-mode-section";
 import { DataBackupSection } from "./data-backup-section";
-import { DefaultPageSection } from "./default-page-section";
+import { DeveloperSection } from "./developer-section";
 import { EventSwitcherSection } from "./event-switcher-section";
-import { EventTestingSection } from "./event-testing-section";
-import { HalloweenManifestSection } from "./halloween-manifest-section";
+import { GeneralSection } from "./general-section";
 import { HauntedSection } from "./haunted-section";
-import { JanuaryManifestSection } from "./january-manifest-section";
-import { FranchiseOrderSection } from "./franchise-order-section";
 import { MetadataSection } from "./metadata-section";
 import { ProfileRow } from "./profile-row";
 import { ReimportWatchlistSection } from "./reimport-watchlist-section";
+import { SettingsSection } from "./settings-section";
 import { UpdatesSection } from "./updates-section";
 
+/**
+ * Settings, reorganised into named, clearly-scoped sections (see
+ * docs/updates, "SETTINGS INFORMATION ARCHITECTURE REBUILD") — Profile,
+ * General, Events, Watchlist & Metadata, Data & Backups, Updates, and
+ * Developer. Two intentional omissions from the brief's full eight-section
+ * hierarchy, both confirmed by direct inspection before this rewrite
+ * rather than assumed:
+ *
+ *  - No "Appearance & Accessibility" section exists. FDraft has no
+ *    implemented appearance control at all (no theme toggle — the app is
+ *    permanently dark, see `globals.css`'s `.dark` class applied
+ *    unconditionally on `<html>`) and no "performance mode"/"visual
+ *    intensity" setting anywhere. `ProfileSettings.reducedMotion` exists
+ *    as a stored per-profile field, but nothing in the app ever reads it
+ *    (every actual reduced-motion behaviour is driven directly by the
+ *    OS-level `prefers-reduced-motion` media query) — surfacing a toggle
+ *    for a field with no observable effect would be exactly the "fake
+ *    setting simply to fill the section" this rebuild is told not to
+ *    create. The stored field itself is untouched by this phase.
+ *  - Event Visuals/Gameplay live under Events (§5), not here, matching
+ *    the brief exactly.
+ *
+ * Laid out as two columns on wide viewports rather than one narrow,
+ * centered column (§12: "Avoid one tiny narrow Settings column surrounded
+ * by empty space") — explicit column assignment, not CSS grid
+ * auto-placement, so related sections always land together instead of an
+ * unrelated section landing beside them by row-major accident. Collapses
+ * to a single stacked column below `lg`.
+ */
 export function SettingsView() {
   const {
     activeProfile,
@@ -57,10 +82,9 @@ export function SettingsView() {
   if (!activeProfile) {
     return null;
   }
-  const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-8">
       <div>
         <h1 className="page-heading">Settings</h1>
         <p className="page-subtitle">
@@ -68,66 +92,79 @@ export function SettingsView() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Profiles</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ul className="space-y-2">
-            {profiles.map((profile) => (
-              <ProfileRow
-                key={profile.id}
-                profile={profile}
-                isActive={profile.id === activeProfile.id}
-                onSwitch={switchToProfile}
-                onRename={renameProfile}
-                onDelete={deleteProfile}
-              />
-            ))}
-          </ul>
+      <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-8">
+          <SettingsSection title="Profile">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Profiles</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2">
+                  {profiles.map((profile) => (
+                    <ProfileRow
+                      key={profile.id}
+                      profile={profile}
+                      isActive={profile.id === activeProfile.id}
+                      onSwitch={switchToProfile}
+                      onRename={renameProfile}
+                      onDelete={deleteProfile}
+                    />
+                  ))}
+                </ul>
 
-          <form onSubmit={handleCreate} className="flex gap-2 border-t pt-4">
-            <Input
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              placeholder="New profile name"
-              aria-label="New profile name"
-              maxLength={80}
-              disabled={isCreating}
-            />
-            <Button
-              type="submit"
-              disabled={isCreating || newName.trim().length === 0}
-            >
-              + Create Profile
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+                <form
+                  onSubmit={handleCreate}
+                  className="flex gap-2 border-t pt-4"
+                >
+                  <Input
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    placeholder="New profile name"
+                    aria-label="New profile name"
+                    maxLength={80}
+                    disabled={isCreating}
+                  />
+                  <Button
+                    type="submit"
+                    disabled={isCreating || newName.trim().length === 0}
+                  >
+                    + Create Profile
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </SettingsSection>
 
-      <DefaultPageSection />
+          <SettingsSection title="General">
+            <GeneralSection />
+          </SettingsSection>
 
-      <FranchiseOrderSection />
+          <SettingsSection title="Events">
+            <EventSwitcherSection />
+            <HauntedSection />
+          </SettingsSection>
+        </div>
 
-      <MetadataSection />
+        <div className="space-y-8">
+          <SettingsSection title="Watchlist & Metadata">
+            <MetadataSection />
+            <ReimportWatchlistSection />
+          </SettingsSection>
 
-      <ReimportWatchlistSection />
+          <SettingsSection title="Data & Backups">
+            <DataBackupSection />
+          </SettingsSection>
 
-      <EventSwitcherSection />
+          <SettingsSection title="Updates">
+            <UpdatesSection />
+          </SettingsSection>
 
-      <JanuaryManifestSection />
-
-      <HalloweenManifestSection />
-
-      <HauntedSection />
-
-      {adminModeEnabled ? <EventTestingSection /> : null}
-
-      <UpdatesSection />
-
-      <DataBackupSection />
-
-      <AdminModeSection />
+          <SettingsSection title="Developer">
+            <DeveloperSection />
+          </SettingsSection>
+        </div>
+      </div>
     </div>
   );
 }

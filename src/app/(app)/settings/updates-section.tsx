@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { isDesktopRuntime } from "@/infrastructure/tauri/desktop-runtime";
 import { useUpdateContext } from "@/components/updates/update-provider";
@@ -34,9 +34,6 @@ export function UpdatesSection() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Updates</CardTitle>
-      </CardHeader>
       <CardContent className="space-y-4">
         {desktop ? (
           <>

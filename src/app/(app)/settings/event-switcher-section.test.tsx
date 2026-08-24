@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLocalDraft } from "@/application/drafts/local-draft-service";
 import { setEventDateOverride } from "@/application/events/event-date-override-store";
+import { declineEventOccurrence } from "@/application/events/event-opt-in";
 import { getEventSettings } from "@/application/events/event-settings-store";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
@@ -300,7 +301,7 @@ describe("EventSwitcherSection — Available Events (PROMPT B2.1 §4: active eve
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByText("Available Events")).toBeInTheDocument(),
+      expect(screen.getByText("Available now")).toBeInTheDocument(),
     );
     expect(
       screen.getByText("No events are currently running."),
@@ -384,11 +385,81 @@ describe("EventSwitcherSection — Available Events (PROMPT B2.1 §4: active eve
     await waitFor(() =>
       expect(screen.getByText("Current Event")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Available Events")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available now")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: "Let me in.",
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows Halloween's natural window alongside its Join button (SETTINGS INFORMATION ARCHITECTURE REBUILD §4)", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: false,
+      activeEvent: null,
+    });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText("30 September, 7pm – 31 October"),
+    ).toBeInTheDocument();
+  });
+
+  it("an event declined earlier in this same occurrence is still offered here, with a working Join button", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: false,
+      activeEvent: null,
+    });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await declineEventOccurrence(repos, {
+      profileId: PROFILE_ID,
+      occurrenceKey: `${HALLOWEEN_EVENT_ID}:2026`,
+    });
+    await db.close();
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Let me in." }));
+
+    await waitFor(async () => {
+      const afterDb = new FDraftLocalDatabase(databaseName);
+      const afterRepos = createLocalRepositories(afterDb);
+      const settings = await getEventSettings(afterRepos, PROFILE_ID);
+      await afterDb.close();
+      expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
+    });
+  });
+});
+
+describe("EventSwitcherSection — Current Event: Open <event> link", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("links straight to the joined event's own page", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: true,
+      activeEvent: HALLOWEEN_EVENT_ID,
+      manuallyEnabledEvents: [],
+    });
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Current Event")).toBeInTheDocument(),
+    );
+    const openLink = screen.getByRole("button", { name: "Open Halloween" });
+    expect(openLink).toHaveAttribute("href", "/events/halloween");
   });
 });
