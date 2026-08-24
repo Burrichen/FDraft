@@ -2024,6 +2024,45 @@ completes both drafts' matching items from that one action, and each draft
 still resolves and rewards independently (no reward is ever granted twice
 for the same draft).
 
+### Event occurrence lifecycle — join / decline / expiry
+
+Each annual (or one-off) occurrence of an event is modeled explicitly —
+e.g. `halloween:2026` — with its own three-state participation:
+**UNANSWERED**, **JOINED**, or **DECLINED**, persisted per profile per
+occurrence (never inferred from whether a Draft exists, whether visuals
+are enabled, which route was last visited, or a single "currently
+selected event" slot). A JOINED, still-available occurrence is the ONLY
+thing that makes an event's dedicated page and nav tab exist — creating,
+completing, or archiving a Draft never registers or un-registers it. A
+DECLINED occurrence never shows its introduction modal again, but the
+event stays reachable from Settings while it's still available. A new
+annual occurrence (a new year) always begins UNANSWERED, regardless of
+what the previous year's was.
+
+An occurrence's page/nav visibility requires BOTH "joined" and "currently
+available," with one deliberate exception: an event manually activated
+outside its natural window (only possible for one with
+`manualActivationAllowed: true`, e.g. January) stays visible for the rest
+of that manual activation, not just during the natural window — a mid-
+year January opt-in is meant to persist the rest of the year, downgraded
+to Lifetime Points, not disappear the moment 31 January ends. Halloween
+(`manualActivationAllowed: false`) has no such exemption, so its page/nav
+correctly disappears once its window closes — this is the entire "Event
+expiry" behavior: no separate expiry flag, cleanup job, or deletion of
+anything. Draft history, watched state, statistics, and currencies are
+never touched by an occurrence closing.
+
+A **Global Event Discovery Controller**, mounted once at the application
+shell level (above the routed page, alongside navigation and the
+introduction modal), is the one shared read every consumer — navigation,
+the introduction modal, an event's own page, Settings — draws from,
+rather than each independently re-fetching `EventSettings`/participation
+state on its own uncoordinated schedule. It re-checks on a short interval
+(to notice an occurrence's natural window opening or closing purely from
+real time passing) and is explicitly refreshed after every join/decline/
+leave action and after the Admin date override changes, so navigation and
+the modal can never disagree with each other about what was just done.
+
 ### Event Settings — active events only
 
 A normal user can only ever opt into an event that is CURRENTLY naturally
@@ -2031,6 +2070,10 @@ active (or Admin-simulated as such) — Settings shows either the naturally-
 active event(s) available to join, or, once joined, that one event's own
 "Event Visuals"/"Event Gameplay" toggles. There is no catalogue of inactive
 events a normal user can manually force on outside their natural window.
+Neither toggle ever determines whether the joined event's page/nav exists
+— that's purely the occurrence lifecycle above; Visuals is cosmetic theming
+and Gameplay is drafting/reward-currency behavior, both independent of
+page registration.
 
 ### Admin Event Testing (TEMPORARY developer tooling)
 
@@ -2149,11 +2192,14 @@ personal Watchlist.
 ### Event Page and icon
 
 Halloween uses its own temporary Event page (`/events/halloween`) and its
-own temporary primary-navigation tab, shown only while a profile is
-currently opted into Halloween — both disappear again if the profile
-opts out or Events are turned off. The navigation icon is a hand-authored,
-original FDraft-style vector icon (a simplified jack-o'-lantern outline,
-matching every other nav icon's stroke weight/style) — never an emoji.
+own temporary primary-navigation tab, shown only while the profile's
+`halloween:<year>` occurrence is JOINED and the window is still open (see
+"Event occurrence lifecycle" above) — both disappear again once the
+profile explicitly leaves or the window closes; turning the Event
+Visuals/Gameplay toggles off/on again never accidentally registers or
+unregisters either. The navigation icon is a hand-authored, original
+FDraft-style vector icon (a simplified jack-o'-lantern outline, matching
+every other nav icon's stroke weight/style) — never an emoji.
 
 The page itself is a genuine themed counterpart of the normal Draft page,
 not a generic Event shell with explanatory copy bolted on: it shows Event
@@ -5656,3 +5702,101 @@ fixedEventDeadline` is a new, generic opt-in flag (not a Halloween-only
 - **What this phase does NOT do, on purpose:** no new easter eggs, no
   change to any earning/persistence rule, no fix to the pre-existing
   slider-availability bug above.
+
+### Phase 15 — Event lifecycle repair: occurrence-based participation, Global Event Discovery Controller
+
+- **Root cause of "Halloween can be enabled/joined but no page/nav
+  appears":** `useNavItems()`/`NavLinks` (mounted once, above the routed
+  page, never remounted on navigation), `EventIntroDialog`,
+  `EventSwitcherSection`, and `HalloweenPageClient` each ran their OWN
+  independent `EventSettings` fetch via `useAsyncData`, with no shared
+  invalidation. Joining wrote the settings correctly, but only the
+  component that triggered the write ever saw the update — every other
+  mounted consumer kept its stale snapshot until a full reload (an actual
+  e2e test comment documented this exact workaround: "reload once more so
+  the nav bar's own independent fetch picks up the join").
+- **Root cause of "the modal does not reliably appear":** two compounding
+  bugs, both in `resolveEventIntroToShow`. First, it required
+  `EventSettings.eventsEnabled === true`, a flag that starts `false` for
+  every profile and was ONLY ever flipped `true` as part of a real opt-in
+  — which simultaneously set `activeEvent`, ALSO blocking the same check
+  — making `{eventsEnabled: true, activeEvent: null}` structurally
+  unreachable through any real UI action; a brand-new profile could never
+  see ANY event's first-ever intro. Second, nothing ever cleared
+  `activeEvent` when an event's natural window closed, so once a profile
+  joined anything even once, EVERY future event's intro was blocked
+  forever for that profile.
+- **New occurrence-based participation model**
+  (`src/domain/events/event-participation.ts`,
+  `src/application/events/event-participation-store.ts`): exactly three
+  states — `unanswered` / `joined` / `declined` — persisted per profile
+  per occurrence key (`"halloween:2026"`, built from the event id and
+  `getAvailabilityCycleId`'s existing occurrence-id logic), replacing the
+  old boolean-flavored dismissal store entirely. A new occurrence (a new
+  year) is simply a key that has never been written, so it begins
+  unanswered for free — no reset logic needed.
+- **`src/application/events/event-discovery.ts`** is the new single
+  source of truth: for every registered event, it resolves whether it's
+  naturally available right now, its current occurrence key, and the
+  profile's participation for it. `resolveVisibleEventPages` (nav/page
+  existence) and `resolveEventIntroCandidate` (the modal) are both pure
+  functions over that one read — no event id/name in either. A manual-only
+  event with no natural window (The Watchlist Frontier/Signal from Beyond)
+  falls back to `EventSettings.manuallyEnabledEvents` for its
+  participation, since it has no annual occurrence to key against.
+  `isOccurrenceActiveNow` is the one place "joined AND (available OR
+  manually activated)" is decided — the manual-activation exemption is
+  necessary so a mid-year January opt-in (an existing, deliberate feature)
+  doesn't get hidden the instant `available` goes false for the other 358
+  days of the year, while Halloween (which can never be manually
+  activated) correctly still expires with its window.
+- **`EventDiscoveryProvider`** (`src/components/events/event-discovery-provider.tsx`),
+  mounted once in `AppShell` above the routed page — the Global Event
+  Discovery Controller. Every consumer (`useNavItems`, `EventIntroDialog`,
+  `EventSwitcherSection`, `HalloweenPageClient`, `EventPageView`,
+  `HauntedSection`, the Halloween ambient-decoration hook) now reads this
+  ONE shared snapshot instead of its own independent fetch, and every
+  mutating action (join, decline, leave, changing the Admin date override)
+  calls its `refresh()` afterward — this is what makes the nav tab and the
+  modal update immediately, with no remount or reload, fixing the root
+  cause directly. A 60-second background re-check covers an occurrence's
+  window opening/closing purely from real time passing, with nothing else
+  prompting a refresh.
+- **`HalloweenPageClient`/`EventPageView` now always render
+  `DraftLifecycleView`** regardless of join/availability state — it
+  already queries strictly by `sourceEventId`, so an existing Draft can
+  never be orphaned by the window closing or the profile leaving; only the
+  empty-state content (create a Draft vs. a join/return prompt) depends on
+  current occurrence status.
+- **`EventSettings.activeEvent`/`eventsEnabled`/`manuallyEnabledEvents`
+  are unchanged in shape and keep governing gameplay/reward-currency
+  semantics exactly as before** — deliberately NOT removed, only stopped
+  being read for page/nav/modal decisions (see docs/product-spec.md,
+  "Event Settings — active events only": neither toggle registers or
+  unregisters a page). `beginEventOptIn` now additionally records the
+  occurrence as joined; a new `declineEventOccurrence` (modal "Nah") and
+  `leaveEventOccurrence` (Settings' Gameplay-off toggle) record it
+  declined, the latter alongside the pre-existing `EventSettings` clear.
+- **Testing.** A new `event-lifecycle-repair.integration.test.ts` (9
+  tests: exact 18:59/19:00 boundary at the discovery level, join-without-
+  draft, Draft-creation/-completion never touching registration, Admin
+  EventClock producing the identical lifecycle as the real clock, restart
+  persistence via a fresh database instance, profile isolation, decline-
+  then-next-year-unanswered); three new "appears over the Watchlist/
+  Drafts/Stats page" tests proving the modal is genuinely route-agnostic;
+  a rewritten `event-switcher-halloween-nav-integration.test.tsx` proving
+  the nav tab appears in the SAME render tree immediately after joining,
+  with no unmount/remount; every pre-existing Event-system test updated
+  for the new shapes (occurrence keys instead of bare cycle ids,
+  `EventDiscoveryProvider` added to every affected harness) — one test's
+  premise was deliberately REVERSED (turning off Event Gameplay no longer
+  hides the nav tab, matching the new architecture's explicit rule) and is
+  documented as such in its own comment, not silently changed.
+  `pnpm format`, `pnpm lint`, `pnpm typecheck` (strict), and the full
+  unit/integration suite are all clean.
+- **What this phase does NOT do, on purpose:** no visual/decorative
+  redesign of Halloween (explicitly out of scope for this prompt); no
+  change to Draft creation/eligibility/reward mechanics; no removal of
+  `EventSettings.activeEvent`/`manuallyEnabledEvents` (still load-bearing
+  for gameplay); no change to The Watchlist Frontier/Signal from Beyond's
+  own mechanics.

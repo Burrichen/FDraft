@@ -1,4 +1,6 @@
 import { getEffectiveEventDate } from "@/application/events/event-clock";
+import { computeOccurrenceKeyForEvent } from "@/application/events/event-discovery";
+import { setEventParticipation } from "@/application/events/event-participation-store";
 import {
   getEventSettings,
   setEventSettings,
@@ -115,7 +117,90 @@ export async function beginEventOptIn(
     eventId: candidate.event.id,
     manuallyEnabled: candidate.manuallyEnabled,
   });
+
+  // Records the CURRENT occurrence as joined — the one thing an event's
+  // page/nav visibility and introduction modal ever read (see
+  // `event-discovery.ts`), entirely separate from the `EventSettings`
+  // write above (which only ever governs gameplay/reward-currency
+  // semantics, see docs/updates, "EVENT LIFECYCLE REPAIR" §9). A manual-
+  // only event with no natural window at all (`occurrenceKey === null`)
+  // has nothing to record here — `EventSettings.manuallyEnabledEvents`,
+  // just written above, is what `event-discovery.ts` reads for that case
+  // instead.
+  const occurrenceKey = computeOccurrenceKeyForEvent(
+    candidate.event,
+    now,
+    params.timezone,
+  );
+  if (occurrenceKey !== null) {
+    await setEventParticipation(
+      repos,
+      params.profileId,
+      occurrenceKey,
+      "joined",
+    );
+  }
+
   return { eventId: candidate.event.id };
+}
+
+/**
+ * Records that the profile pressed "Nah" on an event's introduction modal
+ * for exactly this occurrence (see docs/updates, "EVENT LIFECYCLE REPAIR"
+ * §5/§7) — never a permanent, all-time suppression, and never touches
+ * `EventSettings` at all (there is nothing to "leave"; the profile was
+ * never joined). The next occurrence of a recurring event (a new year) is
+ * a different key and begins unanswered regardless.
+ */
+export async function declineEventOccurrence(
+  repos: { settings: SettingsRepository },
+  params: { profileId: string; occurrenceKey: string },
+): Promise<void> {
+  await setEventParticipation(
+    repos,
+    params.profileId,
+    params.occurrenceKey,
+    "declined",
+  );
+}
+
+/**
+ * Leaving an event a profile is currently joined to (Settings' "Event
+ * Gameplay" toggle) — bundles two independent effects, matching docs/
+ * updates, "EVENT LIFECYCLE REPAIR" §9's split: the `EventSettings` write
+ * (unchanged from before this phase) governs gameplay/reward-currency
+ * semantics going forward, while the occurrence participation write is
+ * the ONLY thing that makes the event's page/nav actually disappear (see
+ * `resolveVisibleEventPages`). `occurrenceKey` is `null` for a manual-only
+ * event with no natural window — for that case, removing it from
+ * `manuallyEnabledEvents` (via the `EventSettings` write) is already the
+ * complete "un-join" `event-discovery.ts` reads back.
+ */
+export async function leaveEventOccurrence(
+  repos: EventOptInRepos,
+  params: { profileId: string; eventId: string; occurrenceKey: string | null },
+): Promise<void> {
+  const current = await getEventSettings(repos, params.profileId);
+  await setEventSettings(repos, params.profileId, {
+    ...current,
+    eventsEnabled:
+      current.activeEvent === params.eventId ? false : current.eventsEnabled,
+    activeEvent:
+      current.activeEvent === params.eventId ? null : current.activeEvent,
+    // `manuallyEnabledEvents` is preserved, not wiped — it's this profile's
+    // historical "have I ever manually activated this" record (consulted
+    // for reward-currency downgrade logic elsewhere), not a live
+    // membership list; leaving doesn't erase history any more than it did
+    // before this phase.
+  });
+  if (params.occurrenceKey !== null) {
+    await setEventParticipation(
+      repos,
+      params.profileId,
+      params.occurrenceKey,
+      "declined",
+    );
+  }
 }
 
 /**

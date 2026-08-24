@@ -2,39 +2,40 @@
 
 import { Skull } from "lucide-react";
 import { useState } from "react";
-import { getEventSettings } from "@/application/events/event-settings-store";
-import { useProfileContext } from "@/components/profiles/profile-provider";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
-import { useAsyncData } from "@/hooks/use-async-data";
 import { HalloweenJumpscareOverlay } from "./halloween-jumpscare-overlay";
 
 /**
  * The "Haunted" settings control (see docs/updates, "PROMPT 20 —
  * HIGH-EFFORT HALLOWEEN UI + APPROVED EASTER EGGS" §11) — only visible
- * while Halloween is the profile's currently active event (the one new
- * "gate on `EventSettings`, not a profile setting" pattern in Settings;
- * every other conditional Settings section gates on `activeProfile.settings`
- * directly). Both `armed`/`triggered` are plain component state — never a
- * profile setting, never persisted — so a reload always starts back at
+ * while Halloween is currently joined AND naturally available, the exact
+ * same rule navigation itself uses (see `resolveVisibleEventPages`,
+ * docs/updates "EVENT LIFECYCLE REPAIR" §3/§9). Read from the shared
+ * `EventDiscoveryProvider` snapshot rather than a raw `EventSettings.
+ * activeEvent` check — that single slot can point at a DIFFERENT event a
+ * profile joined more recently even while Halloween's own occurrence is
+ * still genuinely joined, which would have hidden this section
+ * incorrectly. Both `armed`/`triggered` are plain component state — never
+ * a profile setting, never persisted — so a reload always starts back at
  * the unarmed state ("reloading may reset it... do not persist Haunted
  * usage").
  */
 export function HauntedSection() {
-  const { activeProfile, repositories } = useProfileContext();
-  const profileId = activeProfile?.id ?? null;
+  const { result } = useEventDiscovery();
   const [armed, setArmed] = useState(false);
   const [triggered, setTriggered] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(false);
 
-  const { data: isHalloweenActive } = useAsyncData(async () => {
-    if (!profileId) return false;
-    const settings = await getEventSettings(repositories, profileId);
-    return (
-      settings.eventsEnabled && settings.activeEvent === HALLOWEEN_EVENT_ID
-    );
-  }, [profileId, repositories]);
+  const halloweenStatus = result.statuses.find(
+    (status) => status.event.id === HALLOWEEN_EVENT_ID,
+  );
+  const isHalloweenActive = halloweenStatus
+    ? isOccurrenceActiveNow(halloweenStatus)
+    : false;
 
   if (!isHalloweenActive) {
     return null;

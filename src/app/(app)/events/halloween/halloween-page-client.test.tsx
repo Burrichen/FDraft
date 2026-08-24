@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setEventDateOverride } from "@/application/events/event-date-override-store";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
@@ -14,9 +15,11 @@ const PROFILE_ID = "alex";
 function Harness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <WatchUndoProvider>
-        <HalloweenPageClient />
-      </WatchUndoProvider>
+      <EventDiscoveryProvider>
+        <WatchUndoProvider>
+          <HalloweenPageClient />
+        </WatchUndoProvider>
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
@@ -47,6 +50,13 @@ async function seedProfile(
     eventVisualsEnabled: true,
     activeEvent: HALLOWEEN_EVENT_ID,
     manuallyEnabledEvents: [],
+  });
+  // Joined for the 2026 occurrence — every test in this file simulates a
+  // moment within calendar year 2026 (real or Admin-overridden), so this
+  // is the one occurrence key page/nav visibility (see docs/updates,
+  // "EVENT LIFECYCLE REPAIR") ever needs to check against here.
+  await repos.settings.set(PROFILE_ID, "events.participations", {
+    [`${HALLOWEEN_EVENT_ID}:2026`]: "joined",
   });
   await db.close();
 }
@@ -134,11 +144,11 @@ describe("HalloweenPageClient — empty page (no draft yet)", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("heading", { name: "Halloween" }),
+        screen.getByText("Event ends 1 November at 00:00"),
       ).toBeInTheDocument(),
     );
     expect(
-      screen.getByText("Event ends 1 November at 00:00"),
+      screen.getByRole("heading", { name: "Halloween" }),
     ).toBeInTheDocument();
     expect(
       (await screen.findAllByText("Create Halloween Draft")).length,

@@ -22,6 +22,20 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.3",
+    nickname: "Trick or Treat (Beta 3)",
+    sections: [
+      {
+        heading: "Fixed",
+        items: [
+          "Joining Halloween (or January) now reliably shows its navigation tab and page right away — previously it sometimes only appeared after reloading the app.",
+          "The seasonal join invitation now reliably appears the moment an event first becomes available, instead of sometimes never appearing at all for a profile that had never joined anything before.",
+          "An event's page and navigation tab no longer disappear early just because a Draft was created, completed, or the event's visual/gameplay settings were toggled — only actually leaving the event, or the season ending, removes them.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.2",
     nickname: "Trick or Treat (Beta 2)",
     sections: [

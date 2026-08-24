@@ -1,17 +1,15 @@
 import type { ComponentType, SVGProps } from "react";
-import { getEventSettings } from "@/application/events/event-settings-store";
-import { useProfileContext } from "@/components/profiles/profile-provider";
+import { resolveVisibleEventPages } from "@/application/events/event-discovery";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
-  getEventDefinition,
 } from "@/domain/events/event-registry";
-import { useAsyncData } from "@/hooks/use-async-data";
 import { HalloweenNavIcon, JanuaryTrashCanNavIcon } from "./nav-icons";
 import { NAV_ITEMS, type NavItem } from "./nav-config";
 
 /**
- * Which icon a currently-active event's temporary nav tab uses — kept
+ * Which icon a currently-visible event's temporary nav tab uses — kept
  * separate from `event-visual-themes.ts`'s `resolveEventTheme`, since that
  * one is gated behind `EventSettings.eventVisualsEnabled` (cosmetic
  * theming) and a nav tab needs a real, always-present icon regardless of
@@ -27,38 +25,42 @@ const EVENT_NAV_ICONS: Record<
 };
 
 /**
- * `NAV_ITEMS` plus, when a profile currently has an active event that
- * exposes a dedicated page (see docs/updates, "PROMPT 18 — EVENT PAGES +
- * HALLOWEEN LIFECYCLE"), one extra temporary tab for it — the ONE place
- * "is there a currently-active event with a page" is decided, so nothing
- * else in the nav-rendering path needs an event-specific conditional.
- * Opting out (or the active event simply not having a page) just means
- * this returns the plain static list, unchanged from before this existed.
+ * `NAV_ITEMS` plus one extra temporary tab for every currently-JOINED,
+ * currently-available, page-bearing event (see docs/updates, "EVENT
+ * LIFECYCLE REPAIR" §2/§3) — the canonical rule is "JOINED EVENT → nav
+ * exists," never "a Draft exists for it" or "this route was visited."
+ * Reads the shared `EventDiscoveryProvider` snapshot (`resolveVisibleEventPages`)
+ * instead of its own independent `EventSettings` fetch, which is what
+ * fixes the pre-existing bug where joining Halloween via the modal (which
+ * immediately navigates to `/events/halloween`) never made the nav tab
+ * itself appear — this component is mounted once, above the routed page,
+ * and its own separate fetch had no way to learn about a join that
+ * happened elsewhere. Every consumer now shares the exact same snapshot,
+ * so this can never lag behind what just happened.
  */
 export function useNavItems(): NavItem[] {
-  const { activeProfile, repositories } = useProfileContext();
-  const profileId = activeProfile?.id ?? null;
+  const { result } = useEventDiscovery();
 
-  const { data: eventNavItem } = useAsyncData(async () => {
-    if (!profileId) return null;
-    const settings = await getEventSettings(repositories, profileId);
-    if (!settings.eventsEnabled || !settings.activeEvent) return null;
-    const event = getEventDefinition(settings.activeEvent);
-    if (!event?.page) return null;
-    const icon = EVENT_NAV_ICONS[event.id];
-    if (!icon) return null;
-    return {
-      href: event.page.route,
-      label: event.page.navLabel,
-      icon,
-      ...(event.id === HALLOWEEN_EVENT_ID
-        ? {
-            activeIconClassName: "text-halloween-pumpkin",
-            activeUnderlineClassName: "bg-halloween-pumpkin",
-          }
-        : {}),
-    };
-  }, [profileId, repositories]);
+  const eventNavItems: NavItem[] = resolveVisibleEventPages(result.statuses)
+    .map((status): NavItem | null => {
+      const { event } = status;
+      const icon = EVENT_NAV_ICONS[event.id];
+      if (!icon || !event.page) {
+        return null;
+      }
+      return {
+        href: event.page.route,
+        label: event.page.navLabel,
+        icon,
+        ...(event.id === HALLOWEEN_EVENT_ID
+          ? {
+              activeIconClassName: "text-halloween-pumpkin",
+              activeUnderlineClassName: "bg-halloween-pumpkin",
+            }
+          : {}),
+      };
+    })
+    .filter((item): item is NavItem => item !== null);
 
-  return eventNavItem ? [...NAV_ITEMS, eventNavItem] : NAV_ITEMS;
+  return [...NAV_ITEMS, ...eventNavItems];
 }

@@ -1,61 +1,75 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getEventSettings } from "@/application/events/event-settings-store";
+import type { EventOccurrenceStatus } from "@/application/events/event-discovery";
 import { HauntedSection } from "./haunted-section";
 
-vi.mock("@/application/events/event-settings-store", () => ({
-  getEventSettings: vi.fn(),
-}));
+let mockStatuses: EventOccurrenceStatus[] = [];
 
-const mockRepositories = {} as never;
-vi.mock("@/components/profiles/profile-provider", () => ({
-  useProfileContext: () => ({
-    activeProfile: { id: "profile-1" },
-    repositories: mockRepositories,
+vi.mock("@/components/events/event-discovery-provider", () => ({
+  useEventDiscovery: () => ({
+    result: {
+      statuses: mockStatuses,
+      eventVisualsEnabled: true,
+      now: new Date(0),
+    },
+    isLoading: false,
+    refresh: vi.fn(),
   }),
 }));
 
+function halloweenStatus(
+  overrides: Partial<EventOccurrenceStatus> = {},
+): EventOccurrenceStatus {
+  return {
+    event: { id: "halloween" } as EventOccurrenceStatus["event"],
+    occurrenceKey: "halloween:2026",
+    available: true,
+    manuallyEnabled: false,
+    participation: "joined",
+    ...overrides,
+  };
+}
+
 afterEach(() => {
   cleanup();
-  vi.mocked(getEventSettings).mockReset();
+  mockStatuses = [];
 });
 
 describe("HauntedSection — visibility", () => {
   it("renders nothing when Halloween is not the active event", async () => {
-    vi.mocked(getEventSettings).mockResolvedValue({
-      eventsEnabled: true,
-      eventVisualsEnabled: true,
-      activeEvent: "f-you-its-january",
-      manuallyEnabledEvents: [],
-    });
+    mockStatuses = [
+      halloweenStatus({ participation: "unanswered" }),
+      {
+        event: { id: "f-you-its-january" } as EventOccurrenceStatus["event"],
+        occurrenceKey: "f-you-its-january:2026",
+        available: true,
+        manuallyEnabled: false,
+        participation: "joined",
+      },
+    ];
     const { container } = render(<HauntedSection />);
-    await waitFor(() => expect(getEventSettings).toHaveBeenCalled());
-    expect(container).toBeEmptyDOMElement();
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   it("renders the Haunted button when Halloween is the active event", async () => {
-    vi.mocked(getEventSettings).mockResolvedValue({
-      eventsEnabled: true,
-      eventVisualsEnabled: true,
-      activeEvent: "halloween",
-      manuallyEnabledEvents: ["halloween"],
-    });
+    mockStatuses = [halloweenStatus()];
     render(<HauntedSection />);
     expect(
       await screen.findByRole("button", { name: /haunted/i }),
     ).toBeInTheDocument();
   });
+
+  it("renders nothing once Halloween's window has closed, even though it was joined", async () => {
+    mockStatuses = [halloweenStatus({ available: false })];
+    const { container } = render(<HauntedSection />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
 });
 
 describe("HauntedSection — first press / second press", () => {
   beforeEach(() => {
-    vi.mocked(getEventSettings).mockResolvedValue({
-      eventsEnabled: true,
-      eventVisualsEnabled: true,
-      activeEvent: "halloween",
-      manuallyEnabledEvents: ["halloween"],
-    });
+    mockStatuses = [halloweenStatus()];
   });
 
   it("the first press shows the exact warning copy and does not trigger the overlay", async () => {
@@ -111,12 +125,7 @@ describe("HauntedSection — first press / second press", () => {
 
 describe("HauntedSection — overlay lifecycle", () => {
   beforeEach(() => {
-    vi.mocked(getEventSettings).mockResolvedValue({
-      eventsEnabled: true,
-      eventVisualsEnabled: true,
-      activeEvent: "halloween",
-      manuallyEnabledEvents: ["halloween"],
-    });
+    mockStatuses = [halloweenStatus()];
   });
 
   it("stays visible well past a premature/short dismiss, then auto-dismisses by ~3 seconds", async () => {
@@ -155,12 +164,7 @@ describe("HauntedSection — overlay lifecycle", () => {
 
 describe("HauntedSection — abuse testing (PROMPT 21)", () => {
   beforeEach(() => {
-    vi.mocked(getEventSettings).mockResolvedValue({
-      eventsEnabled: true,
-      eventVisualsEnabled: true,
-      activeEvent: "halloween",
-      manuallyEnabledEvents: ["halloween"],
-    });
+    mockStatuses = [halloweenStatus()];
   });
 
   it("repeated clicks on the disabled button after triggering do nothing — no second overlay, no crash", async () => {

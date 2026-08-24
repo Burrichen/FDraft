@@ -2,95 +2,116 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
-import { isEventAvailable } from "@/domain/events/event-availability";
-import {
-  EVENT_DEFINITIONS,
-  getEventDefinition,
-} from "@/domain/events/event-registry";
+import { leaveEventOccurrence } from "@/application/events/event-opt-in";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { getEventDefinition } from "@/domain/events/event-registry";
 import { useAsyncData } from "@/hooks/use-async-data";
 
 /**
  * The Settings page's Event section (see docs/product-spec.md, event
- * system Phase 2/5/6; revised by docs/updates, "PROMPT B2.1 — DUAL DRAFT
- * ARCHITECTURE + EVENT ROUTING/SETTINGS FIXES" §4). A normal user can now
- * ONLY ever join an event that's CURRENTLY naturally active — there is no
- * catalogue of inactive events a normal user can force on (the previous
- * "manually activate any time, downgraded to Lifetime Points" catalogue
- * is gone). Two states:
+ * system Phase 2/5/6; revised by docs/updates, "EVENT LIFECYCLE REPAIR"
+ * §2/§9). A normal user can now ONLY ever join an event that's CURRENTLY
+ * naturally active — there is no catalogue of inactive events a normal
+ * user can force on outside their natural window. Two states:
  *
  *  - Not currently in an event: "AVAILABLE EVENTS" lists every naturally-
- *    active event with a Join button, or a plain "No events are currently
- *    running." message when nothing qualifies.
+ *    active, not-yet-joined event with a Join button, or a plain "No
+ *    events are currently running." message when nothing qualifies.
  *  - Currently in one: "CURRENT EVENT" names it and exposes its two
  *    independent toggles — "Event Visuals" (purely cosmetic) and "Event
  *    Gameplay" (full participation; turning it off leaves the event —
- *    settings only, never touches any Draft, normal or the event's own,
- *    see docs/updates §1).
+ *    settings only, never touches any Draft, normal or the event's own).
  *
- * "Naturally active" is entirely `isEventAvailable`, evaluated against
- * `getEffectiveEventDate` — so Admin Mode's Event Testing override (see
- * `EventTestingSection`) makes a simulated event genuinely "available"
- * here too, with no separate "force" affordance of its own; everything
- * flows through the one central EventClock.
+ * "Current Event" itself is still `EventSettings.activeEvent`/
+ * `eventsEnabled` directly (unchanged) — deliberately NOT gated on the
+ * event still being naturally available, since these two toggles are a
+ * gameplay/reward-currency settings concern (see §9), not a page/nav
+ * existence one: a profile should still be able to see and adjust its
+ * Visuals setting, or explicitly leave, even after the event's natural
+ * window has closed. "Available Events" DOES read the shared
+ * `EventDiscoveryProvider` snapshot (see docs/updates, "EVENT LIFECYCLE
+ * REPAIR" §4), so it correctly excludes anything already joined through
+ * occurrence-participation even in the (currently unreachable) case where
+ * that diverges from `activeEvent`. Every mutation refreshes BOTH the
+ * local settings read and the shared discovery snapshot, so navigation
+ * never lags behind a join/leave made here.
  */
 export function EventSwitcherSection() {
   const { activeProfile, repositories } = useProfileContext();
   const [isSaving, setIsSaving] = useState(false);
   const profileId = activeProfile?.id ?? null;
   const timezone = activeProfile?.timezone ?? null;
+  const discovery = useEventDiscovery();
 
-  const { data, reloadSilently } = useAsyncData(async () => {
+  const { data: settings, reloadSilently } = useAsyncData(async () => {
     if (!profileId) return null;
-    const [settings, effectiveNow] = await Promise.all([
-      getEventSettings(repositories, profileId),
-      getEffectiveEventDate(repositories, profileId),
-    ]);
-    return { settings, effectiveNow };
+    return getEventSettings(repositories, profileId);
   }, [profileId, repositories]);
+
+  async function refreshAll() {
+    await Promise.all([reloadSilently(), discovery.refresh()]);
+  }
 
   const optIn = useEventOptInFlow({
     profileId,
     timezone,
     repositories,
-    onOptedIn: reloadSilently,
+    onOptedIn: refreshAll,
     onError: (message) => toast.error(message),
   });
 
-  if (!activeProfile || !timezone || !data) {
+  if (!activeProfile || !timezone || !settings) {
     return null;
   }
-  const { settings, effectiveNow } = data;
 
   const currentEvent = settings.activeEvent
     ? getEventDefinition(settings.activeEvent)
     : null;
   const isCurrentlyJoined = settings.eventsEnabled && currentEvent !== null;
 
-  const availableEvents = EVENT_DEFINITIONS.filter(
-    (event) =>
-      event.id !== settings.activeEvent &&
-      isEventAvailable(event.availability, effectiveNow, timezone),
+  // The occurrence key for whatever the CURRENT event is, if any — needed
+  // only so leaving can record the correct occurrence as declined (see
+  // `handleLeaveCurrentEvent`); computed regardless of `available`, since
+  // an occurrence key exists independent of whether the window happens to
+  // still be open right now.
+  const currentEventStatus = currentEvent
+    ? discovery.result.statuses.find(
+        (status) => status.event.id === currentEvent.id,
+      )
+    : undefined;
+
+  const joinedEventIds = new Set(
+    discovery.result.statuses
+      .filter((status) => status.participation === "joined")
+      .map((status) => status.event.id),
   );
+  const availableEvents = discovery.result.statuses
+    .filter(
+      (status) =>
+        status.available &&
+        status.event.id !== settings.activeEvent &&
+        !joinedEventIds.has(status.event.id),
+    )
+    .map((status) => status.event);
 
   async function handleEventVisualsChange(value: boolean) {
-    if (!profileId) return;
+    if (!profileId || !settings) return;
     setIsSaving(true);
     try {
       await setEventSettings(repositories, profileId, {
         ...settings,
         eventVisualsEnabled: value,
       });
-      await reloadSilently();
+      await refreshAll();
     } catch (cause) {
       toast.error(
         cause instanceof Error ? cause.message : "Could not save that setting.",
@@ -101,15 +122,15 @@ export function EventSwitcherSection() {
   }
 
   async function handleLeaveCurrentEvent() {
-    if (!profileId) return;
+    if (!profileId || !currentEvent) return;
     setIsSaving(true);
     try {
-      await setEventSettings(repositories, profileId, {
-        ...settings,
-        eventsEnabled: false,
-        activeEvent: null,
+      await leaveEventOccurrence(repositories, {
+        profileId,
+        eventId: currentEvent.id,
+        occurrenceKey: currentEventStatus?.occurrenceKey ?? null,
       });
-      await reloadSilently();
+      await refreshAll();
     } catch (cause) {
       toast.error(
         cause instanceof Error ? cause.message : "Could not save that setting.",

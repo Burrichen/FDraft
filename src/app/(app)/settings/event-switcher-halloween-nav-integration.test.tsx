@@ -1,10 +1,9 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EventPageView } from "@/components/events/event-page-view";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { NavLinks } from "@/components/layout/nav-links";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
-import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -12,21 +11,23 @@ import { EventSwitcherSection } from "./event-switcher-section";
 
 const PROFILE_ID = "alex";
 
-function SettingsHarness({ databaseName }: { databaseName: string }) {
+/**
+ * Renders `NavLinks` and `EventSwitcherSection` UNDER THE SAME
+ * `EventDiscoveryProvider` — exactly like `AppShell` does in production
+ * (the nav bar and every routed page/Settings section all share ONE
+ * provider mounted above them, and neither the provider nor the nav bar
+ * remounts when navigating between pages). This is what makes the
+ * regression test below meaningful: both components read the exact same
+ * shared snapshot, so if joining doesn't update it, the assertion catches
+ * it immediately — no unmount/remount trick needed.
+ */
+function AppHarness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <NavLinks />
-      <EventSwitcherSection />
-    </ProfileProvider>
-  );
-}
-
-function HalloweenPageHarness({ databaseName }: { databaseName: string }) {
-  return (
-    <ProfileProvider databaseName={databaseName}>
-      <WatchUndoProvider>
-        <EventPageView eventId={HALLOWEEN_EVENT_ID} />
-      </WatchUndoProvider>
+      <EventDiscoveryProvider>
+        <NavLinks />
+        <EventSwitcherSection />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
@@ -49,64 +50,47 @@ async function seedProfile(databaseName: string) {
     },
     dataVersion: 1,
   });
-  await repos.settings.set(PROFILE_ID, "events.settings", {
-    eventsEnabled: false,
-    eventVisualsEnabled: false,
-    activeEvent: null,
-    manuallyEnabledEvents: [],
-  });
   await db.close();
 }
 
-describe("Settings Event Switcher → nav tab → Halloween page (PROMPT 21, full journey)", () => {
+describe("Settings Event Switcher → nav tab → Halloween page (EVENT LIFECYCLE REPAIR, full journey)", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
   });
 
-  it("joining Halloween in Settings, then reopening the app, shows the nav tab and a live Halloween page", async () => {
+  // THE regression test for the root cause of "Halloween can be
+  // enabled/joined but no Halloween page/navigation destination appears"
+  // (see docs/updates, "EVENT LIFECYCLE REPAIR" §1-4): the nav tab used to
+  // only reflect a join after a full remount, because it read `EventSettings`
+  // through its own independent, never-invalidated fetch. `NavLinks` now
+  // reads the SAME shared `EventDiscoveryProvider` snapshot as
+  // `EventSwitcherSection`'s own join action, so this proves the tab
+  // appears the moment "Let me in." is clicked — no unmount, no remount,
+  // no reload anywhere in this test.
+  it("joining Halloween from Settings makes the nav tab appear immediately, with no remount", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
     const user = userEvent.setup();
 
-    const settings = render(<SettingsHarness databaseName={databaseName} />);
+    render(<AppHarness databaseName={databaseName} />);
 
-    // Before joining: no Halloween nav tab yet.
-    await waitFor(() =>
-      expect(screen.getByText("Watchlist")).toBeInTheDocument(),
-    );
-    expect(
-      screen.queryByRole("link", { name: /halloween/i }),
-    ).not.toBeInTheDocument();
-
+    // Before joining: no Halloween nav tab, and Settings lists it as
+    // available to join. `findByRole` (retrying), not `getByRole` — the
+    // "Available Events" heading itself renders before the shared
+    // discovery snapshot resolves, so a plain `getByRole` right after
+    // could run against a still-empty list.
     const joinButton = await screen.findByRole("button", {
       name: "Let me in.",
     });
+    expect(
+      screen.queryByRole("link", { name: /halloween/i }),
+    ).not.toBeInTheDocument();
     await user.click(joinButton);
 
-    await waitFor(async () => {
-      const db = new FDraftLocalDatabase(databaseName);
-      const repos = createLocalRepositories(db);
-      const eventSettings = await repos.settings.get(
-        PROFILE_ID,
-        "events.settings",
-      );
-      await db.close();
-      expect(
-        (eventSettings as { activeEvent: string | null } | null)?.activeEvent,
-      ).toBe(HALLOWEEN_EVENT_ID);
-    });
-
-    settings.unmount();
-    cleanup();
-
-    // Reopening the app (a fresh mount against the same, now-joined
-    // database) is what makes the nav bar's own independent event-settings
-    // fetch reflect the join — see docs/updates, "PROMPT 21", live QA
-    // finding.
-    render(<SettingsHarness databaseName={databaseName} />);
+    // Immediately — same render tree, no unmount/remount, no reload.
     const halloweenTab = await screen.findByRole("link", {
       name: /halloween/i,
     });
@@ -114,21 +98,21 @@ describe("Settings Event Switcher → nav tab → Halloween page (PROMPT 21, ful
     expect(halloweenTab.querySelector("svg")).not.toBeNull();
     expect(halloweenTab.textContent).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
 
-    cleanup();
-
-    // Navigating to it (the real Halloween page's shared shell) shows the
-    // opted-in Halloween content, not the join prompt.
-    render(<HalloweenPageHarness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(
-        screen.getByRole("heading", { name: "Halloween" }),
-      ).toBeInTheDocument(),
+      expect(screen.getByText("Current Event")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Available now")).not.toBeInTheDocument();
+
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    const participations = await repos.settings.get(
+      PROFILE_ID,
+      "events.participations",
+    );
+    await db.close();
     expect(
-      screen.queryByRole("button", {
-        name: "Let me in.",
-      }),
-    ).not.toBeInTheDocument();
+      (participations as Record<string, string> | null)?.[
+        `${HALLOWEEN_EVENT_ID}:2026`
+      ],
+    ).toBe("joined");
   });
 });

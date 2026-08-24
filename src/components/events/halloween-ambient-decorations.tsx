@@ -1,13 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { getEventSettings } from "@/application/events/event-settings-store";
-import { useProfileContext } from "@/components/profiles/profile-provider";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import {
   getEventDefinition,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
-import { useAsyncData } from "@/hooks/use-async-data";
 import {
   HalloweenBat,
   HalloweenCobwebCorner,
@@ -27,26 +26,32 @@ import {
  *
  * Deliberately excludes the Halloween page itself (which already renders
  * its own, denser layer) so the two never stack into a doubled-up mess.
+ *
+ * Reads the shared `EventDiscoveryProvider` snapshot (see docs/updates,
+ * "EVENT LIFECYCLE REPAIR" §4) instead of its own independent
+ * `EventSettings` fetch — the previous version's own separate `useAsyncData`
+ * call was exactly the kind of uncoordinated, never-invalidated read that
+ * caused the nav tab's own stale-after-joining bug elsewhere; this is
+ * "joined AND currently available," not the old, now-removed
+ * `activeEvent === HALLOWEEN_EVENT_ID` check.
  */
 export function useHalloweenAmbientVisible(): boolean {
-  const { activeProfile, repositories } = useProfileContext();
   const pathname = usePathname();
-  const profileId = activeProfile?.id ?? null;
+  const { result } = useEventDiscovery();
   const halloweenRoute = getEventDefinition(HALLOWEEN_EVENT_ID)?.page?.route;
-
-  const { data } = useAsyncData(async () => {
-    if (!profileId) return false;
-    const settings = await getEventSettings(repositories, profileId);
-    return (
-      settings.eventVisualsEnabled &&
-      settings.activeEvent === HALLOWEEN_EVENT_ID
-    );
-  }, [profileId, repositories]);
 
   if (halloweenRoute && pathname?.startsWith(halloweenRoute)) {
     return false;
   }
-  return data ?? false;
+
+  const halloweenStatus = result.statuses.find(
+    (status) => status.event.id === HALLOWEEN_EVENT_ID,
+  );
+  return Boolean(
+    result.eventVisualsEnabled &&
+    halloweenStatus &&
+    isOccurrenceActiveNow(halloweenStatus),
+  );
 }
 
 export function HalloweenAmbientDecorations() {

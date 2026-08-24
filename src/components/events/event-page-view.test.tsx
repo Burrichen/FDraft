@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
 import {
@@ -21,9 +22,11 @@ function Harness({
 }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <WatchUndoProvider>
-        <EventPageView eventId={eventId} />
-      </WatchUndoProvider>
+      <EventDiscoveryProvider>
+        <WatchUndoProvider>
+          <EventPageView eventId={eventId} />
+        </WatchUndoProvider>
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
@@ -50,11 +53,21 @@ async function seedProfile(
     dataVersion: 1,
   });
   if (eventSettings) {
+    // Seeded as a MANUAL join (`manuallyEnabledEvents`) — every test using
+    // this runs at a simulated moment (2026-06-15, see `beforeEach` below)
+    // OUTSIDE both events' natural windows, so this is what makes the
+    // "already opted in" tests exercise the pre-existing "manual
+    // activation stays active the rest of the year" feature (see
+    // `isOccurrenceActiveNow`, docs/updates "EVENT LIFECYCLE REPAIR") —
+    // a NATURAL-only join would (correctly) show as inactive here instead.
     await repos.settings.set(PROFILE_ID, "events.settings", {
       eventsEnabled: true,
       eventVisualsEnabled: false,
       activeEvent: eventSettings.activeEvent,
-      manuallyEnabledEvents: [],
+      manuallyEnabledEvents: [eventSettings.activeEvent],
+    });
+    await repos.settings.set(PROFILE_ID, "events.participations", {
+      [`${eventSettings.activeEvent}:2026`]: "joined",
     });
   }
   await db.close();

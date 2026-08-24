@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
@@ -16,7 +17,9 @@ const PROFILE_ID = "alex";
 function Harness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <NavLinks />
+      <EventDiscoveryProvider>
+        <NavLinks />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
@@ -39,11 +42,23 @@ function NavItemsProbe() {
 function ProbeHarness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <NavItemsProbe />
+      <EventDiscoveryProvider>
+        <NavItemsProbe />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
 
+/**
+ * Seeds a profile joined to `activeEvent`, if given. This file never fakes
+ * timers, so occurrence keys are computed against whatever the REAL
+ * current year is at test-run time — `new Date().getFullYear()`, not a
+ * hardcoded year — so the suite stays correct regardless of when it
+ * actually runs. `manuallyEnabledEvents` is also seeded (as the pre-
+ * existing tests already did) so a manual-only event with no natural
+ * window at all (Signal from Beyond) still resolves as joined via the
+ * fallback `event-discovery.ts` uses for that case.
+ */
 async function seedProfile(
   databaseName: string,
   eventSettings?: {
@@ -77,6 +92,12 @@ async function seedProfile(
         ? [eventSettings.activeEvent]
         : [],
     });
+    if (eventSettings.activeEvent) {
+      const year = new Date().getFullYear();
+      await repos.settings.set(PROFILE_ID, "events.participations", {
+        [`${eventSettings.activeEvent}:${year}`]: "joined",
+      });
+    }
   }
   await db.close();
 }
@@ -153,7 +174,14 @@ describe("NavLinks — temporary Event navigation item (PROMPT 18)", () => {
     expect(screen.getAllByRole("link")).toHaveLength(4);
   });
 
-  it("hides the tab again once events are turned off, even with activeEvent still set", async () => {
+  // REVERSED (see docs/updates, "EVENT LIFECYCLE REPAIR" §9): "Do not use
+  // Visuals or Gameplay toggles to determine whether the joined Event page
+  // exists... Neither should accidentally unregister the page." The old
+  // version of this test asserted the OPPOSITE — that turning off
+  // `eventsEnabled` hid the tab — which was itself an instance of exactly
+  // the coupling this phase removes. Page/nav visibility is now purely
+  // participation + availability(-or-manual), never the Gameplay toggle.
+  it("the tab stays visible even with Event Gameplay turned off, as long as the occurrence is still joined and active", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, {
       eventsEnabled: false,
@@ -162,9 +190,8 @@ describe("NavLinks — temporary Event navigation item (PROMPT 18)", () => {
 
     render(<Harness databaseName={databaseName} />);
     await waitFor(() =>
-      expect(screen.getByText("Watchlist")).toBeInTheDocument(),
+      expect(screen.getByText("Halloween")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Halloween")).not.toBeInTheDocument();
   });
 });
 

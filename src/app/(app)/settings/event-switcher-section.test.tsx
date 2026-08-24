@@ -8,6 +8,7 @@ import {
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -18,7 +19,9 @@ const PROFILE_ID = "alex";
 function Harness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <EventSwitcherSection />
+      <EventDiscoveryProvider>
+        <EventSwitcherSection />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }

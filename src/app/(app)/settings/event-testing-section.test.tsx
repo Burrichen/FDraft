@@ -8,6 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { getEventDateOverride } from "@/application/events/event-date-override-store";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -18,7 +19,9 @@ const PROFILE_ID = "alex";
 function Harness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <EventTestingSection />
+      <EventDiscoveryProvider>
+        <EventTestingSection />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }

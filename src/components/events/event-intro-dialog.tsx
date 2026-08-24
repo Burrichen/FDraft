@@ -1,8 +1,8 @@
 "use client";
 
 import { toast } from "sonner";
-import { dismissEventForCycle } from "@/application/events/event-dismissal-store";
-import { resolveEventIntroToShow } from "@/application/events/event-intro";
+import { resolveEventIntroCandidate } from "@/application/events/event-discovery";
+import { declineEventOccurrence } from "@/application/events/event-opt-in";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useAsyncData } from "@/hooks/use-async-data";
 import { useProfileContext } from "@/components/profiles/profile-provider";
+import { useEventDiscovery } from "./event-discovery-provider";
 import {
   resolveEventPresentationTheme,
   resolveEventTheme,
@@ -36,42 +36,39 @@ import { useEventOptInFlow } from "./use-event-opt-in-flow";
  * dialog renders exactly as before (generic size, plain title, description
  * + bullets + the shared footer note).
  *
- * Eligibility is entirely `resolveEventIntroToShow`'s call — this
+ * Eligibility is entirely `resolveEventIntroCandidate`'s call, read off the
+ * SHARED `EventDiscoveryProvider` snapshot (see docs/updates, "EVENT
+ * LIFECYCLE REPAIR" §4) rather than a separate fetch of its own — this
  * component only renders whatever it returns and reacts to the two
  * actions: "primary" runs the SAME `useEventOptInFlow` action
- * `EventSwitcherSection` uses, and "secondary" records a cycle-scoped
- * dismissal, never a permanent one — the next occurrence of a recurring
- * event is eligible to show its intro again.
+ * `EventSwitcherSection` uses, and "secondary" records an occurrence-scoped
+ * decline, never a permanent one — the next occurrence of a recurring
+ * event (a new year) is eligible to show its intro again. Both actions
+ * call the shared `refresh()` afterward, so navigation and this modal can
+ * never disagree about what just happened.
  */
 export function EventIntroDialog() {
   const { activeProfile, repositories } = useProfileContext();
   const profileId = activeProfile?.id ?? null;
   const timezone = activeProfile?.timezone ?? null;
-
-  const { data: candidate, reloadSilently } = useAsyncData(async () => {
-    if (!profileId || !timezone) return null;
-    return resolveEventIntroToShow(repositories, { profileId, timezone });
-  }, [profileId, timezone, repositories]);
+  const { result, refresh } = useEventDiscovery();
+  const candidate = resolveEventIntroCandidate(result.statuses);
 
   const optIn = useEventOptInFlow({
     profileId,
     timezone,
     repositories,
-    onOptedIn: reloadSilently,
+    onOptedIn: refresh,
     onError: (message) => toast.error(message),
   });
 
   async function handleDismiss() {
     if (!profileId || !candidate) return;
-    if (candidate.cycleId) {
-      await dismissEventForCycle(
-        repositories,
-        profileId,
-        candidate.event.id,
-        candidate.cycleId,
-      );
-    }
-    await reloadSilently();
+    await declineEventOccurrence(repositories, {
+      profileId,
+      occurrenceKey: candidate.occurrenceKey,
+    });
+    await refresh();
   }
 
   // Ungated by `eventVisualsEnabled` (see `resolveEventPresentationTheme`'s
@@ -103,7 +100,7 @@ export function EventIntroDialog() {
                 {(() => {
                   const theme = resolveEventTheme(
                     candidate.event,
-                    candidate.eventVisualsEnabled,
+                    result.eventVisualsEnabled,
                   );
                   return theme ? (
                     <theme.icon

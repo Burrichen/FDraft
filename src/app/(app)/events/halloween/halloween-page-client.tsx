@@ -2,10 +2,10 @@
 
 import { formatInTimeZone } from "date-fns-tz";
 import { toast } from "sonner";
-import { getEffectiveEventDate } from "@/application/events/event-clock";
-import { getEventSettings } from "@/application/events/event-settings-store";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
 import { HalloweenCandyBowl } from "@/components/events/halloween-candy-bowl";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { HalloweenDecorativeLayer } from "@/components/events/halloween-decorative-layer";
 import { HalloweenDraftCreationView } from "@/components/events/halloween-draft-creation-view";
 import { HalloweenGravestone } from "@/components/events/halloween-gravestone";
@@ -18,7 +18,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getCurrentOccurrenceBounds,
   getNextOccurrenceStart,
-  isEventAvailable,
 } from "@/domain/events/event-availability";
 import {
   getEventDefinition,
@@ -37,56 +36,72 @@ import { useAsyncData } from "@/hooks/use-async-data";
  * creation, and the active Draft directly, with no extra navigation step
  * to get to any of them.
  *
- * The active/expired Draft itself is still the SHARED `DraftLifecycleView`
- * (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE") — reused,
- * not duplicated, so this page gets the exact same deadline/progress/film-
- * grid/watched-control quality as `/drafts` for free, scoped to
- * Halloween's own independent draft slot.
+ * REWRITTEN (see docs/updates, "EVENT LIFECYCLE REPAIR" §2/§8) — the
+ * previous version gated its ENTIRE opted-in experience (including
+ * `DraftLifecycleView`) on `settings.activeEvent === HALLOWEEN_EVENT_ID`,
+ * which meant an existing Draft could become inaccessible the moment that
+ * single, easily-clobbered slot no longer pointed at Halloween (e.g. after
+ * the natural window closed, since nothing ever cleared it, or after
+ * opting into a different event). `DraftLifecycleView` is now ALWAYS
+ * rendered — it already queries strictly by `sourceEventId`, independent
+ * of any join/availability state — so an existing Draft is NEVER orphaned;
+ * only the EMPTY-STATE content (create a new Draft vs. a join/return
+ * prompt) depends on whether the profile is currently joined to Halloween
+ * AND the event is still naturally available, read from the shared
+ * `EventDiscoveryProvider` snapshot rather than a separate, independently-
+ * stale `EventSettings` fetch.
  */
 export function HalloweenPageClient() {
   const { activeProfile, repositories } = useProfileContext();
   const profileId = activeProfile?.id ?? null;
   const timezone = activeProfile?.timezone ?? null;
   const halloween = getEventDefinition(HALLOWEEN_EVENT_ID)!;
+  const discovery = useEventDiscovery();
 
-  const { data, reloadSilently } = useAsyncData(async () => {
-    if (!profileId || !timezone) return null;
-    const [settings, effectiveNow, hauntedPoints] = await Promise.all([
-      getEventSettings(repositories, profileId),
-      getEffectiveEventDate(repositories, profileId),
-      repositories.points.getBalance(profileId, "haunted"),
-    ]);
-    return { settings, effectiveNow, hauntedPoints };
-  }, [profileId, timezone, repositories]);
+  const { data: hauntedPoints, reloadSilently } = useAsyncData(async () => {
+    if (!profileId) return null;
+    return repositories.points.getBalance(profileId, "haunted");
+  }, [profileId, repositories]);
 
   const optIn = useEventOptInFlow({
     profileId,
     timezone,
     repositories,
-    onOptedIn: reloadSilently,
+    onOptedIn: async () => {
+      await Promise.all([reloadSilently(), discovery.refresh()]);
+    },
     onError: (message) => toast.error(message),
   });
 
-  if (!activeProfile || !timezone || !data) {
+  if (!activeProfile || !timezone) {
     return null;
   }
 
-  const { settings, effectiveNow, hauntedPoints } = data;
-  const isOptedIn =
-    settings.eventsEnabled && settings.activeEvent === HALLOWEEN_EVENT_ID;
-  const theme = resolveEventTheme(halloween, settings.eventVisualsEnabled);
-  const available = isEventAvailable(
-    halloween.availability,
-    effectiveNow,
-    timezone,
+  const status = discovery.result.statuses.find(
+    (candidate) => candidate.event.id === HALLOWEEN_EVENT_ID,
+  );
+  const available = status?.available ?? false;
+  // The same rule navigation itself uses (see `resolveVisibleEventPages`/
+  // `isOccurrenceActiveNow`) — is what makes this page's own "active
+  // seasonal destination" experience (the create-Draft flow, easter eggs,
+  // Haunted Points) disappear once the window closes, consistent with the
+  // nav tab disappearing at the exact same moment (Halloween can only
+  // ever be joined DURING its natural window, so it has no manual-
+  // activation exemption from that). Any EXISTING Draft still renders
+  // regardless, via the unconditional `DraftLifecycleView` below.
+  const isActiveForProfile = status ? isOccurrenceActiveNow(status) : false;
+  const now = discovery.result.now;
+  const theme = resolveEventTheme(
+    halloween,
+    discovery.result.eventVisualsEnabled,
   );
   const nextStart = getNextOccurrenceStart(
     halloween.availability,
-    effectiveNow,
+    now,
     timezone,
   );
   const eventWindow = available
-    ? getCurrentOccurrenceBounds(halloween.availability, effectiveNow, timezone)
+    ? getCurrentOccurrenceBounds(halloween.availability, now, timezone)
     : null;
 
   return (
@@ -100,7 +115,7 @@ export function HalloweenPageClient() {
             ) : null}
             Halloween
           </h1>
-          {isOptedIn && eventWindow ? (
+          {isActiveForProfile && eventWindow ? (
             <p className="page-subtitle">
               Event ends{" "}
               {formatInTimeZone(eventWindow.end, timezone, "d MMMM 'at' HH:mm")}
@@ -108,40 +123,47 @@ export function HalloweenPageClient() {
           ) : null}
         </div>
 
-        {!isOptedIn ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {available ? "Available now" : "Not currently active"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {available ? (
-                <Button
-                  type="button"
-                  onClick={() => void optIn.beginOptIn(HALLOWEEN_EVENT_ID)}
-                  disabled={optIn.isSaving}
-                >
-                  {halloween.intro.primaryActionLabel ?? "Opt In"}
-                </Button>
-              ) : nextStart ? (
-                <p className="text-muted-foreground text-sm">
-                  Returns{" "}
-                  {formatInTimeZone(nextStart, timezone, "d MMMM 'at' h:mm a")}.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <DraftLifecycleView
-              sourceEventId={HALLOWEEN_EVENT_ID}
-              emptyState={
-                <HalloweenDraftCreationView onCreated={reloadSilently} />
-              }
-            />
+        <DraftLifecycleView
+          sourceEventId={HALLOWEEN_EVENT_ID}
+          emptyState={
+            isActiveForProfile ? (
+              <HalloweenDraftCreationView onCreated={reloadSilently} />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {available ? "Available now" : "Not currently active"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {available ? (
+                    <Button
+                      type="button"
+                      onClick={() => void optIn.beginOptIn(HALLOWEEN_EVENT_ID)}
+                      disabled={optIn.isSaving}
+                    >
+                      {halloween.intro.primaryActionLabel ?? "Opt In"}
+                    </Button>
+                  ) : nextStart ? (
+                    <p className="text-muted-foreground text-sm">
+                      Returns{" "}
+                      {formatInTimeZone(
+                        nextStart,
+                        timezone,
+                        "d MMMM 'at' h:mm a",
+                      )}
+                      .
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )
+          }
+        />
 
-            {hauntedPoints !== null ? (
+        {isActiveForProfile ? (
+          <>
+            {hauntedPoints !== null && hauntedPoints !== undefined ? (
               <p className="text-muted-foreground text-sm">
                 Haunted Points:{" "}
                 <strong className="tabular-nums">{hauntedPoints}</strong>
@@ -157,7 +179,7 @@ export function HalloweenPageClient() {
               <HalloweenCandyBowl />
             </div>
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );

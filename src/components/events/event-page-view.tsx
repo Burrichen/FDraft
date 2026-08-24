@@ -3,19 +3,16 @@
 import { formatInTimeZone } from "date-fns-tz";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
-import { getEffectiveEventDate } from "@/application/events/event-clock";
-import { getEventSettings } from "@/application/events/event-settings-store";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  getNextOccurrenceStart,
-  isEventAvailable,
-} from "@/domain/events/event-availability";
+import { getNextOccurrenceStart } from "@/domain/events/event-availability";
 import { getEventDefinition } from "@/domain/events/event-registry";
 import type { PointCurrency } from "@/domain/events/point-currency";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { useEventDiscovery } from "./event-discovery-provider";
 import { resolveEventTheme } from "./event-visual-themes";
 import { useEventOptInFlow } from "./use-event-opt-in-flow";
 
@@ -35,9 +32,22 @@ const POINT_CURRENCY_LABELS: Record<PointCurrency, string> = {
  * more thin file, not a new page implementation. Renders identically for
  * any event; nothing here branches on which one it is.
  *
- * A direct visit while not currently opted into this specific event shows
+ * A direct visit while not currently joined to this specific event shows
  * its live status (available now + a Join button, or "Returns <date>")
  * rather than erroring or redirecting — the route always exists.
+ *
+ * REWRITTEN (see docs/updates, "EVENT LIFECYCLE REPAIR" §2/§8) — the
+ * previous version gated its ENTIRE opted-in experience, including
+ * `DraftLifecycleView`, on `settings.activeEvent === event.id`, a single
+ * slot nothing ever cleared on expiry and that unrelated draft-tagging
+ * code also read. `DraftLifecycleView` is now ALWAYS rendered — it
+ * already queries strictly by `sourceEventId`, independent of any join/
+ * availability state — so an existing Draft is never orphaned by the
+ * window closing or the profile leaving; only the EMPTY-STATE content
+ * (create a Draft vs. a join/return prompt) depends on whether the
+ * profile is currently joined to this event AND it's still naturally
+ * available, read from the shared `EventDiscoveryProvider` snapshot
+ * rather than a separate, independently-stale `EventSettings` fetch.
  *
  * `renderEmptyState` (see docs/updates, "PROMPT 19 — HALLOWEEN DRAFT
  * MECHANICS") lets an opted-in event with no active event-sourced draft
@@ -48,13 +58,6 @@ const POINT_CURRENCY_LABELS: Record<PointCurrency, string> = {
  * can trigger this component's own `reloadSilently` once a draft is
  * created, refreshing straight to the "active draft" view. Omitted
  * (January) keeps today's default exactly.
- *
- * The active/expired draft itself is rendered by the shared
- * `DraftLifecycleView`, scoped to THIS event's own draft slot (see
- * docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE") — a profile's
- * normal Draft (shown on `/drafts`) is a completely independent slot and
- * is never shown or affected here, and opting into an event never touches
- * it (there is no "Say Goodbye" detour anymore).
  */
 export function EventPageView({
   eventId,
@@ -67,42 +70,36 @@ export function EventPageView({
   const profileId = activeProfile?.id ?? null;
   const timezone = activeProfile?.timezone ?? null;
   const event = getEventDefinition(eventId);
+  const discovery = useEventDiscovery();
 
-  const { data, reloadSilently } = useAsyncData(async () => {
-    if (!profileId || !timezone || !event) return null;
-    const [settings, effectiveNow] = await Promise.all([
-      getEventSettings(repositories, profileId),
-      getEffectiveEventDate(repositories, profileId),
-    ]);
-    const balance = event.pointType
-      ? await repositories.points.getBalance(profileId, event.pointType)
-      : null;
-    return { settings, effectiveNow, balance };
-  }, [profileId, timezone, repositories, event]);
+  const { data: balance, reloadSilently } = useAsyncData(async () => {
+    if (!profileId || !event?.pointType) return null;
+    return repositories.points.getBalance(profileId, event.pointType);
+  }, [profileId, repositories, event]);
 
   const optIn = useEventOptInFlow({
     profileId,
     timezone,
     repositories,
-    onOptedIn: reloadSilently,
+    onOptedIn: async () => {
+      await Promise.all([reloadSilently(), discovery.refresh()]);
+    },
     onError: (message) => toast.error(message),
   });
 
-  if (!activeProfile || !event || !timezone || !data) {
+  if (!activeProfile || !event || !timezone) {
     return null;
   }
 
-  const { settings, effectiveNow, balance } = data;
-  const isOptedIn = settings.eventsEnabled && settings.activeEvent === event.id;
-  const theme = resolveEventTheme(event, settings.eventVisualsEnabled);
-  const available = isEventAvailable(
-    event.availability,
-    effectiveNow,
-    timezone,
+  const status = discovery.result.statuses.find(
+    (candidate) => candidate.event.id === eventId,
   );
+  const available = status?.available ?? false;
+  const isActiveForProfile = status ? isOccurrenceActiveNow(status) : false;
+  const theme = resolveEventTheme(event, discovery.result.eventVisualsEnabled);
   const nextStart = getNextOccurrenceStart(
     event.availability,
-    effectiveNow,
+    discovery.result.now,
     timezone,
   );
 
@@ -126,68 +123,73 @@ export function EventPageView({
         </CardContent>
       </Card>
 
-      {!isOptedIn ? (
+      {isActiveForProfile &&
+      balance !== null &&
+      balance !== undefined &&
+      event.pointType ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {available ? "Available now" : "Not currently active"}
-            </CardTitle>
-          </CardHeader>
           <CardContent>
-            {available ? (
-              <Button
-                type="button"
-                onClick={() => void optIn.beginOptIn(event.id)}
-                disabled={optIn.isSaving}
-              >
-                {event.intro.primaryActionLabel ?? "Opt In"}
-              </Button>
-            ) : nextStart ? (
-              <p className="text-muted-foreground text-sm">
-                Returns{" "}
-                {formatInTimeZone(nextStart, timezone, "d MMMM 'at' h:mm a")}.
-              </p>
-            ) : (
-              <Button
-                type="button"
-                onClick={() => void optIn.beginOptIn(event.id)}
-                disabled={optIn.isSaving}
-              >
-                {event.intro.primaryActionLabel ?? "Opt In"}
-              </Button>
-            )}
+            <p className="text-sm">
+              Your balance: <strong className="tabular-nums">{balance}</strong>{" "}
+              {POINT_CURRENCY_LABELS[event.pointType]}
+            </p>
           </CardContent>
         </Card>
-      ) : (
-        <>
-          {balance !== null && event.pointType ? (
+      ) : null}
+
+      <DraftLifecycleView
+        sourceEventId={event.id}
+        emptyState={
+          isActiveForProfile ? (
+            (renderEmptyState?.(reloadSilently) ?? (
+              <Card>
+                <CardContent>
+                  <p className="text-muted-foreground text-sm">
+                    Nothing here yet — more is coming soon.
+                  </p>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
             <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {available ? "Available now" : "Not currently active"}
+                </CardTitle>
+              </CardHeader>
               <CardContent>
-                <p className="text-sm">
-                  Your balance:{" "}
-                  <strong className="tabular-nums">{balance}</strong>{" "}
-                  {POINT_CURRENCY_LABELS[event.pointType]}
-                </p>
+                {available ? (
+                  <Button
+                    type="button"
+                    onClick={() => void optIn.beginOptIn(event.id)}
+                    disabled={optIn.isSaving}
+                  >
+                    {event.intro.primaryActionLabel ?? "Opt In"}
+                  </Button>
+                ) : nextStart ? (
+                  <p className="text-muted-foreground text-sm">
+                    Returns{" "}
+                    {formatInTimeZone(
+                      nextStart,
+                      timezone,
+                      "d MMMM 'at' h:mm a",
+                    )}
+                    .
+                  </p>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => void optIn.beginOptIn(event.id)}
+                    disabled={optIn.isSaving}
+                  >
+                    {event.intro.primaryActionLabel ?? "Opt In"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
-          ) : null}
-
-          <DraftLifecycleView
-            sourceEventId={event.id}
-            emptyState={
-              renderEmptyState?.(reloadSilently) ?? (
-                <Card>
-                  <CardContent>
-                    <p className="text-muted-foreground text-sm">
-                      Nothing here yet — more is coming soon.
-                    </p>
-                  </CardContent>
-                </Card>
-              )
-            }
-          />
-        </>
-      )}
+          )
+        }
+      />
     </div>
   );
 }

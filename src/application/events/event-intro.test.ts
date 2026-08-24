@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { applyEventOptIn } from "@/application/events/event-opt-in";
 import {
-  getEventSettings,
-  setEventSettings,
-} from "@/application/events/event-settings-store";
+  applyEventOptIn,
+  beginEventOptIn,
+  declineEventOccurrence,
+} from "@/application/events/event-opt-in";
+import { getEventSettings } from "@/application/events/event-settings-store";
 import {
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
@@ -11,8 +12,6 @@ import {
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
-import { dismissEventForCycle } from "./event-dismissal-store";
-import { DEFAULT_EVENT_SETTINGS } from "@/domain/events/event-settings";
 import { resolveEventIntroToShow } from "./event-intro";
 
 const PROFILE_ID = "alex";
@@ -26,30 +25,19 @@ describe("resolveEventIntroToShow", () => {
     await db?.delete();
   });
 
-  it("Event Switcher off — never shows an intro, even for a naturally available event", async () => {
+  // REGRESSION (see docs/updates, "EVENT LIFECYCLE REPAIR" §3/§5 — root
+  // cause of "the modal does not reliably appear when Halloween first
+  // becomes naturally active"): the previous version gated this ENTIRELY
+  // on `EventSettings.eventsEnabled`, a flag that starts `false` for every
+  // profile and is ONLY ever flipped `true` by a real opt-in — so a
+  // brand-new profile that had NEVER joined anything could never be shown
+  // ANY event's intro, no matter how long it waited. This test proves that
+  // structurally-unreachable precondition is gone: a profile with no
+  // `EventSettings` ever written at all still sees the intro the moment a
+  // real natural window opens.
+  it("a brand-new profile, with no EventSettings ever written, still sees the intro for a naturally active event", async () => {
     db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
-    await setEventSettings(repos, PROFILE_ID, {
-      ...DEFAULT_EVENT_SETTINGS,
-      eventsEnabled: false,
-    });
-
-    const result = await resolveEventIntroToShow(
-      repos,
-      { profileId: PROFILE_ID, timezone: "UTC" },
-      { clock: JANUARY_2026 },
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it("Event Switcher on, newly available event, never opted in or dismissed — shows the intro", async () => {
-    db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db);
-    await setEventSettings(repos, PROFILE_ID, {
-      ...DEFAULT_EVENT_SETTINGS,
-      eventsEnabled: true,
-    });
 
     const result = await resolveEventIntroToShow(
       repos,
@@ -59,19 +47,15 @@ describe("resolveEventIntroToShow", () => {
 
     expect(result).toEqual({
       event: expect.anything(),
-      cycleId: "2026",
+      occurrenceKey: "f-you-its-january:2026",
       eventVisualsEnabled: false,
     });
     expect(result?.event.id).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
   });
 
-  it("not naturally available right now — no intro, regardless of the switch", async () => {
+  it("not naturally available right now — no intro", async () => {
     db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
-    await setEventSettings(repos, PROFILE_ID, {
-      ...DEFAULT_EVENT_SETTINGS,
-      eventsEnabled: true,
-    });
 
     const result = await resolveEventIntroToShow(
       repos,
@@ -82,14 +66,21 @@ describe("resolveEventIntroToShow", () => {
     expect(result).toBeNull();
   });
 
-  it("already opted into this event — no intro modal", async () => {
+  it("already opted into this event's current occurrence — no intro modal for it again", async () => {
     db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
-    await applyEventOptIn(repos, {
-      profileId: PROFILE_ID,
-      eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-      manuallyEnabled: false,
-    });
+    // `beginEventOptIn` (not `applyEventOptIn` directly) — the real join
+    // flow, which is what actually records occurrence participation; see
+    // docs/updates, "EVENT LIFECYCLE REPAIR" §7.
+    await beginEventOptIn(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
+      },
+      { clock: JANUARY_2026 },
+    );
 
     const result = await resolveEventIntroToShow(
       repos,
@@ -100,37 +91,41 @@ describe("resolveEventIntroToShow", () => {
     expect(result).toBeNull();
   });
 
-  it("dismissed for the current cycle — no intro until a new cycle begins", async () => {
+  it("declined for the current occurrence — no intro until a new occurrence begins next year", async () => {
     db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
-    await setEventSettings(repos, PROFILE_ID, {
-      ...DEFAULT_EVENT_SETTINGS,
-      eventsEnabled: true,
+    await declineEventOccurrence(repos, {
+      profileId: PROFILE_ID,
+      occurrenceKey: "f-you-its-january:2026",
     });
-    await dismissEventForCycle(
-      repos,
-      PROFILE_ID,
-      F_YOU_ITS_JANUARY_EVENT_ID,
-      "2026",
-    );
 
-    const dismissedThisCycle = await resolveEventIntroToShow(
+    const declinedThisOccurrence = await resolveEventIntroToShow(
       repos,
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: JANUARY_2026 },
     );
-    expect(dismissedThisCycle).toBeNull();
+    expect(declinedThisOccurrence).toBeNull();
 
-    const nextCycle = await resolveEventIntroToShow(
+    const nextOccurrence = await resolveEventIntroToShow(
       repos,
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: JANUARY_2027 },
     );
-    expect(nextCycle?.event.id).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
-    expect(nextCycle?.cycleId).toBe("2027");
+    expect(nextOccurrence?.event.id).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
+    expect(nextOccurrence?.occurrenceKey).toBe("f-you-its-january:2027");
   });
 
-  it("already opted into a DIFFERENT event — no intro for a second, newly-available event (regression, PROMPT B2.1 — the January-header-leaking-onto-Halloween's-page bug)", async () => {
+  // ARCHITECTURE CHANGE (see docs/updates, "EVENT LIFECYCLE REPAIR" §1/§4):
+  // the previous version deliberately blocked a SECOND event's intro once
+  // a profile was joined to ANY event — a workaround for the old single
+  // `EventSettings.activeEvent` slot, which a second opt-in would silently
+  // overwrite, corrupting the first join. Occurrence-keyed participation
+  // has no shared slot to corrupt (see `event-participation-store.ts`), so
+  // this is INTENTIONALLY reversed: a profile already joined to Halloween
+  // can still be offered January's intro once January's own occurrence
+  // naturally opens — consistent with the dual-draft architecture already
+  // allowing both to run at once.
+  it("already joined to a DIFFERENT event — a second, independently-available event's intro still shows (dual participation is intentional)", async () => {
     db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     await applyEventOptIn(repos, {
@@ -139,28 +134,22 @@ describe("resolveEventIntroToShow", () => {
       manuallyEnabled: false,
     });
 
-    // January is genuinely, naturally available right now — the OLD bug
-    // only ever skipped the loop entry matching `activeEvent` itself, so
-    // it would still return January here even though the profile is
-    // already committed to Halloween.
     const result = await resolveEventIntroToShow(
       repos,
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: JANUARY_2026 },
     );
 
-    expect(result).toBeNull();
+    expect(result?.event.id).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
   });
 
-  it("dismissing the event does not affect its opt-in-ability — Settings' opt-in path is untouched by dismissal state", async () => {
+  it("declining the intro does not affect Settings' own opt-in path — declining and later joining from Settings both work independently", async () => {
     db = new FDraftLocalDatabase(`event-intro-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
-    await dismissEventForCycle(
-      repos,
-      PROFILE_ID,
-      F_YOU_ITS_JANUARY_EVENT_ID,
-      "2026",
-    );
+    await declineEventOccurrence(repos, {
+      profileId: PROFILE_ID,
+      occurrenceKey: "f-you-its-january:2026",
+    });
 
     await applyEventOptIn(repos, {
       profileId: PROFILE_ID,

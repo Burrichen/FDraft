@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { UpdateProvider } from "@/components/updates/update-provider";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -18,7 +19,9 @@ function Harness({ databaseName }: { databaseName: string }) {
   return (
     <UpdateProvider store={new InMemoryUpdatePreferenceStore()}>
       <ProfileProvider databaseName={databaseName}>
-        <SettingsView />
+        <EventDiscoveryProvider>
+          <SettingsView />
+        </EventDiscoveryProvider>
       </ProfileProvider>
     </UpdateProvider>
   );

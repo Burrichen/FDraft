@@ -7,6 +7,7 @@ import {
   getEventDateOverride,
   setEventDateOverride,
 } from "@/application/events/event-date-override-store";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export function EventTestingSection() {
   const [isSaving, setIsSaving] = useState(false);
   const profileId = activeProfile?.id ?? null;
   const timezone = activeProfile?.timezone ?? null;
+  const discovery = useEventDiscovery();
 
   const { data: override, reloadSilently } = useAsyncData(async () => {
     if (!profileId) return null;
@@ -52,7 +54,14 @@ export function EventTestingSection() {
     setIsSaving(true);
     try {
       await setEventDateOverride(repositories, profileId, next);
-      await reloadSilently();
+      // Admin's simulated date is the ONE input to `EventClock.now()` (see
+      // docs/updates, "EVENT LIFECYCLE REPAIR" §6: "its only job is to
+      // affect EventClock.now()") — the ordinary production lifecycle
+      // (join/decline/expiry, nav, the intro modal) must react to it
+      // exactly like real time passing would, so this refreshes the
+      // shared discovery snapshot immediately rather than waiting for its
+      // own periodic re-check.
+      await Promise.all([reloadSilently(), discovery.refresh()]);
     } catch (cause) {
       toast.error(
         cause instanceof Error ? cause.message : "Could not save this setting.",
