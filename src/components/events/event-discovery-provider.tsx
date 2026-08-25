@@ -9,7 +9,12 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useAsyncData } from "@/hooks/use-async-data";
 
 function createEmptyResult(): EventDiscoveryResult {
-  return { statuses: [], eventVisualsEnabled: false, now: new Date() };
+  return {
+    statuses: [],
+    eventVisualsEnabled: false,
+    eventsEnabled: false,
+    now: new Date(),
+  };
 }
 
 interface EventDiscoveryContextValue {

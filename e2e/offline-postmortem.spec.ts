@@ -39,7 +39,9 @@ test("expiring a draft, answering its postmortem, and archiving it all work full
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("radio", { name: /^Timer/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   // Deliberately never marking anything watched — every film needs a
   // postmortem answer once the draft expires.
@@ -50,7 +52,7 @@ test("expiring a draft, answering its postmortem, and archiving it all work full
   await page.reload();
 
   await expect(
-    page.getByRole("heading", { name: /Baby draft — expired/ }),
+    page.getByRole("heading", { name: /Baby draft — expired/i }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Why didn't you watch these?" }),

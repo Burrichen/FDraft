@@ -144,7 +144,7 @@ describe("HalloweenPageClient — empty page (no draft yet)", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Event ends 1 November at 00:00"),
+        screen.getByText("Event ends 31 October at midnight"),
       ).toBeInTheDocument(),
     );
     expect(
@@ -223,6 +223,71 @@ describe("HalloweenPageClient — active Draft rendered directly on the page", (
 
     // The Halloween page still shows ITS OWN draft, unaffected by the
     // normal draft also being active.
+    await waitFor(() =>
+      expect(screen.getByText("The Exorcist")).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("HalloweenPageClient — Event Gameplay toggle (HALLOWEEN PAGE REBUILD §10)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("gameplay off: page/heading/deadline still render, but creation is blocked with a clear explanation", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.settings.set(PROFILE_ID, "events.settings", {
+      eventsEnabled: false,
+      eventVisualsEnabled: true,
+      activeEvent: HALLOWEEN_EVENT_ID,
+      manuallyEnabledEvents: [],
+    });
+    await db.close();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Halloween" }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText("Event ends 31 October at midnight"),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Event Gameplay is turned off/),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Create Halloween Draft" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("gameplay off with an existing active Draft: the Draft itself still renders fully", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    await seedHalloweenFilm(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.settings.set(PROFILE_ID, "events.settings", {
+      eventsEnabled: false,
+      eventVisualsEnabled: true,
+      activeEvent: HALLOWEEN_EVENT_ID,
+      manuallyEnabledEvents: [],
+    });
+    await db.close();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
     await waitFor(() =>
       expect(screen.getByText("The Exorcist")).toBeInTheDocument(),
     );

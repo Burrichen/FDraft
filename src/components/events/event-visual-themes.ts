@@ -12,7 +12,7 @@ import {
   HalloweenNavIcon,
   JanuaryTrashCanNavIcon,
 } from "@/components/layout/nav-icons";
-import { renderHalloweenDialogDecoration } from "./halloween-dialog-decoration";
+import { HalloweenDialogDecoration } from "./halloween-dialog-decoration";
 import { renderHalloweenIntroContent } from "./halloween-intro-content";
 
 export interface EventVisualTheme {
@@ -31,8 +31,16 @@ export interface EventVisualTheme {
   rootClassName?: string;
   /** Applied to `EventIntroDialog`'s own `AlertDialogTitle`, generically — same "optional per-theme override, undefined preserves today's default" convention as `rootClassName` (see docs/updates, "PROMPT B2.3" §2). */
   titleClassName?: string;
-  /** Purely decorative content a caller renders alongside its own — see `EventIntroDialog`'s Halloween decoration. Always `aria-hidden` inside the renderer itself. */
-  renderDecoration?: () => ReactNode;
+  /**
+   * A purely decorative component a caller renders alongside its own —
+   * see `EventIntroDialog`'s Halloween decoration. A real component
+   * (not a plain render-prop function) because Halloween's own
+   * decoration now uses the Designed Slot system internally
+   * (`EventDecorationLayer`), which calls React hooks — hooks can only
+   * ever be called from something React itself recognizes as a
+   * component. Always `aria-hidden` inside the component itself.
+   */
+  DecorationComponent?: ComponentType;
   /**
    * Fully replaces `EventIntroDialog`'s generic description + bullets +
    * footer-note body for this event (see docs/updates, "PROMPT B2.3" §3)
@@ -77,7 +85,7 @@ export const EVENT_VISUAL_THEMES: Record<string, EventVisualTheme> = {
       "theme-halloween w-[92vw] sm:w-[80vw] md:w-[70vw] max-w-2xl max-h-[85vh] overflow-y-auto",
     titleClassName:
       "flex-col items-center justify-center gap-2 text-center text-4xl sm:text-5xl font-extrabold text-halloween-pumpkin [&_svg]:size-9 sm:[&_svg]:size-11",
-    renderDecoration: renderHalloweenDialogDecoration,
+    DecorationComponent: HalloweenDialogDecoration,
     renderIntroContent: renderHalloweenIntroContent,
   },
 };

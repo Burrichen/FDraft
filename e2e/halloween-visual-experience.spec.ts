@@ -48,11 +48,12 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
     fullPage: true,
   });
 
-  // Halloween Draft creation form (Prompt 19) still renders correctly
-  // under the new theme.
-  await expect(
-    page.getByRole("button", { name: "Create Halloween Draft" }),
-  ).toBeVisible();
+  // The "No Halloween Draft yet" step (see docs/updates, "HALLOWEEN PAGE
+  // REBUILD" §4/§5) comes up first; clicking its Create button reveals the
+  // actual difficulty/pool controls (Prompt 19) in place, still under the
+  // new theme.
+  await expect(page.getByText("No Halloween Draft yet.")).toBeVisible();
+  await page.getByRole("button", { name: "Create Halloween Draft" }).click();
   for (const label of ["Baby", "Easy", "Medium", "Hard", "Hardcore"]) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
@@ -124,4 +125,54 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
   // section, now exhausted for the session.
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(hauntedButton).toBeDisabled();
+});
+
+/**
+ * See docs/updates, "HALLOWEEN PAGE REBUILD" — the Halloween page/nav
+ * exist purely from being JOINED, with no dependency on how the profile
+ * arrived there: a full page refresh, or a direct navigation straight to
+ * `/events/halloween` (bookmarked, typed, or a fresh tab) must land on
+ * exactly the same page with no client-side redirect elsewhere.
+ */
+test("Halloween: joined page survives a refresh and a direct route reload, with no redirect", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Profile name").fill("Alex");
+  await page.getByRole("button", { name: "Create Profile" }).click();
+  await expect(page.getByRole("heading", { name: "Watchlist" })).toBeVisible();
+
+  await page.goto("/settings");
+  await page.locator("#admin-mode").click();
+  await expect(page.getByText("Event Testing")).toBeVisible();
+  await page.selectOption("#event-date-override", "halloween");
+  await page.fill("#event-date-override-manual", "2026-10-15T12:00");
+  await page.reload();
+  await page.getByRole("button", { name: "Let me in." }).click();
+  await page.waitForURL(/events\/halloween/);
+  await expect(page.getByRole("heading", { name: "Halloween" })).toBeVisible();
+
+  // A plain refresh keeps the profile on the same joined Halloween page —
+  // never bounced back to Watchlist or anywhere else.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Halloween" })).toBeVisible();
+  expect(page.url()).toContain("/events/halloween");
+  await expect(
+    page.getByRole("button", { name: "Create Halloween Draft" }),
+  ).toBeVisible();
+
+  // Navigate away, then straight back via a direct URL (simulating a
+  // bookmark/typed address) in a brand-new navigation, not a client-side
+  // link click — still the same joined page, no redirect.
+  await page.goto("/watchlist");
+  await expect(page.getByRole("heading", { name: "Watchlist" })).toBeVisible();
+  await page.goto("/events/halloween");
+  await expect(page.getByRole("heading", { name: "Halloween" })).toBeVisible();
+  expect(page.url()).toContain("/events/halloween");
+  await expect(
+    page.getByRole("button", { name: "Create Halloween Draft" }),
+  ).toBeVisible();
+  // The nav tab reflects the join too, from a route that never went
+  // through the join flow itself.
+  await expect(page.getByRole("link", { name: /halloween/i })).toBeVisible();
 });

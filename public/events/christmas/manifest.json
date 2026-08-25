@@ -1,0 +1,20 @@
+{
+  "eventId": "christmas",
+  "displayName": "Christmas",
+  "icons": {},
+  "decorations": {
+    "fairy-lights": "decorations/fairy-lights.png"
+  },
+  "modal": {
+    "modal-left": "modal/modal-left.png",
+    "modal-right": "modal/modal-right.png"
+  },
+  "interactives": {
+    "christmas-tree": "interactives/christmas-tree.png",
+    "presents": "interactives/presents.png",
+    "snowman": "interactives/snowman.png",
+    "stocking": "interactives/stocking.png",
+    "candy-canes": "interactives/candy-canes.png"
+  },
+  "backgrounds": {}
+}

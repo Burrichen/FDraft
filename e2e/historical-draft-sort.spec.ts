@@ -37,7 +37,9 @@ test("a finalised draft's films are grouped into Watched/Not Watched, its sort c
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("radio", { name: /^Timer/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   // Mark exactly two specific films watched — which two is deliberate, so
   // the group-membership assertions below can check for them by name.
@@ -56,7 +58,7 @@ test("a finalised draft's films are grouped into Watched/Not Watched, its sort c
   await context.setOffline(true);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: /Baby draft — expired/ }),
+    page.getByRole("heading", { name: /Baby draft — expired/i }),
   ).toBeVisible();
   for (let i = 0; i < 3; i++) {
     await page.getByRole("button", { name: "I just didn't" }).first().click();
@@ -68,10 +70,11 @@ test("a finalised draft's films are grouped into Watched/Not Watched, its sort c
   await expect(
     page.getByRole("heading", { name: "Draft history" }),
   ).toBeVisible();
-  // The summary's own heading-like text is an exact match — "Recently
-  // Watched"'s "Via Baby draft" origin lines also contain the substring
-  // "Baby draft", so a loose match would be ambiguous.
-  await page.getByText("Baby draft", { exact: true }).click();
+  // The summary's own heading-like text is "{Month} Baby Draft" (capital
+  // "Draft" — see `getDraftDisplayName`), matched case-sensitively so it
+  // can never ambiguously match "Recently Watched"'s "Via Baby draft"
+  // origin lines, which use a lowercase "draft".
+  await page.getByText(/Baby Draft/).click();
 
   await expect(page.getByText("Watched (2)")).toBeVisible();
   await expect(page.getByText("Not Watched (3)")).toBeVisible();
@@ -136,7 +139,7 @@ test("a finalised draft's films are grouped into Watched/Not Watched, its sort c
   await expect(
     page.getByRole("heading", { name: "Draft history" }),
   ).toBeVisible();
-  await page.getByText("Baby draft", { exact: true }).click();
+  await page.getByText(/Baby Draft/).click();
   expect(await groupTitles("Watched (2)")).toEqual(originalWatchedOrder);
   expect(await groupTitles("Not Watched (3)")).toEqual(originalNotWatchedOrder);
 });

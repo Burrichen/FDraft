@@ -27,12 +27,37 @@ function Harness({ databaseName }: { databaseName: string }) {
   );
 }
 
+/**
+ * `activeEvent` defaults to January only when the whole `eventSettings`
+ * argument is omitted — NOT via `??` on the field itself, which would
+ * silently turn an explicitly-passed `activeEvent: null` back into
+ * January (a real, latent bug that stayed invisible while
+ * `isCurrentlyJoined` also required `eventsEnabled`, but would corrupt
+ * every "nothing joined" test now that joined-ness is read from
+ * occurrence participation instead — see `EventSwitcherSection`'s own
+ * doc comment, docs/updates "HALLOWEEN PAGE REBUILD" §10).
+ *
+ * Also seeds `events.participations` as `"joined"` for whatever
+ * `activeEvent` ends up being — a real join always writes BOTH
+ * `EventSettings.activeEvent` and occurrence participation together (see
+ * `applyEventOptIn`/`beginEventOptIn`), so a fixture that sets one without
+ * the other describes a state the real app can never actually produce.
+ * Keyed by the REAL current year (`new Date().getFullYear()`, not a faked
+ * one) for every test in this file that doesn't fake timers; tests that DO
+ * fake time (the "Available now" describe block) call this AFTER arming
+ * `vi.setSystemTime`, so `new Date()` here still resolves against
+ * whichever clock is active at call time.
+ */
 async function seedProfile(
   databaseName: string,
-  eventSettings?: {
+  eventSettings: {
     eventsEnabled: boolean;
     activeEvent: string | null;
     manuallyEnabledEvents?: string[];
+  } = {
+    eventsEnabled: true,
+    activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
+    manuallyEnabledEvents: [F_YOU_ITS_JANUARY_EVENT_ID],
   },
 ) {
   const db = new FDraftLocalDatabase(databaseName);
@@ -53,13 +78,18 @@ async function seedProfile(
     dataVersion: 1,
   });
   await repos.settings.set(PROFILE_ID, "events.settings", {
-    eventsEnabled: eventSettings?.eventsEnabled ?? true,
+    eventsEnabled: eventSettings.eventsEnabled,
     eventVisualsEnabled: false,
-    activeEvent: eventSettings?.activeEvent ?? F_YOU_ITS_JANUARY_EVENT_ID,
-    manuallyEnabledEvents: eventSettings?.manuallyEnabledEvents ?? [
+    activeEvent: eventSettings.activeEvent,
+    manuallyEnabledEvents: eventSettings.manuallyEnabledEvents ?? [
       F_YOU_ITS_JANUARY_EVENT_ID,
     ],
   });
+  if (eventSettings.activeEvent) {
+    await repos.settings.set(PROFILE_ID, "events.participations", {
+      [`${eventSettings.activeEvent}:${new Date().getFullYear()}`]: "joined",
+    });
+  }
   await db.close();
 }
 
@@ -210,12 +240,20 @@ describe("EventSwitcherSection — Current Event: Event Visuals toggle (event sy
   });
 });
 
-describe("EventSwitcherSection — Current Event: Event Gameplay toggle (leaving an event, event system Phase 10 hardening)", () => {
+describe("EventSwitcherSection — Current Event: Event Gameplay toggle (HALLOWEEN PAGE REBUILD §10 — no longer leaves the event)", () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("never touches an active draft, never awards anything, and only clears eventsEnabled/activeEvent — manuallyEnabledEvents is preserved", async () => {
+  // REVERSED from this test's earlier premise: turning Event Gameplay off
+  // used to leave the event entirely (clearing `activeEvent`, declining
+  // participation) — a real bug, since nothing about a "Gameplay" toggle
+  // implies "remove my joined page/nav." It now flips ONLY
+  // `EventSettings.eventsEnabled`; `activeEvent` and occurrence
+  // participation are both left completely alone, which is what keeps
+  // "Current Event" itself showing afterward (see the next test) and is
+  // the same thing that keeps the real nav tab/page from disappearing.
+  it("never touches an active draft, never awards anything, and only flips eventsEnabled — activeEvent and manuallyEnabledEvents are both preserved", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName);
     const draftId = await seedActiveJanuaryDraft(databaseName);
@@ -262,18 +300,77 @@ describe("EventSwitcherSection — Current Event: Event Gameplay toggle (leaving
     await afterDb.close();
 
     // The active draft — including its own sourceEventId/rewardsGrantedAt
-    // — is completely untouched by leaving the event.
+    // — is completely untouched.
     expect(draftAfter).toEqual(draftBefore);
     // Nothing was awarded to any currency.
     expect(lifetimeAfter).toBe(lifetimeBefore);
     expect(signalAfter).toBe(signalBefore);
-    // Explicit transition behaviour: eventsEnabled/activeEvent clear, but
-    // manuallyEnabledEvents (this profile's event history) is preserved,
-    // not wiped — "preserve user data non-destructively."
-    expect(settingsAfter.activeEvent).toBeNull();
+    // `activeEvent`/`manuallyEnabledEvents` are BOTH unchanged — this is
+    // no longer a "leave" action of any kind.
+    expect(settingsAfter.activeEvent).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
     expect(settingsAfter.manuallyEnabledEvents).toEqual([
       F_YOU_ITS_JANUARY_EVENT_ID,
     ]);
+  });
+
+  it("Current Event stays visible (with Gameplay now unchecked) instead of reverting to the Available-now list", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Event Gameplay")).toBeChecked(),
+    );
+
+    await user.click(screen.getByLabelText("Event Gameplay"));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Event Gameplay")).not.toBeChecked(),
+    );
+    // Still the "Current Event" view — never falls back to "Available now".
+    expect(screen.getByText("Current Event")).toBeInTheDocument();
+    expect(screen.queryByText("Available now")).not.toBeInTheDocument();
+
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    const participations = await repos.settings.get(
+      PROFILE_ID,
+      "events.participations",
+    );
+    await db.close();
+    // Occurrence participation is untouched — still genuinely "joined",
+    // which is the one thing the real nav tab/page visibility depends on.
+    expect(
+      (participations as Record<string, string> | null)?.[
+        `${F_YOU_ITS_JANUARY_EVENT_ID}:${new Date().getFullYear()}`
+      ],
+    ).toBe("joined");
+  });
+
+  it("turning Gameplay back on re-enables it without touching anything else", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: false,
+      activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
+    });
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Event Gameplay")).not.toBeChecked(),
+    );
+
+    await user.click(screen.getByLabelText("Event Gameplay"));
+
+    await waitFor(async () => {
+      const db = new FDraftLocalDatabase(databaseName);
+      const repos = createLocalRepositories(db);
+      const settings = await getEventSettings(repos, PROFILE_ID);
+      await db.close();
+      expect(settings.eventsEnabled).toBe(true);
+      expect(settings.activeEvent).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
+    });
   });
 });
 

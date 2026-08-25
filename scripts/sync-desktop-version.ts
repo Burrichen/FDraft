@@ -8,6 +8,17 @@
  * supports referencing an external file — so this syncs both from
  * `package.json` rather than letting them drift independently.
  *
+ * Also derives BETA BRANDING from that same version string (see
+ * docs/updates, "BETA APP IDENTITY"): a version with a semver
+ * pre-release suffix (e.g. "1.2.0-beta.5") is a hands-on-testing build,
+ * so its installer/app name reads "FDraft (Beta)" and it ships the pale-
+ * blue icon set under `icons/beta/` instead of the normal green one —
+ * entirely so a beta install is visually distinguishable at a glance
+ * from a real release, including sitting side-by-side in the Start Menu.
+ * A plain version (no `-` suffix) always resolves back to the normal
+ * "FDraft" name/icon, so this never needs manually reverting after a
+ * beta cycle ends.
+ *
  * Run automatically before `desktop:dev`/`build:desktop-frontend` (see
  * package.json); safe to run manually at any other time too.
  */
@@ -30,14 +41,39 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(version)) {
   );
 }
 
-const tauriConfPath = path.join(ROOT, "src-tauri/tauri.conf.json");
-const tauriConf = JSON.parse(readFileSync(tauriConfPath, "utf8")) as {
+const isBeta = version.includes("-");
+const productName = isBeta ? "FDraft (Beta)" : "FDraft";
+const iconDir = isBeta ? "icons/beta" : "icons";
+
+interface TauriConf {
   version: string;
-};
-if (tauriConf.version !== version) {
-  tauriConf.version = version;
-  writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + "\n");
-  console.log(`Synced src-tauri/tauri.conf.json version -> ${version}`);
+  productName: string;
+  app: { windows: Array<{ title: string; [key: string]: unknown }> };
+  bundle: { icon: string[]; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
+const tauriConfPath = path.join(ROOT, "src-tauri/tauri.conf.json");
+const originalTauriConfText = readFileSync(tauriConfPath, "utf8");
+const tauriConf = JSON.parse(originalTauriConfText) as TauriConf;
+
+tauriConf.version = version;
+tauriConf.productName = productName;
+tauriConf.app.windows[0].title = productName;
+tauriConf.bundle.icon = [
+  `${iconDir}/32x32.png`,
+  `${iconDir}/128x128.png`,
+  `${iconDir}/128x128@2x.png`,
+  `${iconDir}/icon.icns`,
+  `${iconDir}/icon.ico`,
+];
+
+const updatedTauriConfText = JSON.stringify(tauriConf, null, 2) + "\n";
+if (updatedTauriConfText !== originalTauriConfText) {
+  writeFileSync(tauriConfPath, updatedTauriConfText);
+  console.log(
+    `Synced src-tauri/tauri.conf.json -> version ${version}, productName "${productName}", icons from ${iconDir}/`,
+  );
 }
 
 const cargoTomlPath = path.join(ROOT, "src-tauri/Cargo.toml");

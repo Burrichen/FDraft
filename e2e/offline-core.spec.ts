@@ -80,7 +80,9 @@ test("watchlist import, draft creation, marking watched, and stats all work with
   ).toBeVisible();
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   // --- Mark a film watched, fully offline ---
   const firstEyeButton = page

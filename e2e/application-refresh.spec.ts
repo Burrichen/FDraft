@@ -63,7 +63,9 @@ test("an active draft, including which films are already marked watched, survive
   await page.getByRole("button", { name: "Start a draft" }).click();
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: /^Mark ".*" as watched$/ })
     .first()
@@ -72,7 +74,9 @@ test("an active draft, including which films are already marked watched, survive
 
   await page.reload();
 
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await expect(page.getByText(/1\/5 watched/)).toBeVisible();
 });
 
@@ -94,12 +98,14 @@ test("a partially-answered postmortem survives a refresh — the answered film i
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("radio", { name: /^Timer/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   await page.clock.setFixedTime(Date.now() + 31 * 24 * 60 * 60 * 1000);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: /Baby draft — expired/ }),
+    page.getByRole("heading", { name: /Baby draft — expired/i }),
   ).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(5);
 
@@ -112,7 +118,7 @@ test("a partially-answered postmortem survives a refresh — the answered film i
   await page.reload();
 
   await expect(
-    page.getByRole("heading", { name: /Baby draft — expired/ }),
+    page.getByRole("heading", { name: /Baby draft — expired/i }),
   ).toBeVisible();
   // A resolved item is never shown again — the persisted response means
   // there's genuinely nothing left to ask about it, not that it reappears

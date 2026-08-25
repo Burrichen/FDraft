@@ -5878,3 +5878,598 @@ frontend`, and `cargo check` all clean; the Settings/Events-relevant e2e
   browser at desktop (1440px, confirming the two-column layout and the
   Developer reveal) and mobile (375px, confirming single-column stacking)
   widths.
+
+### Phase 17 — Halloween page rebuild: correct empty/active states, nav position, Gameplay-off fix
+
+Rebuilt the Halloween Event page around its already-correct lifecycle
+(joining registers the page; Draft existence only picks which state it
+shows) — a survey against the actual current code found several of the
+brief's concerns already fixed by earlier phases, so this phase touched
+only the genuine remaining gaps rather than re-doing settled work.
+
+- **Already correct, verified rather than rebuilt:** the page exists from
+  `DraftLifecycleView` being rendered unconditionally (no "you have an
+  active draft, go here" redirect ever existed); creating a Draft never
+  navigates away; the fixed Halloween deadline (`getCurrentOccurrenceBounds`,
+  no Calendar/Timer choice); the event-window (not per-draft) time-progress
+  math once a Draft exists; dual-Draft independence and same-film point-
+  idempotency (`dual-draft-architecture.integration.test.ts`); History's
+  Halloween identity badges; and January/Halloween theme isolation — all
+  already had real implementations and passing tests before this phase
+  touched anything.
+- **Nav position** (`use-nav-items.ts`) — event tabs now insert right
+  after "Drafts" (`Watchlist, Drafts, <event>, History, Stats`) instead of
+  being appended after "Stats".
+- **Deadline copy** (`fixed-event-deadline-copy.ts`, new) — Halloween's
+  exclusive end instant (`1 November 00:00`) was displaying verbatim as
+  "1 November at 00:00"; now reads "31 October at midnight" everywhere it
+  appears (the page subtitle, the creation form's "Event Deadline" line),
+  by formatting one minute before the boundary and special-casing an exact
+  midnight end.
+- **Empty-state restructure** (`halloween-draft-creation-view.tsx`) — a
+  two-step disclosure now matches the brief's mock: a compact "Your
+  Halloween Draft / No Halloween Draft yet." card with one Create button,
+  which reveals the existing difficulty/pool controls in place (never a
+  navigation) once clicked. The event-window time-progress bar (the same
+  `DraftTimeProgress` component and `calculateDraftTimeProgress` math
+  `DraftLifecycleView` already used once a Draft existed) is now also
+  shown BEFORE a Draft is created, computed directly against the event's
+  own window.
+- **Width parity** (`halloween-page-client.tsx`) — dropped a `max-w-2xl`
+  wrapper the normal Drafts page never had, which was making Halloween
+  read as a narrower, secondary page rather than a genuine themed
+  counterpart; verified visually against `/drafts` at 375/768/1024/1440.
+- **Event Gameplay no longer means "leave"** — a real, previously-tested
+  bug: unchecking "Event Gameplay" in Settings called `leaveEventOccurrence`,
+  which declined occurrence participation as a side effect, which removed
+  the joined page/nav — despite nothing about a gameplay toggle implying
+  "unregister my page." `EventSwitcherSection`'s Gameplay checkbox now
+  flips only `EventSettings.eventsEnabled`; `EventDiscoveryResult` gained
+  a passthrough `eventsEnabled` field (the same "one blanket per-profile
+  flag, not per-event" shape `eventVisualsEnabled` already has) so
+  Halloween's own create-Draft flow can gate on it directly, showing a
+  plain explanation instead of the Create button while leaving the page,
+  nav, and any existing Draft completely alone. `isCurrentlyJoined` in
+  Settings' Events section now reads occurrence participation instead of
+  `eventsEnabled`, so "Current Event" correctly stays visible (with
+  Gameplay shown unchecked) instead of disappearing. The old "leaving an
+  event" test was rewritten in place — REVERSED, not deleted — to assert
+  the new, correct behavior.
+- **Testing.** New `fixed-event-deadline-copy.test.ts`; new tests across
+  `halloween-draft-creation-view.test.tsx` (event-window progress before a
+  Draft exists, the two-step reveal, Gameplay-off blocking creation with
+  existing Drafts unaffected), `halloween-page-client.test.tsx` (same
+  Gameplay-off coverage at the page level), `nav-links.test.tsx` (exact
+  tab position for both Halloween and January), and `event-switcher-
+section.test.tsx` (Gameplay-off preserves `activeEvent`/participation/
+  nav, re-enabling it works, a declined-but-still-active event stays
+  joinable). Full suite (157 files / 1,761 tests), lint, strict typecheck,
+  production build, `pnpm run build:desktop-frontend`, and `cargo check`
+  all clean; Halloween/nav/settings-relevant e2e specs pass, including two
+  new ones (Halloween survives a refresh and a direct `/events/halloween`
+  route reload with no redirect) — a handful of pre-existing, unrelated
+  e2e flakes (Draft-creation timing across several files that touch no
+  code this phase changed) were confirmed via `git stash` to fail
+  identically on the pre-change baseline.
+
+### Phase 18 — Halloween art direction & asset pass: vintage kitsch, bundled illustrations
+
+A dedicated art/presentation pass — no Event mechanics touched. Moved the
+"hero" interactive pieces (gravestone, all four pumpkin states, all three
+candy-bowl fill levels, a new hero ghost) from inline geometric SVG paths
+to real bundled illustration files, and replaced the handful of small
+accent pieces that genuinely read as "a CSS primitive pretending to be an
+object" (a plain circle standing in for a hanging ornament and for a
+lollipop; a single bare stroked line standing in for a candle; a filled
+blob with zero ridges standing in for a tiny pumpkin).
+
+- **New asset directory: `public/events/halloween/`** — 10 original,
+  hand-drawn SVG files (no raster art exists yet, so per this phase's own
+  instruction, original SVG fills that slot until real PNG/WebP art is
+  supplied): `ghost.svg`; `pumpkin-{uncarved,carved,lit,rotting}.svg`;
+  `gravestone-{clean,plain}.svg` (the always-present base stone, and a
+  moss overlay that fades out click-by-click rather than four separate
+  per-click files); `candy-bowl-{full,partial,empty}.svg`. A single
+  manifest, `src/components/events/halloween-art.ts`, maps semantic keys
+  to these paths — every consumer imports from there, never a literal
+  path string, so swapping any slot to a final PNG/WebP later is a
+  one-line change in one file. All fixed vintage-kitsch colors (pumpkin
+  orange, deep purple, faded cream, charcoal) are baked directly into each
+  file as literal `oklch()` values, not CSS custom properties — an
+  `<img>`-loaded SVG is a separate document context and can't inherit the
+  page's `var(--halloween-*)` tokens, and the palette itself is fixed
+  regardless. A flat-fill-plus-charcoal-outline "vintage die-cut paper
+  decoration" treatment is used consistently across all 10 files as the
+  chosen art style.
+- **Interactive components now swap `<img src>` by state** rather than
+  branching inline path data: `HalloweenPumpkin` picks one of the four
+  files by `HalloweenPumpkinState`; `HalloweenCandyBowl` picks one of the
+  three bowl files by a candy-count threshold (the pile genuinely sits
+  lower in the artwork itself as candy is taken, not just fewer floating
+  icons over an unchanged outline); `HalloweenGravestone` layers the
+  moss/plaque overlay on top of the always-present clean stone, opacity-
+  animated exactly as before. The profile-name reveal is now colored close
+  to the stone itself with a dark/light offset shadow pair (light from the
+  upper-left, matching the stone's own bevel convention) so it reads as a
+  carved recess, not printed UI text laid over a picture.
+- **Rotting pumpkin now actually decays in color**, not just fades the
+  same orange: real brown/green blotches, pale mould-colored spotting, a
+  caved-in dent, and a shriveled dark stem, on top of the pre-existing
+  collapsed/sagging silhouette.
+- **Small accent replacements** (`halloween-decorations.tsx`): a vintage
+  paper lantern (cap, pleated body, glow slit) replaces the plain circle-
+  on-a-thread hanging ornament; a genuine painted spiral replaces the flat
+  lollipop disc; visible ridge lines and a proper curled stem replace the
+  bare filled blob standing in for a tiny corner pumpkin; a dimensional
+  tapered wax body with a highlight stripe and drip texture replaces the
+  single bare stroked line standing in for a candle; a new bonbon-with-
+  twisted-wrapper-ends shape (`HalloweenWrappedCandy`) adds genuine shape
+  variety to the candy bowl. One real bug fixed along the way: the small
+  hanging-ornament icon was being squeezed into a square `size-*` box
+  against a tall, narrow viewBox, distorting it into an unrecognizable
+  sliver — every call site now sizes it via an explicit `aspect-[12/30]`
+  instead.
+- **The new hero ghost** replaces the small flat inline `HalloweenGhost`
+  at the two most prominent placements — the Event page's own decorative
+  layer and the join modal's foreground corner — while the tiny, low-
+  opacity ambient-page ghost (a deliberately subtle "peek" on pages other
+  than Halloween's own) keeps the small inline component, which is the
+  right amount of detail at that size and opacity.
+- **What stayed deliberately unchanged:** the nav bar's `HalloweenNavIcon`
+  — every nav tab (Watchlist, Drafts, History, Stats, January) shares one
+  minimal 2px-stroke line-icon language matching `lucide-react`'s own
+  icons pixel-for-pixel; a filled illustrated pumpkin there would break
+  that set's visual consistency for a single tab. The overall composition
+  zones (header band, right-margin column, lower scatter, responsive
+  density tiers) were already close to what this phase asked for from an
+  earlier art-polish phase, so those were reused rather than redesigned.
+- **Testing.** All existing `HalloweenPumpkin`/`HalloweenGravestone`/
+  `HalloweenCandyBowl` tests (role/label/behavior-based, never DOM-
+  structure-based) needed no changes and pass unmodified against the new
+  `<img>`-based rendering. Full suite (157 files / 1,761 tests), lint,
+  strict typecheck, production build, and `cargo check` all clean; the
+  static export was confirmed to actually copy every new asset file into
+  `out/events/halloween/`, so they ship and work fully offline in the
+  desktop build. Verified live in a real browser: the join modal, the
+  empty and active-Draft Halloween page at 375/1440px, Settings with
+  Halloween joined, all four pumpkin states, the gravestone before/after
+  its reveal, and all three candy-bowl fill levels.
+
+### Phase 19 — Event system release hardening: final QA pass
+
+A verification pass, not a feature phase — no Event mechanic changed. Ran
+the full lifecycle live in a real browser (fresh occurrence → modal →
+join/decline → Event page → Draft creation → refresh, with zero console
+errors), confirmed every architectural claim below still holds, and fixed
+the regressions actually found. This section is the canonical reference
+for how the Event system behaves today; earlier phase entries above
+describe how it got here.
+
+**Canonical Event behaviour:**
+
+- **Occurrence participation** is the one source of truth for "is this
+  profile in this event, right now" — `"unanswered" | "joined" |
+"declined"`, keyed per `${eventId}:${occurrenceId}` (e.g.
+  `halloween:2026`), stored via `event-participation-store.ts` and
+  computed fresh every year (a new occurrence always starts
+  `"unanswered"`, regardless of any prior year's answer). Nothing about
+  page/nav/modal visibility ever reads `EventSettings.eventsEnabled`/
+  `activeEvent` — those two govern gameplay/reward-currency semantics
+  only (see below).
+- **The Global Event Discovery Controller** (`EventDiscoveryProvider`,
+  mounted once in `AppShell` above every routed page) is the ONE shared
+  read every consumer — nav, the intro modal, an event's own page,
+  Settings — goes through. It refreshes on a 60-second interval and
+  immediately after every mutating action (join/decline/change the Admin
+  override/toggle Gameplay), which is what makes the nav tab and the
+  modal update with no reload and no dependency on which route happens to
+  be mounted underneath them.
+- **A joined Event page exists independently of any Draft.**
+  `isOccurrenceActiveNow(status)` = `participation === "joined" &&
+(available || manuallyEnabled)` is the entire page/nav existence rule.
+  `DraftLifecycleView` is rendered unconditionally by every Event page —
+  it queries strictly by `sourceEventId`, so an existing Draft is never
+  orphaned by the window closing or the profile leaving; only the EMPTY-
+  STATE content (create a Draft vs. a join/return prompt) depends on join
+  status. There is no "you have an active draft → go to your draft"
+  intermediate model anywhere — the same route IS the active-Draft view
+  the moment one exists.
+- **Settings' Events section only ever offers naturally-active events.**
+  "Available now" lists every unjoined, currently-available event (with
+  its window and a Join button) or a plain empty message — never a
+  catalogue of inactive events a normal user can force on. A previously-
+  declined occurrence still appears here while naturally active (decline
+  only suppresses the modal, never Settings' own Join). All Event Testing
+  tooling (the EventClock override, manifest-refresh buttons) lives
+  exclusively under Settings → Developer, revealed only once Admin Mode
+  is on, and reads the exact same `getEffectiveEventDate` the real
+  lifecycle uses — there is no separate Halloween-only testing path.
+- **A normal Draft and an Event Draft coexist**, fully independent
+  (`sourceEventId: null` vs. a real event id) — both can be active for
+  the same profile at once, each scope's `hasActiveDraft`/
+  `getActiveOrExpiredDraft` sees only its own, and a film shared by both
+  is watched/completed independently in each with its own idempotent
+  reward (never double-counted Lifetime Points, never a duplicate Event-
+  currency award) — see `dual-draft-architecture.integration.test.ts`.
+- **Halloween's deadline is fixed**, never a Calendar/Timer choice: every
+  Halloween Draft persists `1 November 00:00` (the profile's own
+  timezone) as `deadlineAt` regardless of when during the window it was
+  created, displayed to the user as "31 October at midnight"
+  (`describeFixedEventDeadline`, which reads one minute before the
+  boundary so the date part never shows the technically-correct-but-
+  confusing "1 November"). The event-window time-progress bar (shown even
+  before a Draft exists, on the empty state) always measures the WHOLE
+  30 September 19:00 → 1 November 00:00 window, never a per-Draft
+  creation-to-deadline span.
+- **Navigation**: `Watchlist, Drafts, <joined Event(s)>, History, Stats`
+  — an Event's nav tab inserts right after Drafts, never appended after
+  Stats, matching how closely a seasonal Draft destination relates to the
+  normal Drafts tab.
+- **Event Gameplay is a pure per-profile flag, not a leave action.**
+  Turning it off only flips `EventSettings.eventsEnabled`, blocking new
+  Draft creation with a clear explanation — it never touches occurrence
+  participation, never removes the joined page/nav, and never touches an
+  existing Draft. Event Visuals is fully independent of it.
+
+**This pass's findings:**
+
+1. No Event-system regression was found in the sequences described above
+   — the join/decline/discovery/deadline/dual-Draft/navigation behaviour
+   already matched the canonical description live, in a real browser,
+   with zero console errors across every scenario exercised.
+2. A genuine, pre-existing, fully-reproducible e2e test-suite bug was
+   found and fixed while investigating what earlier phases this session
+   had mischaracterized as "environment flakiness": `/Baby draft/`
+   (lowercase, no `/i` flag) can never match the real default Draft title
+   format, "{Month} Baby Draft" (capitalized, month-prefixed, shipped
+   since v1.0.2's "default draft titles now include the month") — fixed
+   across 10 e2e files (20 occurrences) by adding case-insensitivity or,
+   where a click target rather than an assertion, switching to a case-
+   sensitive `/Baby Draft/` regex that still can't collide with History's
+   lowercase "Via Baby draft" origin line. Two further, distinct bugs this
+   surfaced once unmasked: an ambiguous `getByText("Never")` in
+   `backup-restore.spec.ts` (a second, unrelated "…never uploaded
+   anywhere" sentence on the same page) and a stale exact-text click
+   target in `historical-draft-sort.spec.ts`. Fixing this took the full
+   e2e suite from 56/69 to 67/69 passing — none of these three fixes
+   touched any Event-system or application code, only test assertions.
+3. Two genuine, reproducible failures remain, both fully outside the
+   Event system (`metadata-reconnection.spec.ts`'s request-count
+   mismatch; `watchlist-sort-filter.spec.ts`'s stale empty-state copy
+   expectation — the real copy is now "No films match" / "Clear search &
+   filters", not "No films match your filters" / "Reset filters") — left
+   unfixed as out of this pass's scope, reported as known Beta issues
+   rather than silently ignored.
+
+### Phase 20 — Event art system foundation: file-based asset packs
+
+A systems pass, not an illustration pass: moves Halloween's major
+artwork off hand-authored inline SVG/CSS and onto a reusable, generic,
+file-based "event art pack" any event can use, then proves that by
+scaffolding Christmas alongside it with zero event-specific code in the
+shared engine.
+
+- **`public/events/<eventId>/manifest.json`** is the one file a non-
+  engineer edits to repoint or add artwork — a flat, five-category
+  (`icons`/`decorations`/`modal`/`interactives`/`backgrounds`) map of
+  `slotName -> relative path`. Overwriting the file at a slot's path
+  (same filename) needs no code or manifest change at all; adding a
+  wholly new slot is a two-line JSON edit plus, only if some component
+  needs to actually render it, one line in that event's own small art
+  lookup file. See `public/events/README.md` for the full non-engineer
+  walkthrough — deliberately kept separate from, and cross-referenced
+  against, `src/domain/events/manifests/README.md`'s unrelated
+  remotely-fetched curated-FILM-list system, which this shares no code
+  or file with despite both projects calling their JSON a "manifest."
+- **`src/domain/events/event-art-pack.ts`** is the shared, event-
+  agnostic schema/loader (`eventArtPackSchema`, `parseEventArtPack`,
+  `resolveEventArtPath`) — it has no idea what a "pumpkin" or a "tree"
+  is, only that a category has named string slots. `parseEventArtPack`
+  throws on a malformed pack (an authoring bug, fails the build/test
+  suite immediately); `resolveEventArtPath` throws if code asks for a
+  slot the pack doesn't declare (code/data drift) — a DIFFERENT failure
+  mode from the file at a valid path being missing/corrupt on disk,
+  which neither function can see and isn't an error at this layer at
+  all.
+- **`src/components/events/event-art-image.tsx`** (`EventArtImage`) is
+  the one place an art-pack image actually renders — a thin `<img>`
+  wrapper that hides itself on a load error instead of showing a
+  broken-image icon, so a non-engineer's bad replacement file degrades
+  gracefully rather than crashing or defacing the page. Every Halloween
+  component that previously rendered a raw `<img>` (`halloween-pumpkin.
+tsx`, `halloween-gravestone.tsx`, `halloween-candy-bowl.tsx`,
+  `halloween-decorative-layer.tsx`, `halloween-dialog-decoration.tsx`)
+  now renders this instead — the `@next/next/no-img-element` eslint
+  suppression that used to repeat at every call site now lives in
+  exactly one file.
+- **`halloween-art.ts`** keeps its exact same exported keys
+  (`HALLOWEEN_ART.pumpkinLit`, `.gravestoneClean`, ...) so no consumer
+  needed to change — only its internals changed, from literal path
+  strings to a build-time `import` of `manifest.json` resolved through
+  `resolveEventArtPath`. Its 9 prior hand-authored SVGs (pumpkin ×4,
+  gravestone ×2, candy bowl ×3) were converted to transparent-background
+  PNGs and moved under `interactives/`; the modal/decorative-layer ghost
+  SVG became `modal/ghost.png`. (The rasterizer available in this
+  environment, librsvg 2.62 via `rsvg-convert`, doesn't understand CSS
+  Color 4 `oklch()` — every one of these SVGs authored its fills that
+  way — and silently rendered solid black without a fix; each SVG's
+  `oklch()` values were resolved to equivalent `rgba()` before
+  rasterizing, a one-off conversion step, not a new runtime dependency.)
+  Halloween's small ambient decorations (bats, cobwebs, stars, moon,
+  candles, bunting, tiny pumpkins, lollipops, wrapped candy — see
+  `halloween-decorations.tsx`) deliberately stayed inline SVG components,
+  per this phase's own format rule below, and were not touched.
+- **Format rule** (documented in `public/events/README.md`): PNG/WebP
+  for real illustrations (gravestones, pumpkins, candy bowls, ghosts,
+  modal art, background scenes); SVG stays reserved for nav icons and
+  small, genuinely-simpler-as-vectors ambient accents. A nav icon (e.g.
+  `HalloweenNavIcon`) is intentionally NOT part of the file-based art
+  pack at all — it needs per-element hover/focus micro-animation
+  (`nav-icon-halloween-flicker`, ...) that only a React/CSS component can
+  drive, so it stays exactly as it was.
+- **Christmas scaffold** (`public/events/christmas/`): a `manifest.json`
+  plus placeholder-quality (openly, visibly placeholder — a flat
+  labelled card, not real art) PNGs for `christmas-tree`, `presents`,
+  `snowman`, `stocking`, `candy-canes`, `fairy-lights`, and two modal
+  panels — proving the same manifest/loader/`EventArtImage` system
+  resolves correctly for a second event with no code branch anywhere in
+  `event-art-pack.ts` or `EventArtImage` checking which event it is. No
+  Christmas `EventDefinition`, page, route, or nav entry exists — this
+  is deliberately art-only scaffolding, per this phase's own "do not
+  build the full Christmas event logic yet." Its nav icon will reuse
+  `lucide-react`'s `Snowflake`, already reserved for it since the
+  Halloween art-direction phase — no icon file was needed for a scaffold
+  nothing renders yet.
+- **Verification**: full unit/integration suite (159 files / 1,772
+  tests, up from 157/1,761 — the two new test files/11 new tests are
+  `event-art-pack.test.ts` and `event-art-image.test.tsx`), lint, strict
+  typecheck, production build, the desktop static export (confirmed
+  `out/events/<eventId>/manifest.json` and every referenced PNG are
+  actually present in the exported tree, proving offline/Tauri asset
+  loading), `cargo check`, and the existing
+  `halloween-visual-experience.spec.ts` e2e suite (opt-in → theme →
+  gravestone 3-click reveal → pumpkin click → candy bowl → Haunted
+  jumpscare, plus the refresh/direct-reload check) — all green against
+  the real PNG-backed rendering path, not just unit-level mocks.
+
+### Phase 21 — Event art system: designed slots + weighted variants
+
+Replaces the fixed, always-identical decoration composition every event
+surface had (see Phase 20 above) with a reusable DESIGNED SLOT placement
+system: named layout positions that each pick — deterministically, once
+per session — from a weighted list of what might appear there, including
+an explicit "nothing" option. No Event mechanic changed; this is purely
+how decoration gets chosen and positioned.
+
+- **`src/domain/events/event-decoration-slots.ts`** is the pure, event-
+  agnostic model: 14 canonical slot names (`header-left`, `mid-right`,
+  `edge-peek-left`, `modal-top-left`, ...), a `DecorationVariantOption`
+  (`assetId` — `null` is a real, ordinarily-weighted "nothing" — plus
+  `weight`, optional `scale`/`offsetX`/`offsetY`/`opacity`, an optional
+  `layer` for depth ordering, and optional per-breakpoint tweak
+  overrides), and a `DecorationSlotConfig` (`visibleFrom`, the smallest
+  breakpoint this slot appears at — monotonic, matching this app's own
+  `hidden sm:block` convention: a slot never disappears on a WIDER
+  screen). `pickDecorationVariant(seed, variants)` is a deterministic
+  djb2-hash bucket pick — the same seed always returns the same variant
+  by reference, which is the entire mechanism behind "stable for a
+  session, never rerolled on a rerender." `resolveDecorationLayout`
+  resolves a whole layout at once, omitting any slot that picked
+  "nothing" rather than returning a null placeholder for it.
+- **Deterministic seed** = `eventId:layoutKey:profileId:sessionSeed:slot`.
+  `sessionSeed` is a `Math.random()` value cached once per browser
+  tab/session (`event-decoration-layer.tsx`) — stable for that session,
+  different on the next app launch, per this phase's own "ok if a new
+  session results in a different valid variant, but not every rerender."
+  It's deliberately NEVER read during the initial render: `useIsMounted`
+  (a `useSyncExternalStore` idiom, chosen over a `useState`+`useEffect`
+  pair specifically because that pair trips this project's `react-hooks/
+set-state-in-effect` lint rule) keeps every slot resolving to "nothing
+  yet" until a real browser has mounted the component, so a statically-
+  exported page's build-time-prerendered HTML never has to agree with the
+  client's own random value — there is no hydration mismatch to have.
+  Verified live: no hydration warnings and no `/events/...` 404s across a
+  full join-modal → Halloween-page flow in a real browser.
+- **`src/components/events/event-decoration-layer.tsx`** (`EventDecorationLayer`)
+  is the one generic renderer — it has no idea what event it's decorating,
+  only a layout, a caller-supplied asset registry (`assetId -> component`),
+  and a caller-supplied position map (`slot -> Tailwind position classes`,
+  since a page layer and a modal have different coordinate spaces). A
+  variant's scale/offset/opacity tweaks (and their per-breakpoint
+  overrides) become CSS custom properties consumed by a new
+  `.event-decoration-tweak` rule in `globals.css`, whose `var(--x-sm,
+var(--x-base, default))` fallback chain means an unset tier always
+  falls back down a tier, never to nothing. Always `aria-hidden`/
+  `pointer-events-none` at the root; an unknown asset id or a slot with
+  no position entry for that surface is silently skipped, never a crash.
+- **Halloween is fully wired to the new system** — `halloween-decorative-layer.tsx`
+  (the Event page) and `halloween-dialog-decoration.tsx` (the join modal,
+  now a real component — `HalloweenDialogDecoration` — since Designed
+  Slot resolution needs hooks, which `EventVisualTheme`'s
+  `DecorationComponent` field reflects; `event-intro-dialog.tsx` renders
+  it as `<presentationTheme.DecorationComponent />`) are both now thin
+  callers of `EventDecorationLayer` with their own real
+  `HALLOWEEN_PAGE_DECORATION_LAYOUT`/`HALLOWEEN_MODAL_DECORATION_LAYOUT`
+  (`halloween-decoration-layout.ts`) and `HALLOWEEN_DECORATION_REGISTRY`
+  (`halloween-decoration-registry.tsx`) — e.g. `mid-right`: ghost-1 (the
+  bundled raster hero) / ghost-2 (the small inline-SVG ghost) / a tiny
+  pumpkin / nothing; `header-right`: moon / moon+bat composition /
+  nothing; `lower-right`: a composed candy scatter / a composed pumpkin
+  cluster / ghost-2. Two of the task's own example picks had no real
+  source art (`cat-2` — no cat artwork exists anywhere in this project)
+  or would have duplicated the page's one singular INTERACTIVE gravestone
+  easter egg (a plain decorative "gravestone" option would read as a
+  second, broken-looking gravestone) — both were substituted with real,
+  already-existing pieces instead of inventing new illustrations.
+  `halloween-ambient-decorations.tsx` (the sparse cross-page teaser,
+  a separate, smaller surface never mentioned in this phase's brief) was
+  deliberately left untouched.
+- **Christmas proves reuse, not a real event**: `christmas-decoration-layout.ts`
+  - `christmas-decoration-registry.tsx` (+ two new placeholder-quality
+    accents, `ChristmasStar`/`ChristmasSnowCluster`) implement this phase's
+    own example config (`header-left`: star/snowflake cluster;
+    `header-right`: snowflake cluster/fairy lights; `lower-left`:
+    presents/tree; `lower-right`: snowman/stocking/nothing) through the
+    IDENTICAL `EventDecorationLayer`, with zero Christmas-specific code
+    anywhere in the engine. Not wired into any real page — no Christmas
+    `EventDefinition`, route, or nav entry exists.
+- **Verification**: full unit/integration suite (163 files / 1,799 tests,
+  up from 159/1,772 — new: `event-decoration-slots.test.ts` (determinism,
+  weighting, the "nothing" option, seed independence),
+  `event-decoration-layer.test.tsx` (a11y/pointer-events root, visibility
+  classing, unknown-asset/no-position graceful skip, no-flicker-on-
+  rerender), `halloween-decoration-layout.test.tsx` (every asset id the
+  real Halloween configs reference actually exists in the registry, both
+  surfaces render), `christmas-decoration-layout.test.tsx` (the reuse
+  proof)), lint, strict typecheck, production build, the Tauri static
+  export, `cargo check`, and the existing `halloween-visual-experience.
+spec.ts` e2e suite — all green.
+
+### Phase 22 — Event art system: Halloween integration
+
+Finishes wiring every remaining Halloween surface onto the asset-pack/
+Designed Slot systems (Phases 20–21) and widens the candy bowl to a
+genuine fourth image state. No Event lifecycle, Settings, or draft-
+generation logic changed — this phase is integration/presentation only.
+
+- **App-wide ambient decorations** (`halloween-ambient-decorations.tsx`,
+  shown on Watchlist/Drafts/Stats/Settings/... — every page except the
+  Halloween page itself, which stays the most richly decorated surface)
+  were the one remaining surface still hand-placing fixed `<div>`s
+  directly. Now a thin `EventDecorationLayer` caller
+  (`HALLOWEEN_AMBIENT_DECORATION_LAYOUT`, `halloween-ambient-decoration-
+layout.ts`) reusing the SAME registry the page/modal already use — 4
+  slots, each a single always-the-same pick (`weight: 1`), deliberately
+  preserving the exact 4 pieces/positions/opacities the pre-slot version
+  rendered, so this page's actual visual output is unchanged; only the
+  mechanism moved. `useHalloweenAmbientVisible`'s gating logic is
+  untouched.
+- **Candy bowl widened from 3 states to 4** — `full`/`medium`/`low`/
+  `empty` (was `full`/`partial`/`empty`), per this phase's explicit ask
+  for a genuine `low` state. `candy-bowl-low.png` (new) composites 3 real
+  candy-dot colors, sampled directly from the existing `medium` artwork,
+  onto the existing `empty` bowl body — same bowl silhouette as every
+  other state, just fewer pieces, rather than a new bowl drawing. New
+  thresholds: 6–8 → full, 3–5 → medium, 1–2 → low, 0 → empty.
+  `HALLOWEEN_ART.candyBowlPartial` was renamed to `candyBowlMedium` (its
+  manifest slot likewise `candy-bowl-partial` → `candy-bowl-medium`) to
+  read correctly against the new 4-state set.
+- **Gravestone/pumpkin were already image-state-mapped** (done in Phase 20) — this phase added the test coverage that was missing rather than
+  changing behaviour: asserting the actual bundled `<img src>` for each
+  of the pumpkin's 4 states, the gravestone's two layered images'
+  `src`s, the moss overlay's opacity fading step-by-step to exactly `0`
+  on reveal, and the name overlay's own hidden→shown transition and text
+  content. The name-overlay region (a percentage-positioned `<span>`
+  keyed to the artwork's own plaque coordinates) needed no code changes
+  at all to support this — confirming it really is "cleanly separated,
+  so later replacement art can preserve this with minimal changes," per
+  this phase's own ask.
+- **Modal and Event page decorations** (both empty-state and active-
+  Draft state — the same unconditional `HalloweenDecorativeLayer` wraps
+  both, per Phase 17's "no redirect" model) were already fully on the
+  Designed Slot system as of Phase 21; verified still correct, unchanged
+  this phase.
+- **Deliberately NOT moved onto the slot system** (audited, not
+  overlooked): the candy bowl's own floating candy pieces (functional
+  click targets tied to live `count` state, not placement decoration);
+  `HalloweenLinkedSliders`' three pool-label icon badges (a fixed
+  icon-to-label mapping — swapping one via a weighted random pick would
+  break its meaning, not vary its decoration); `HalloweenNavIcon` (needs
+  a real React component for its hover micro-animation, a documented
+  decision from Phase 20). None of these are "legacy scattered
+  decoration" in the sense this phase's audit targeted.
+- **Verification**: full unit/integration suite (163 files / 1,807
+  tests, up from 163/1,799 — new coverage in `halloween-candy-bowl.
+test.tsx` (4-state image mapping), `halloween-pumpkin.test.tsx` (4-
+  state image mapping), `halloween-gravestone.test.tsx` (both layered
+  images, moss fade steps, name-overlay hidden/shown), `halloween-
+ambient-decorations.test.tsx` (updated for the new profile-context
+  dependency); one pre-existing test's slot-name list updated for the
+  candy-bowl rename), lint, strict typecheck, production build, the
+  Tauri static export (confirmed `candy-bowl-low.png` present in the
+  exported tree), `cargo check`, the existing `halloween-visual-
+experience.spec.ts` e2e suite, and a temporary live-browser check
+  (screenshotted, then deleted) confirming the new candy-bowl `low`
+  state and the page's Designed Slot decorations render correctly
+  together with no broken images and no control overlap.
+
+### Phase 23 — Event art system: Christmas readiness (shared API + registry)
+
+A robustness/scaffolding pass proving the asset-pack/Designed Slot
+systems (Phases 20–22) are genuinely reusable beyond Halloween — no
+Christmas gameplay, `EventDefinition`, route, or nav entry was added.
+
+- **The shared Event Art API** is new this phase:
+  `resolveInteractiveAssetPath` (`event-art-pack.ts`, pure/domain) — the
+  generic version of the `Record<State, string>` + lookup pattern
+  Halloween's own interactive props each hand-roll, usable by any future
+  event's differently-shaped interactive prop without assuming a fixed
+  state count. `event-art-registry.tsx` (components layer) — a plain
+  in-memory `Map<eventId, EventArtRegistration>` (`registerEventArt`/
+  `getEventArtRegistration`/`getEventArtPack`/`getEventNavIcon`/
+  `getEventDecorationSurface`/`listRegisteredEventIds`) plus a generic
+  `<EventDecorationSurface eventId surfaceKey>` component — the one
+  lookup surface for an event's manifest, nav icon, decoration registry,
+  and named surfaces (`"page"`/`"modal"`/`"ambient"`/...), instead of a
+  caller importing that event's own hand-named constants directly. Every
+  field but `eventId`/`artPack` is optional — nothing here assumes an
+  event has a nav icon, any decoration registry, or a fixed surface set.
+- **Both real events register into it**: `halloween-art-registration.ts`
+  (Halloween's already-shipped art, nav icon, and all three real
+  surfaces) and `christmas-art-registration.ts` (Christmas's placeholder
+  scaffold, plus `lucide-react`'s `Snowflake` — reserved for Christmas
+  since the art-direction phase, never actually assigned in code until
+  now — registered as its nav icon here, still nowhere near real nav
+  resolution). `register-event-art.ts` imports both for their
+  side-effecting `registerEventArt` calls; imported once from
+  `app-shell.tsx`. Halloween's own components were NOT changed to read
+  through this registry — it's purely additive, so this proves the
+  shared API against real, already-correct data with zero regression
+  risk.
+- **Christmas demo integration**: a new dev-only Settings → Developer
+  section, `EventArtSystemPreviewSection`, visible only with Admin Mode
+  on (matching every other dev/testing affordance's own gating
+  convention). It enumerates `listRegisteredEventIds()` — no event name
+  is hardcoded in this component — and for each renders its nav icon (or
+  "no nav icon registered," a normal state), a per-category slot-count
+  summary read straight from its art pack, and a small LIVE
+  `EventDecorationSurface` preview of its `"page"` surface. Verified live
+  in a real browser (screenshotted, then deleted): Halloween and
+  Christmas both render correctly side by side through the identical
+  component, each showing its own icon, counts, and working decorations
+  — Christmas's placeholder PNGs (`presents.png`/`stocking.png` in the
+  screenshot) load and display exactly like Halloween's real art.
+- **Future extensibility**: audited the existing engine
+  (`event-art-pack.ts`, `event-decoration-slots.ts`, `EventDecorationLayer`,
+  `EventArtImage`) for Halloween-shaped assumptions and found none — no
+  fixed interactive-state count, no required category, no required
+  surface. Christmas registered with only a `"page"` surface (no
+  `"modal"`/`"ambient"`) and zero true interactive props, proving
+  different events can have entirely different shapes with no shared
+  code forcing parity. A future event (Carnival, ...) needs only its own
+  `manifest.json` + a small `<event>-art-registration.ts` file added to
+  `register-event-art.ts`'s import list — no engine change.
+- **Safe fallbacks** (mostly already true from earlier phases;
+  extended to the new registry level): `getEventArtPack`/`getEventNavIcon`/
+  `getEventDecorationSurface` return `undefined` for an event that was
+  never registered at all (a normal "doesn't exist yet" state, e.g.
+  Carnival today) — this is a DIFFERENT case from `resolveEventArtPath`
+  throwing for a registered-but-malformed manifest, which stays a loud
+  build/test-time failure since that's a real authoring bug, not a
+  missing feature. `EventDecorationSurface` renders `null` (never
+  throws) for an unregistered event, an event with no decoration
+  registry, or a surface key that event never declared.
+- **Simple replacement workflow** (Phase 20's own core promise) is
+  unaffected and reconfirmed: replacing a file under `public/events/
+<id>/` and rebuilding still needs zero code changes; adding a whole new
+  EVENT (not just a file) is now also just data plus one small
+  registration file, never a change to the shared engine.
+- **Verification**: full unit/integration suite (165 files / 1,824
+  tests, up from 163/1,807 — new: `event-art-registry.test.tsx` (generic
+  multi-event lookup, safe-undefined for unregistered events/surfaces,
+  `EventDecorationSurface` graceful degrade, the real Halloween+Christmas
+  registrations), `event-art-pack.test.ts` additions for
+  `resolveInteractiveAssetPath`, `event-art-system-preview-section.
+test.tsx`), lint, strict typecheck, production build, the Tauri static
+  export, `cargo check`, and a temporary live-browser screenshot check
+  (since deleted) of the dev preview section itself.

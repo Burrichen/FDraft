@@ -55,7 +55,9 @@ test("full lifecycle: import, draft, watch, export, wipe, import, verify restore
   await page.getByRole("button", { name: "Start a draft" }).click();
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: /^Mark ".*" as watched$/ })
     .first()
@@ -64,7 +66,7 @@ test("full lifecycle: import, draft, watch, export, wipe, import, verify restore
 
   // --- Export a backup ---
   await openSettings(page);
-  await expect(page.getByText("Never")).toBeVisible();
+  await expect(page.getByText("Never", { exact: true })).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export FDraft Backup" }).click();
   const download = await downloadPromise;
@@ -73,7 +75,7 @@ test("full lifecycle: import, draft, watch, export, wipe, import, verify restore
   );
   const backupPath = await download.path();
   expect(backupPath).not.toBeNull();
-  await expect(page.getByText("Never")).not.toBeVisible();
+  await expect(page.getByText("Never", { exact: true })).not.toBeVisible();
 
   // --- Wipe all local data (simulates a fresh device/reinstall) ---
   await page.evaluate(() => {
@@ -123,7 +125,9 @@ test("full lifecycle: import, draft, watch, export, wipe, import, verify restore
   await expect(page.getByText("4 films")).toBeVisible();
 
   await page.getByRole("link", { name: "Drafts" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await expect(page.getByText(/1\/5 watched/)).toBeVisible();
 });
 

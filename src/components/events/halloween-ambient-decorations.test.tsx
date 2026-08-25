@@ -26,6 +26,12 @@ vi.mock("@/components/events/event-discovery-provider", () => ({
   }),
 }));
 
+vi.mock("@/components/profiles/profile-provider", () => ({
+  useProfileContext: () => ({
+    activeProfile: { id: "profile-1", displayName: "Alex", settings: {} },
+  }),
+}));
+
 function halloweenStatus(
   overrides: Partial<EventOccurrenceStatus> = {},
 ): EventOccurrenceStatus {

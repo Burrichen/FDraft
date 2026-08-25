@@ -7,7 +7,6 @@ import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
-import { leaveEventOccurrence } from "@/application/events/event-opt-in";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
@@ -36,23 +35,31 @@ import { describeEventAvailabilityWindow } from "./event-availability-copy";
  *    the introduction modal, never the ability to join from here).
  *  - Currently in one: "Current Event" names it, offers an "Open <event>"
  *    link straight to its page, and exposes its two independent toggles —
- *    "Event Visuals" (purely cosmetic) and "Event Gameplay" (full
- *    participation; turning it off leaves the event — settings only,
- *    never touches any Draft, normal or the event's own).
+ *    "Event Visuals" (purely cosmetic) and "Event Gameplay".
  *
- * "Current Event" itself is still `EventSettings.activeEvent`/
- * `eventsEnabled` directly (unchanged) — deliberately NOT gated on the
- * event still being naturally available, since these two toggles are a
- * gameplay/reward-currency settings concern (see §9), not a page/nav
- * existence one: a profile should still be able to see and adjust its
- * Visuals setting, or explicitly leave, even after the event's natural
- * window has closed. "Available now" DOES read the shared
- * `EventDiscoveryProvider` snapshot (see docs/updates, "EVENT LIFECYCLE
- * REPAIR" §4), so it correctly excludes anything already joined through
- * occurrence-participation even in the (currently unreachable) case where
- * that diverges from `activeEvent`. Every mutation refreshes BOTH the
- * local settings read and the shared discovery snapshot, so navigation
- * never lags behind a join/leave made here.
+ * "Current Event" is shown whenever `EventSettings.activeEvent` names an
+ * event this profile is genuinely JOINED to (occurrence participation
+ * `"joined"`) — NOT gated on `eventsEnabled` (see docs/updates, "HALLOWEEN
+ * PAGE REBUILD" §10, fixing a real bug: turning Event Gameplay off used to
+ * ALSO decline the occurrence via `leaveEventOccurrence`, which silently
+ * removed the profile's joined page/nav the moment Gameplay was switched
+ * off — a destructive side effect nothing about "Gameplay" should ever
+ * imply). "Event Gameplay" now does exactly one thing: flips
+ * `EventSettings.eventsEnabled`, a plain per-profile flag consumers like
+ * Halloween's own create-Draft flow read to decide whether NEW gameplay
+ * actions are currently allowed — it never touches participation, never
+ * removes the page/nav, and never touches any Draft. Leaving an event
+ * entirely isn't exposed here at all (no such affordance previously
+ * existed either) — `leaveEventOccurrence` (`event-opt-in.ts`) remains
+ * available for a future explicit "Leave" action, just no longer wired to
+ * this checkbox. Also NOT gated on the event still being naturally
+ * available — a profile should still be able to see and adjust these
+ * toggles even after the event's natural window has closed. "Available
+ * now" DOES read the shared `EventDiscoveryProvider` snapshot (see
+ * docs/updates, "EVENT LIFECYCLE REPAIR" §4), so it correctly excludes
+ * anything already joined through occurrence-participation. Every
+ * mutation refreshes BOTH the local settings read and the shared
+ * discovery snapshot, so navigation never lags behind a change made here.
  */
 export function EventSwitcherSection() {
   const { activeProfile, repositories } = useProfileContext();
@@ -85,18 +92,13 @@ export function EventSwitcherSection() {
   const currentEvent = settings.activeEvent
     ? getEventDefinition(settings.activeEvent)
     : null;
-  const isCurrentlyJoined = settings.eventsEnabled && currentEvent !== null;
-
-  // The occurrence key for whatever the CURRENT event is, if any — needed
-  // only so leaving can record the correct occurrence as declined (see
-  // `handleLeaveCurrentEvent`); computed regardless of `available`, since
-  // an occurrence key exists independent of whether the window happens to
-  // still be open right now.
   const currentEventStatus = currentEvent
     ? discovery.result.statuses.find(
         (status) => status.event.id === currentEvent.id,
       )
     : undefined;
+  const isCurrentlyJoined =
+    currentEvent !== null && currentEventStatus?.participation === "joined";
 
   const joinedEventIds = new Set(
     discovery.result.statuses
@@ -130,14 +132,13 @@ export function EventSwitcherSection() {
     }
   }
 
-  async function handleLeaveCurrentEvent() {
-    if (!profileId || !currentEvent) return;
+  async function handleEventGameplayChange(value: boolean) {
+    if (!profileId || !settings) return;
     setIsSaving(true);
     try {
-      await leaveEventOccurrence(repositories, {
-        profileId,
-        eventId: currentEvent.id,
-        occurrenceKey: currentEventStatus?.occurrenceKey ?? null,
+      await setEventSettings(repositories, profileId, {
+        ...settings,
+        eventsEnabled: value,
       });
       await refreshAll();
     } catch (cause) {
@@ -209,8 +210,9 @@ export function EventSwitcherSection() {
                   Event Gameplay
                 </Label>
                 <p className="text-muted-foreground text-sm">
-                  Turn off to leave {currentEvent.name} — your normal Draft, if
-                  you have one, is never affected.
+                  When off, you can&apos;t start a new {currentEvent.name} Draft
+                  — your page, existing Drafts, and history all stay exactly as
+                  they are.
                 </p>
               </div>
               <input
@@ -218,11 +220,9 @@ export function EventSwitcherSection() {
                 type="checkbox"
                 checked={settings.eventsEnabled}
                 disabled={isSaving}
-                onChange={(event) => {
-                  if (!event.target.checked) {
-                    void handleLeaveCurrentEvent();
-                  }
-                }}
+                onChange={(event) =>
+                  void handleEventGameplayChange(event.target.checked)
+                }
                 className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
               />
             </div>

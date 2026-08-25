@@ -89,7 +89,9 @@ export function EventIntroDialog() {
       <AlertDialogContent className={presentationTheme?.rootClassName}>
         {candidate ? (
           <>
-            {presentationTheme?.renderDecoration?.()}
+            {presentationTheme?.DecorationComponent ? (
+              <presentationTheme.DecorationComponent />
+            ) : null}
             <AlertDialogHeader>
               <AlertDialogTitle
                 className={cn(

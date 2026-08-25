@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "FDraft",
-  "version": "1.2.0-beta.4",
+  "productName": "FDraft (Beta)",
+  "version": "1.2.0-beta.5",
   "identifier": "com.burrichen.fdraft",
   "build": {
     "frontendDist": "../out",
@@ -21,7 +21,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "FDraft",
+        "title": "FDraft (Beta)",
         "width": 1280,
         "height": 860,
         "minWidth": 960,
@@ -44,11 +44,11 @@
     "category": "Entertainment",
     "shortDescription": "A local-first Letterboxd watchlist and Monthly Watchlist Draft companion.",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/beta/32x32.png",
+      "icons/beta/128x128.png",
+      "icons/beta/128x128@2x.png",
+      "icons/beta/icon.icns",
+      "icons/beta/icon.ico"
     ],
     "windows": {
       "nsis": {

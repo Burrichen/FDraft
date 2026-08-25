@@ -34,7 +34,9 @@ test("a Calendar Mode draft created partway through the month shows real month p
   await page.getByRole("button", { name: /^Baby/ }).click();
   // Calendar Mode is the default toggle state — deliberately left unclicked.
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   const elapsedText = page.getByText(/% elapsed/).first();
   await expect(elapsedText).toBeVisible();
@@ -71,7 +73,9 @@ test("a Timer Mode draft's progress still measures from its own creation instant
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("radio", { name: /^Timer/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   // Just created — 0% elapsed of the 30-day timer, unaffected by whatever
   // day of the month it happens to be.

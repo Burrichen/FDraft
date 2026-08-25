@@ -75,7 +75,9 @@ test("shows which draft a watched film came from, when it came from one", async 
   await page.getByRole("button", { name: "Start a draft" }).click();
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: /^Mark ".*" as watched$/ })
     .first()

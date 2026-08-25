@@ -195,6 +195,58 @@ describe("NavLinks — temporary Event navigation item (PROMPT 18)", () => {
   });
 });
 
+describe("useNavItems — Event tab position (HALLOWEEN PAGE REBUILD §1)", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("inserts the Halloween tab right after Drafts, not after Stats", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: true,
+      activeEvent: HALLOWEEN_EVENT_ID,
+    });
+
+    render(<ProbeHarness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText(/\/events\/halloween/)).toBeInTheDocument(),
+    );
+    const hrefs = screen
+      .getAllByRole("listitem")
+      .map((item) => item.textContent?.split("|")[0].trim());
+    expect(hrefs).toEqual([
+      "/watchlist",
+      "/drafts",
+      "/events/halloween",
+      "/drafts/history",
+      "/stats",
+    ]);
+  });
+
+  it("inserts the January tab right after Drafts too", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: true,
+      activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
+    });
+
+    render(<ProbeHarness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText(/\/events\/january/)).toBeInTheDocument(),
+    );
+    const hrefs = screen
+      .getAllByRole("listitem")
+      .map((item) => item.textContent?.split("|")[0].trim());
+    expect(hrefs).toEqual([
+      "/watchlist",
+      "/drafts",
+      "/events/january",
+      "/drafts/history",
+      "/stats",
+    ]);
+  });
+});
+
 describe("useNavItems — Halloween active-accent override (PROMPT 20)", () => {
   afterEach(() => {
     cleanup();

@@ -11,6 +11,7 @@ import {
   useHalloweenAmbientVisible,
 } from "@/components/events/halloween-ambient-decorations";
 import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
+import "@/components/events/register-event-art";
 import { Header } from "@/components/layout/header";
 import { FirstRunScreen } from "@/components/profiles/first-run-screen";
 import { ProfilePicker } from "@/components/profiles/profile-picker";

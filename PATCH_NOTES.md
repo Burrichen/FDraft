@@ -1,5 +1,17 @@
 # Patch Notes
 
+### v1.2.0-beta.5 — Trick or Treat (Beta 5)
+
+#### Changed
+
+- Halloween's gravestone, pumpkin, and candy bowl now use real bundled artwork instead of hand-drawn shapes, including a new, genuinely-emptier "low" candy bowl state between medium and empty.
+- Halloween's decorations — on its own page, in the join popup, and lightly on other pages — now vary a little from session to session instead of always looking exactly the same.
+- Beta builds are now named "FDraft (Beta)" with a pale blue icon, so a beta install is never mistaken for a real release sitting next to it.
+
+#### Added
+
+- Added a Developer-only "Event art system" preview (Settings → Developer → Admin Mode) for checking future seasonal art, like an early Christmas placeholder, without turning it on for real.
+
 ### v1.2.0-beta.4 — Trick or Treat (Beta 4)
 
 #### Changed

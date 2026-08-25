@@ -97,23 +97,36 @@ export function HalloweenCandy({ className, ...props }: DecorationProps) {
   );
 }
 
-/** A small, tuckable jack-o'-lantern silhouette — deliberately simpler/rounder than the nav tab's `HalloweenNavIcon` (see docs/updates, "PROMPT B2.3 — HALLOWEEN JOIN MODAL COMPLETE REDESIGN": "spread throughout... tucked behind card edges"), sized for a corner rather than a nav icon. */
+/** A small, tuckable jack-o'-lantern silhouette — deliberately simpler/rounder than the nav tab's `HalloweenNavIcon` (see docs/updates, "PROMPT B2.3 — HALLOWEEN JOIN MODAL COMPLETE REDESIGN": "spread throughout... tucked behind card edges"), sized for a corner rather than a nav icon. Given a proper curled stem and visible groove lines in "HALLOWEEN ART DIRECTION & ASSET PASS" §3/§8 — the previous version was a bare filled blob with no ridges at all, exactly the "circle pretending to be an object" complaint that pass called out. */
 export function HalloweenTinyPumpkin({ className, ...props }: DecorationProps) {
   return (
     <svg
       viewBox="0 0 24 20"
-      fill="currentColor"
       className={cn("text-halloween-pumpkin", className)}
       {...props}
     >
       <path
-        d="M11 3V1.3a1 1 0 0 1 2 0V3"
+        d="M11.5 3c-.3-1.6.6-2.7 1.7-2.7"
         stroke="currentColor"
         fill="none"
-        strokeWidth={1.2}
+        strokeWidth={1.3}
         strokeLinecap="round"
+        className="text-halloween-stem"
       />
-      <path d="M2 12c0-5.5 4.5-8 10-8s10 2.5 10 8c0 4.4-4.5 7-10 7S2 16.4 2 12z" />
+      <path
+        d="M2 12c0-5.5 4.5-8 10-8s10 2.5 10 8c0 4.4-4.5 7-10 7S2 16.4 2 12z"
+        fill="currentColor"
+      />
+      <g
+        stroke="oklch(0.15 0.012 290)"
+        strokeOpacity={0.3}
+        strokeWidth={0.6}
+        fill="none"
+      >
+        <path d="M8 5.5c-1.5 2-1.5 8.5 0 12.5" />
+        <path d="M12 4.6v13.8" />
+        <path d="M16 5.5c1.5 2 1.5 8.5 0 12.5" />
+      </g>
     </svg>
   );
 }
@@ -134,25 +147,41 @@ export function HalloweenGhost({ className, ...props }: DecorationProps) {
   );
 }
 
-/** A thin thread with a small ornament at the end — for "hanging decorations" strung along an edge (see docs/updates, "PROMPT B2.3", "DECORATION DEPTH": mid-layer "bats/hanging ornaments"). The ornament is a plain small circle; callers vary length/rotation for a natural, uneven hang. */
+/** A small vintage paper lantern hanging from a thread — for "hanging decorations" strung along an edge (see docs/updates, "PROMPT B2.3", "DECORATION DEPTH": mid-layer "bats/hanging ornaments"; redrawn from a plain circle-on-a-thread in "HALLOWEEN ART DIRECTION & ASSET PASS" §3/§8 — an accordion-pleated paper lantern with a cap/base and a warm glow slit, the kind of period-correct honeycomb decoration this palette is built around, not a dot. Callers vary length/rotation for a natural, uneven hang. */
 export function HalloweenHangingOrnament({
   className,
   ...props
 }: DecorationProps) {
   return (
-    <svg
-      viewBox="0 0 8 28"
-      fill="none"
-      className={cn("text-halloween-cream/50", className)}
-      {...props}
-    >
-      <path d="M4 0v20" stroke="currentColor" strokeWidth={1} />
-      <circle
-        cx="4"
-        cy="24"
-        r="3.5"
-        fill="currentColor"
-        className="text-halloween-purple"
+    <svg viewBox="0 0 12 30" fill="none" className={cn(className)} {...props}>
+      <path
+        d="M6 0v6"
+        stroke="currentColor"
+        strokeWidth={1}
+        className="text-halloween-cream/50"
+      />
+      <path d="M2.5 6h7l-1 2h-5z" className="fill-halloween-purple/70" />
+      <path
+        d="M2 8c0 6-1.2 10 0 16 1 2 8 2 9 0 1.2-6 0-10 0-16z"
+        className="fill-halloween-pumpkin/85"
+        stroke="oklch(0.15 0.012 290)"
+        strokeWidth={0.6}
+      />
+      <path
+        d="M2.4 11h8M2.1 15h8.6M2.4 19h8"
+        stroke="oklch(0.15 0.012 290)"
+        strokeWidth={0.5}
+        opacity={0.35}
+      />
+      <path d="M2.5 24h7l-1 2h-5z" className="fill-halloween-purple/70" />
+      <rect
+        x="5"
+        y="10"
+        width="2"
+        height="10"
+        rx="1"
+        className="fill-halloween-glow/80"
+        opacity={0.7}
       />
     </svg>
   );
@@ -226,15 +255,46 @@ export function HalloweenBunting({ className, ...props }: DecorationProps) {
   );
 }
 
-/** A crooked little candle with a soft flame — the flame gets a gentle flicker via `.halloween-candle-flicker` (reduced-motion gated, see globals.css), the one animated decoration in this file besides the bat/ornament sway. */
+/** A dimensional wax-cylinder candle with a soft flame — the previous version was a single bare stroked line with no visible body at all (see docs/updates, "HALLOWEEN ART DIRECTION & ASSET PASS" §3: "candles or small vintage ornaments"); now a real tapered wax body with a highlight stripe, drip texture, and a wick, plus a slight crooked lean for handmade charm. The flame gets a gentle flicker via `.halloween-candle-flicker` (reduced-motion gated, see globals.css), the one animated decoration in this file besides the bat/ornament sway. */
 export function HalloweenCandle({ className, ...props }: DecorationProps) {
   return (
     <svg viewBox="0 0 12 24" fill="none" className={cn(className)} {...props}>
+      <ellipse
+        cx="6"
+        cy="23"
+        rx="4.5"
+        ry="1"
+        className="fill-halloween-charcoal/40"
+      />
       <path
-        d="M4 24V9c0-1 .4-1.6 1-2l1.5-1"
-        stroke="var(--halloween-cream)"
-        strokeOpacity={0.55}
-        strokeWidth={2.4}
+        d="M2.6 22.5 3 10c.1-1 .6-1.6 1.2-2l1-.6-.3 14.6z"
+        fill="var(--halloween-cream)"
+        fillOpacity={0.65}
+      />
+      <path
+        d="M4.9 7.4 6.1 6.8c.6.4 1.1 1 1.2 2l.5 13.2-3.4.1z"
+        fill="var(--halloween-cream)"
+        fillOpacity={0.4}
+      />
+      <path
+        d="M3.9 22.6 4.3 9.2"
+        stroke="var(--halloween-charcoal)"
+        strokeOpacity={0.25}
+        strokeWidth={0.7}
+        strokeLinecap="round"
+      />
+      <path
+        d="M5 9c.4-.6.9-.4 1.1.4"
+        stroke="var(--halloween-charcoal)"
+        strokeOpacity={0.3}
+        strokeWidth={0.6}
+        fill="none"
+      />
+      <path
+        d="M5.6 7.5 5.9 5.6"
+        stroke="var(--halloween-charcoal)"
+        strokeOpacity={0.5}
+        strokeWidth={0.9}
         strokeLinecap="round"
       />
       <path
@@ -245,7 +305,7 @@ export function HalloweenCandle({ className, ...props }: DecorationProps) {
   );
 }
 
-/** A round wrapped lollipop — a second candy silhouette alongside `HalloweenCandy`'s bowtie wrapper, for shape variety in the candy bowl and any ambient decoration cluster. */
+/** A swirled lollipop — the previous version was a plain flat circle with two faint arcs, exactly the "circle pretending to be an object" complaint (see docs/updates, "HALLOWEEN ART DIRECTION & ASSET PASS" §1/§3); now a genuine painted spiral swirl on the disc, alongside `HalloweenCandy`'s bowtie wrapper for shape variety in the candy bowl and any ambient decoration cluster. */
 export function HalloweenLollipop({ className, ...props }: DecorationProps) {
   return (
     <svg viewBox="0 0 16 20" fill="none" className={cn(className)} {...props}>
@@ -256,12 +316,47 @@ export function HalloweenLollipop({ className, ...props }: DecorationProps) {
         strokeWidth={1.4}
         strokeLinecap="round"
       />
-      <circle cx="8" cy="6" r="6" fill="currentColor" />
+      <circle
+        cx="8"
+        cy="6"
+        r="6"
+        fill="currentColor"
+        stroke="oklch(0.15 0.012 290)"
+        strokeWidth={0.5}
+        strokeOpacity={0.4}
+      />
       <path
-        d="M8 1a5 5 0 0 1 5 5M4 2.5A6 6 0 0 0 2 6"
+        d="M8 6 8 1.3A4.7 4.7 0 0 1 12.7 6 4.7 4.7 0 0 1 8 10.7 3.3 3.3 0 0 1 4.7 7.4 2 2 0 0 1 6.7 5.4"
         stroke="var(--halloween-charcoal)"
-        strokeOpacity={0.18}
+        strokeOpacity={0.4}
         strokeWidth={1}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+/** A round bonbon with twisted wrapper ends — a third candy silhouette (see docs/updates, "HALLOWEEN ART DIRECTION & ASSET PASS" §3/§6) distinct from `HalloweenCandy`'s bowtie and `HalloweenLollipop`'s disc, for genuine shape variety inside the candy bowl. */
+export function HalloweenWrappedCandy({
+  className,
+  ...props
+}: DecorationProps) {
+  return (
+    <svg
+      viewBox="0 0 22 14"
+      fill="currentColor"
+      className={cn(className)}
+      {...props}
+    >
+      <path d="M6 2 1 0v14l5-2z" />
+      <path d="M16 2 21 0v14l-5-2z" />
+      <circle cx="11" cy="7" r="6" />
+      <path
+        d="M7 4.5 15 9.5M15 4.5 7 9.5"
+        stroke="oklch(0.15 0.012 290)"
+        strokeOpacity={0.2}
+        strokeWidth={0.8}
         fill="none"
       />
     </svg>

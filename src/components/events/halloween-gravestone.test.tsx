@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HALLOWEEN_ART } from "./halloween-art";
 import { HalloweenGravestone } from "./halloween-gravestone";
 
 const LONG_NAME = "Alexandria the Great Watcher of Very Long Names Indeed";
@@ -84,6 +85,49 @@ describe("HalloweenGravestone", () => {
     mockActiveProfile = null;
     const { container } = render(<HalloweenGravestone />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("HalloweenGravestone — image state mapping and name overlay", () => {
+  it("layers both bundled gravestone images (base + moss overlay) from the asset pack", () => {
+    const { container } = render(<HalloweenGravestone />);
+    const images = container.querySelectorAll("img");
+    expect(images).toHaveLength(2);
+    expect(images[0]).toHaveAttribute("src", HALLOWEEN_ART.gravestoneClean);
+    expect(images[1]).toHaveAttribute("src", HALLOWEEN_ART.gravestonePlain);
+  });
+
+  it("the moss overlay fades out click by click, fully clearing only on reveal", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HalloweenGravestone />);
+    const mossImage = () => container.querySelectorAll("img")[1];
+    const button = screen.getByRole("button", { name: "Old gravestone" });
+
+    expect(mossImage()).toHaveStyle({ opacity: "1" });
+    await user.click(button);
+    expect(mossImage()).toHaveStyle({ opacity: "0.5" });
+    await user.click(button);
+    expect(mossImage()).toHaveStyle({ opacity: "0.15" });
+    await user.click(button);
+    expect(mossImage()).toHaveStyle({ opacity: "0" });
+  });
+
+  it("overlays the profile name as hidden, non-interactive text until revealed, then shows it in place", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HalloweenGravestone />);
+    const button = screen.getByRole("button", { name: "Old gravestone" });
+
+    const overlay = () =>
+      container.querySelector('span[aria-hidden="true"]') as HTMLElement;
+    expect(overlay()).toHaveClass("opacity-0");
+    expect(overlay()).not.toHaveTextContent(LONG_NAME);
+
+    await user.click(button);
+    await user.click(button);
+    await user.click(button);
+
+    expect(overlay()).toHaveClass("opacity-100");
+    expect(overlay()).toHaveTextContent(LONG_NAME);
   });
 });
 

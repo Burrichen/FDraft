@@ -37,6 +37,11 @@ const EVENT_NAV_ICONS: Record<
  * and its own separate fetch had no way to learn about a join that
  * happened elsewhere. Every consumer now shares the exact same snapshot,
  * so this can never lag behind what just happened.
+ *
+ * Inserted right after "Drafts" (see docs/updates, "HALLOWEEN PAGE
+ * REBUILD" §1) rather than appended at the end — a seasonal Draft
+ * destination is close kin to the normal Drafts tab, and a normal user
+ * should never have to look past History/Stats to find it.
  */
 export function useNavItems(): NavItem[] {
   const { result } = useEventDiscovery();
@@ -62,5 +67,11 @@ export function useNavItems(): NavItem[] {
     })
     .filter((item): item is NavItem => item !== null);
 
-  return [...NAV_ITEMS, ...eventNavItems];
+  const draftsIndex = NAV_ITEMS.findIndex((item) => item.href === "/drafts");
+  const insertAt = draftsIndex === -1 ? NAV_ITEMS.length : draftsIndex + 1;
+  return [
+    ...NAV_ITEMS.slice(0, insertAt),
+    ...eventNavItems,
+    ...NAV_ITEMS.slice(insertAt),
+  ];
 }

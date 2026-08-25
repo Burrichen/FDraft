@@ -4,6 +4,7 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { resolveAdminMode } from "@/domain/profiles/profile";
 import { AdminModeSection } from "./admin-mode-section";
+import { EventArtSystemPreviewSection } from "./event-art-system-preview-section";
 import { EventTestingSection } from "./event-testing-section";
 import { HalloweenManifestSection } from "./halloween-manifest-section";
 import { JanuaryManifestSection } from "./january-manifest-section";
@@ -38,6 +39,7 @@ export function DeveloperSection() {
           <EventTestingSection />
           <HalloweenManifestSection />
           <JanuaryManifestSection />
+          <EventArtSystemPreviewSection />
         </>
       ) : null}
     </div>

@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setEventDateOverride } from "@/application/events/event-date-override-store";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
@@ -8,10 +9,19 @@ import { HalloweenDraftCreationView } from "./halloween-draft-creation-view";
 
 const PROFILE_ID = "alex";
 
-function Harness({ databaseName }: { databaseName: string }) {
+function Harness({
+  databaseName,
+  gameplayEnabled = true,
+}: {
+  databaseName: string;
+  gameplayEnabled?: boolean;
+}) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <HalloweenDraftCreationView onCreated={() => {}} />
+      <HalloweenDraftCreationView
+        onCreated={() => {}}
+        gameplayEnabled={gameplayEnabled}
+      />
     </ProfileProvider>
   );
 }
@@ -98,23 +108,26 @@ describe("HalloweenDraftCreationView — availability gate (PROMPT 21)", () => {
   });
 });
 
-describe("HalloweenDraftCreationView — fixed Event deadline, no Calendar/Timer selector (PROMPT B2.2)", () => {
+describe("HalloweenDraftCreationView — fixed Event deadline, no Calendar/Timer selector (PROMPT B2.2, copy revised by HALLOWEEN PAGE REBUILD §6)", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
   });
 
-  it("shows the real Event deadline and never offers a Calendar/Timer mode choice", async () => {
+  it("shows the real Event deadline (as '31 October at midnight', not the raw '1 November 00:00' instant) and never offers a Calendar/Timer mode choice", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+    const user = userEvent.setup();
 
     render(<Harness databaseName={databaseName} />);
+    await user.click((await screen.findAllByText("Create Halloween Draft"))[0]);
     await waitFor(() =>
       expect(screen.getByText("Event Deadline")).toBeInTheDocument(),
     );
-    expect(screen.getByText(/1 november/i)).toBeInTheDocument();
+    expect(screen.getByText("Ends 31 October at midnight")).toBeInTheDocument();
+    expect(screen.queryByText(/1 november/i)).not.toBeInTheDocument();
 
     // No trace of the removed mode selector anywhere on the page.
     expect(screen.queryByText(/^Calendar$/i)).not.toBeInTheDocument();
@@ -123,7 +136,7 @@ describe("HalloweenDraftCreationView — fixed Event deadline, no Calendar/Timer
     expect(screen.queryByRole("button", { name: /^timer$/i })).toBeNull();
   });
 
-  it("shows the SAME deadline (1 November) regardless of where in the window 'now' falls", async () => {
+  it("shows the SAME deadline (31 October at midnight) regardless of where in the window 'now' falls", async () => {
     for (const now of [
       "2026-09-30T19:15:00.000Z",
       "2026-10-15T00:00:00.000Z",
@@ -133,14 +146,88 @@ describe("HalloweenDraftCreationView — fixed Event deadline, no Calendar/Timer
       await seedProfile(databaseName);
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date(now));
+      const user = userEvent.setup();
 
       const { unmount } = render(<Harness databaseName={databaseName} />);
+      await user.click(
+        (await screen.findAllByText("Create Halloween Draft"))[0],
+      );
       await waitFor(() =>
         expect(screen.getByText("Event Deadline")).toBeInTheDocument(),
       );
-      expect(screen.getByText(/1 november/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("Ends 31 October at midnight"),
+      ).toBeInTheDocument();
       unmount();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("HalloweenDraftCreationView — Event-window time progress (HALLOWEEN PAGE REBUILD §7)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("shows progress through the WHOLE event window before any Draft exists, roughly midway around 15 October", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T19:30:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText(/% elapsed/)).toBeInTheDocument(),
+    );
+    const elapsedText = screen.getByText(/% elapsed/).textContent ?? "";
+    const percent = Number(elapsedText.match(/(\d+)% elapsed/)?.[1]);
+    expect(percent).toBeGreaterThan(40);
+    expect(percent).toBeLessThan(60);
+  });
+
+  it("shows the collapsed 'No Halloween Draft yet' step first, revealing the difficulty/pool controls only after Create is clicked", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("No Halloween Draft yet.")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Choose a difficulty")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Create Halloween Draft" }),
+    );
+
+    expect(screen.getByText("Choose a difficulty")).toBeInTheDocument();
+  });
+});
+
+describe("HalloweenDraftCreationView — Event Gameplay off (HALLOWEEN PAGE REBUILD §10)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("shows a clear explanation instead of the Create button, but still shows event-window progress", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} gameplayEnabled={false} />);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Event Gameplay is turned off/),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Create Halloween Draft" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/% elapsed/)).toBeInTheDocument();
   });
 });

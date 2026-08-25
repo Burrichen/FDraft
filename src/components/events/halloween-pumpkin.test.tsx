@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { HALLOWEEN_ART } from "./halloween-art";
 import { HalloweenPumpkin } from "./halloween-pumpkin";
 
 const updateProfileSettings = vi.fn().mockResolvedValue(undefined);
@@ -59,6 +60,29 @@ describe("HalloweenPumpkin", () => {
     mockActiveProfile = null;
     const { container } = render(<HalloweenPumpkin />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("HalloweenPumpkin — image state mapping", () => {
+  it("renders the bundled image for each of the four states", () => {
+    const cases: Array<[string, string]> = [
+      ["uncarved", HALLOWEEN_ART.pumpkinUncarved],
+      ["carved", HALLOWEEN_ART.pumpkinCarved],
+      ["lit", HALLOWEEN_ART.pumpkinLit],
+      ["rotting", HALLOWEEN_ART.pumpkinRotting],
+    ];
+    for (const [state, expectedSrc] of cases) {
+      mockActiveProfile = {
+        id: "profile-1",
+        settings: { halloweenPumpkinState: state },
+      };
+      const { container, unmount } = render(<HalloweenPumpkin />);
+      expect(container.querySelector("img")).toHaveAttribute(
+        "src",
+        expectedSrc,
+      );
+      unmount();
+    }
   });
 });
 

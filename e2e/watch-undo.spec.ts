@@ -106,7 +106,9 @@ test("undoing the film that completed a draft's last remaining slot reverses the
   await page.getByRole("button", { name: "Start a draft" }).click();
   await page.getByRole("button", { name: /^Baby/ }).click();
   await page.getByRole("button", { name: "Create draft" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
 
   // Mark all 5 films in this Baby draft watched, completing it early.
   for (let i = 0; i < 5; i++) {
@@ -129,7 +131,9 @@ test("undoing the film that completed a draft's last remaining slot reverses the
   await page.getByRole("link", { name: "Watchlist" }).click();
   await expect(page.getByRole("heading", { name: "Watchlist" })).toBeVisible();
   await page.getByRole("link", { name: "Drafts" }).click();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await expect(page.getByText(/5\/5 watched/)).toBeVisible();
 
   // Undo the LAST one marked (DOM order follows the draft's fixed
@@ -139,7 +143,9 @@ test("undoing the film that completed a draft's last remaining slot reverses the
   // the films still to watch.
   await undoButtons.last().click();
   await expect(page.getByText(/4\/5 watched/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Mark ".*" as watched$/ }),
   ).toHaveCount(1);
@@ -147,6 +153,8 @@ test("undoing the film that completed a draft's last remaining slot reverses the
   // And that reversal survives a refresh too — the draft is genuinely
   // active again in the database, not just visually patched up.
   await page.reload();
-  await expect(page.getByRole("heading", { name: /Baby draft/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Baby draft/i }),
+  ).toBeVisible();
   await expect(page.getByText(/4\/5 watched/)).toBeVisible();
 });

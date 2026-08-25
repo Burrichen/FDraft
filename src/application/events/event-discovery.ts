@@ -82,6 +82,20 @@ export interface EventDiscoveryResult {
   statuses: EventOccurrenceStatus[];
   /** Forwarded so a themed consumer (the intro modal, a nav icon) doesn't need a second `EventSettings` read of its own — purely a presentation concern, never consulted by either resolver function below. */
   eventVisualsEnabled: boolean;
+  /**
+   * Forwarded for the exact same reason as `eventVisualsEnabled` above —
+   * one blanket per-profile flag (`EventSettings.eventsEnabled`), NOT
+   * per-event, matching this field's existing, unchanged semantics (see
+   * docs/updates, "HALLOWEEN PAGE REBUILD" §10: "Preserve existing Event
+   * Gameplay semantics"). A consumer gating an event-specific action on
+   * "is gameplay currently on" (e.g. Halloween's own create-Draft flow)
+   * reads this directly rather than re-fetching `EventSettings` itself —
+   * never consulted by `isOccurrenceActiveNow`/`resolveVisibleEventPages`,
+   * which must keep working identically regardless of this flag (that's
+   * the whole point of §10: turning Gameplay off must never remove the
+   * joined page/nav).
+   */
+  eventsEnabled: boolean;
   /** The Admin-aware `getEffectiveEventDate` this whole read was computed against — forwarded so a consumer needing "now" for its own event-window display (e.g. "Event ends <date>", a time-progress bar) doesn't need a second, separately-timed `getEffectiveEventDate` call that could theoretically disagree with the `available`/`participation` values above by a few milliseconds. */
   now: Date;
 }
@@ -121,6 +135,7 @@ export async function getEventDiscovery(
   return {
     statuses,
     eventVisualsEnabled: eventSettings.eventVisualsEnabled,
+    eventsEnabled: eventSettings.eventsEnabled,
     now,
   };
 }

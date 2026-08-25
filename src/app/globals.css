@@ -522,3 +522,88 @@
     }
   }
 }
+
+/*
+ * Generic Designed Event Decoration Slots (see docs/updates, "EVENT ART
+ * SYSTEM — DESIGNED SLOTS + WEIGHTED VARIANTS") — deliberately OUTSIDE the
+ * reduced-motion block above: a variant's scale/offset/opacity tweak is
+ * static placement data, not motion, and always applies. Each breakpoint
+ * tier only overrides the custom properties a variant actually supplied a
+ * value for (see `event-decoration-layer.tsx`'s inline `style`); the
+ * `var(--x-sm, var(--x-base, fallback))` chain means an unset tier always
+ * falls back to the next tier down, then to the neutral default — never to
+ * nothing. Mirrors this app's own `sm`/`lg`/`xl` Tailwind breakpoints
+ * (640px/1024px/1280px, unmodified defaults — see `@theme inline` above).
+ */
+.event-decoration-tweak {
+  transform: translate(
+      var(--deco-offset-x-base, 0rem),
+      var(--deco-offset-y-base, 0rem)
+    )
+    scale(var(--deco-scale-base, 1));
+  opacity: var(--deco-opacity-base, 1);
+}
+@media (min-width: 640px) {
+  .event-decoration-tweak {
+    transform: translate(
+        var(--deco-offset-x-sm, var(--deco-offset-x-base, 0rem)),
+        var(--deco-offset-y-sm, var(--deco-offset-y-base, 0rem))
+      )
+      scale(var(--deco-scale-sm, var(--deco-scale-base, 1)));
+    opacity: var(--deco-opacity-sm, var(--deco-opacity-base, 1));
+  }
+}
+@media (min-width: 1024px) {
+  .event-decoration-tweak {
+    transform: translate(
+        var(
+          --deco-offset-x-lg,
+          var(--deco-offset-x-sm, var(--deco-offset-x-base, 0rem))
+        ),
+        var(
+          --deco-offset-y-lg,
+          var(--deco-offset-y-sm, var(--deco-offset-y-base, 0rem))
+        )
+      )
+      scale(
+        var(--deco-scale-lg, var(--deco-scale-sm, var(--deco-scale-base, 1)))
+      );
+    opacity: var(
+      --deco-opacity-lg,
+      var(--deco-opacity-sm, var(--deco-opacity-base, 1))
+    );
+  }
+}
+@media (min-width: 1280px) {
+  .event-decoration-tweak {
+    transform: translate(
+        var(
+          --deco-offset-x-xl,
+          var(
+            --deco-offset-x-lg,
+            var(--deco-offset-x-sm, var(--deco-offset-x-base, 0rem))
+          )
+        ),
+        var(
+          --deco-offset-y-xl,
+          var(
+            --deco-offset-y-lg,
+            var(--deco-offset-y-sm, var(--deco-offset-y-base, 0rem))
+          )
+        )
+      )
+      scale(
+        var(
+          --deco-scale-xl,
+          var(--deco-scale-lg, var(--deco-scale-sm, var(--deco-scale-base, 1)))
+        )
+      );
+    opacity: var(
+      --deco-opacity-xl,
+      var(
+        --deco-opacity-lg,
+        var(--deco-opacity-sm, var(--deco-opacity-base, 1))
+      )
+    );
+  }
+}

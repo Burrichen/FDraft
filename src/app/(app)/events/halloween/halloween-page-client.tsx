@@ -8,6 +8,7 @@ import { HalloweenCandyBowl } from "@/components/events/halloween-candy-bowl";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { HalloweenDecorativeLayer } from "@/components/events/halloween-decorative-layer";
 import { HalloweenDraftCreationView } from "@/components/events/halloween-draft-creation-view";
+import { describeFixedEventDeadline } from "@/components/events/fixed-event-deadline-copy";
 import { HalloweenGravestone } from "@/components/events/halloween-gravestone";
 import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { resolveEventTheme } from "@/components/events/event-visual-themes";
@@ -50,6 +51,11 @@ import { useAsyncData } from "@/hooks/use-async-data";
  * AND the event is still naturally available, read from the shared
  * `EventDiscoveryProvider` snapshot rather than a separate, independently-
  * stale `EventSettings` fetch.
+ *
+ * No `max-w-2xl` wrapper (see docs/updates, "HALLOWEEN PAGE REBUILD" §13)
+ * — the normal Drafts page (`/drafts`) has no width constraint of its own
+ * beyond the app shell's shared `max-w-6xl`, so a narrower cap here read
+ * as a "secondary utility page" rather than a genuine themed counterpart.
  */
 export function HalloweenPageClient() {
   const { activeProfile, repositories } = useProfileContext();
@@ -107,7 +113,7 @@ export function HalloweenPageClient() {
   return (
     <div className="theme-halloween relative">
       <HalloweenDecorativeLayer />
-      <div className="relative max-w-2xl space-y-6">
+      <div className="relative space-y-6">
         <div>
           <h1 className="page-heading flex flex-wrap items-center gap-2">
             {theme ? (
@@ -117,8 +123,7 @@ export function HalloweenPageClient() {
           </h1>
           {isActiveForProfile && eventWindow ? (
             <p className="page-subtitle">
-              Event ends{" "}
-              {formatInTimeZone(eventWindow.end, timezone, "d MMMM 'at' HH:mm")}
+              Event ends {describeFixedEventDeadline(eventWindow.end, timezone)}
             </p>
           ) : null}
         </div>
@@ -127,7 +132,10 @@ export function HalloweenPageClient() {
           sourceEventId={HALLOWEEN_EVENT_ID}
           emptyState={
             isActiveForProfile ? (
-              <HalloweenDraftCreationView onCreated={reloadSilently} />
+              <HalloweenDraftCreationView
+                onCreated={reloadSilently}
+                gameplayEnabled={discovery.result.eventsEnabled}
+              />
             ) : (
               <Card>
                 <CardHeader>

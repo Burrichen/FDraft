@@ -3,16 +3,17 @@
 import { usePathname } from "next/navigation";
 import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
+import { useProfileContext } from "@/components/profiles/profile-provider";
 import {
   getEventDefinition,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
+import { EventDecorationLayer } from "./event-decoration-layer";
 import {
-  HalloweenBat,
-  HalloweenCobwebCorner,
-  HalloweenGhost,
-  HalloweenTinyPumpkin,
-} from "./halloween-decorations";
+  HALLOWEEN_AMBIENT_DECORATION_LAYOUT,
+  HALLOWEEN_AMBIENT_SLOT_POSITIONS,
+} from "./halloween-ambient-decoration-layout";
+import { HALLOWEEN_DECORATION_REGISTRY } from "./halloween-decoration-registry";
 
 /**
  * App-wide Halloween ambient dressing (see docs/updates, "PROMPT B2.4 —
@@ -54,25 +55,28 @@ export function useHalloweenAmbientVisible(): boolean {
   );
 }
 
+/**
+ * Now a thin wrapper around the generic Designed Slot renderer (see
+ * docs/updates, "EVENT ART SYSTEM — HALLOWEEN INTEGRATION" §1/§6/§7) —
+ * `HALLOWEEN_AMBIENT_DECORATION_LAYOUT` reuses the exact same 4 pieces
+ * and positions the original hand-placed version rendered, so this stays
+ * visually restrained and unchanged; only the mechanism moved onto the
+ * shared asset-pack/slot engine every other Halloween surface now uses.
+ */
 export function HalloweenAmbientDecorations() {
+  const { activeProfile } = useProfileContext();
+
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-    >
-      {/* Positioned below the sticky header (`h-16` = 64px, see
-          `header.tsx`) rather than behind it — live QA on docs/updates,
-          "PROMPT B2.4" found decoration placed at `top-0` rendered nearly
-          invisible, bleeding through the header's own translucent
-          `bg-card/95` backdrop-blur at a fraction of its real opacity. */}
-      <div className="hidden sm:block">
-        <HalloweenCobwebCorner className="absolute top-20 right-0 size-14 opacity-40" />
-        <HalloweenBat className="halloween-bat-sway absolute top-28 right-20 size-5 opacity-50" />
-      </div>
-      <div className="hidden lg:block">
-        <HalloweenTinyPumpkin className="absolute bottom-6 left-6 size-5 opacity-40" />
-        <HalloweenGhost className="absolute right-12 bottom-10 size-7 opacity-40" />
-      </div>
-    </div>
+    <EventDecorationLayer
+      layout={HALLOWEEN_AMBIENT_DECORATION_LAYOUT}
+      positions={HALLOWEEN_AMBIENT_SLOT_POSITIONS}
+      registry={HALLOWEEN_DECORATION_REGISTRY}
+      seedInputs={{
+        eventId: HALLOWEEN_EVENT_ID,
+        layoutKey: "halloween-ambient",
+        profileId: activeProfile?.id ?? null,
+      }}
+      className="fixed -z-10"
+    />
   );
 }

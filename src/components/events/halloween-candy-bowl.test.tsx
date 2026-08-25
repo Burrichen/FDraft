@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { HalloweenCandyBowl } from "./halloween-candy-bowl";
+import { HALLOWEEN_ART } from "./halloween-art";
 
 afterEach(() => {
   cleanup();
@@ -52,6 +53,58 @@ describe("HalloweenCandyBowl", () => {
     expect(
       screen.getAllByRole("button", { name: "Take a piece of candy" }),
     ).toHaveLength(8);
+  });
+});
+
+describe("HalloweenCandyBowl — image state mapping", () => {
+  async function clickCandy(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      screen.getAllByRole("button", { name: "Take a piece of candy" })[0],
+    );
+  }
+
+  it("starts full (6-8 pieces) showing the full bowl image", () => {
+    const { container } = render(<HalloweenCandyBowl />);
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      HALLOWEEN_ART.candyBowlFull,
+    );
+  });
+
+  it("switches to the medium bowl image at 5 pieces", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HalloweenCandyBowl />);
+    for (let i = 0; i < 3; i += 1) await clickCandy(user);
+    expect(
+      screen.getAllByRole("button", { name: "Take a piece of candy" }),
+    ).toHaveLength(5);
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      HALLOWEEN_ART.candyBowlMedium,
+    );
+  });
+
+  it("switches to the low bowl image at 2 pieces", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HalloweenCandyBowl />);
+    for (let i = 0; i < 6; i += 1) await clickCandy(user);
+    expect(
+      screen.getAllByRole("button", { name: "Take a piece of candy" }),
+    ).toHaveLength(2);
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      HALLOWEEN_ART.candyBowlLow,
+    );
+  });
+
+  it("switches to the empty bowl image at 0 pieces", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HalloweenCandyBowl />);
+    for (let i = 0; i < 8; i += 1) await clickCandy(user);
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      HALLOWEEN_ART.candyBowlEmpty,
+    );
   });
 });
 

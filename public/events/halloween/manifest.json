@@ -1,0 +1,22 @@
+{
+  "eventId": "halloween",
+  "displayName": "Halloween",
+  "icons": {},
+  "decorations": {},
+  "modal": {
+    "ghost": "modal/ghost.png"
+  },
+  "interactives": {
+    "pumpkin-uncarved": "interactives/pumpkin-uncarved.png",
+    "pumpkin-carved": "interactives/pumpkin-carved.png",
+    "pumpkin-lit": "interactives/pumpkin-lit.png",
+    "pumpkin-rotting": "interactives/pumpkin-rotten.png",
+    "gravestone-base": "interactives/gravestone-base.png",
+    "gravestone-moss-overlay": "interactives/gravestone-moss-overlay.png",
+    "candy-bowl-full": "interactives/candy-bowl-full.png",
+    "candy-bowl-medium": "interactives/candy-bowl-medium.png",
+    "candy-bowl-low": "interactives/candy-bowl-low.png",
+    "candy-bowl-empty": "interactives/candy-bowl-empty.png"
+  },
+  "backgrounds": {}
+}
