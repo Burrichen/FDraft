@@ -257,7 +257,7 @@ describe("Dual Draft Architecture — a normal Draft and a Halloween Draft are f
     expect(normalItems.every((item) => !item.isCompleted)).toBe(true);
   });
 
-  it("watching a film shared by BOTH active drafts completes both items and grants each draft's own reward exactly once — no duplicate point farming", async () => {
+  it("watching a film shared by BOTH active drafts completes both items, earns exactly ONE Lifetime Point (never one per draft) plus ONE Haunted Point for the Halloween item — no duplicate point farming", async () => {
     db = new FDraftLocalDatabase(`dual-draft-shared-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db) as Repositories;
 
@@ -369,14 +369,26 @@ describe("Dual Draft Architecture — a normal Draft and a Halloween Draft are f
     const history = await repos.history.listWatchedHistory(PROFILE_ID);
     expect(history).toHaveLength(1);
 
-    // Both drafts award the generic Lifetime currency here (Halloween has
-    // no dedicated currency yet) — two draft completions, so exactly 2,
-    // never more (no double-counting) and never fewer (both rewarded).
+    // Exactly ONE Lifetime Point for this one watch action — even though
+    // it archived TWO drafts, both drafts' own completion reward resolves
+    // to the SAME "lifetime" currency (Halloween now has its own
+    // `currency`, so its completion reward is plain Lifetime too — see
+    // `resolveDraftCompletionReward`), and a single currency is only ever
+    // credited once per action (see docs/updates, "EVENT SYSTEM —
+    // UNIVERSAL EVENT CURRENCY EARNING" §5: "+1 Lifetime, NOT +2
+    // Lifetime").
     const lifetimeBalance = await repos.points.getBalance(
       PROFILE_ID,
       "lifetime",
     );
-    expect(lifetimeBalance).toBe(2);
+    expect(lifetimeBalance).toBe(1);
+
+    // The Halloween item ALSO earned its own Haunted Point — per film
+    // watched, independent of the Lifetime dedup above (a different
+    // currency entirely) and independent of which item happened to be
+    // "primary" vs "secondary" in this action.
+    const hauntedBalance = await repos.points.getBalance(PROFILE_ID, "haunted");
+    expect(hauntedBalance).toBe(1);
 
     // UNDO reverses BOTH completions and both rewards from this one action.
     const undone = await undoLocalFilmWatched(repos, {
@@ -406,6 +418,7 @@ describe("Dual Draft Architecture — a normal Draft and a Halloween Draft are f
       (await repos.drafts.getById(PROFILE_ID, "halloween-draft-1"))?.status,
     ).toBe("active");
     expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(0);
+    expect(await repos.points.getBalance(PROFILE_ID, "haunted")).toBe(0);
     expect(await repos.history.listWatchedHistory(PROFILE_ID)).toHaveLength(0);
   });
 

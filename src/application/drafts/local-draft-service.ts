@@ -817,7 +817,11 @@ export async function expireLocalDraftIfDue(
 export async function archiveLocalDraftIfResolved(
   repos: LifecycleRepos,
   params: { profileId: string; draftId: string },
-  deps: { clock?: Clock } = {},
+  deps: {
+    clock?: Clock;
+    /** Forwarded to `awardDraftCompletionReward` — see that option's own doc comment. Defaults to `true`. */
+    creditLifetimeBalance?: boolean;
+  } = {},
 ): Promise<boolean> {
   const clock = deps.clock ?? new SystemClock();
   const draft = await repos.drafts.getById(params.profileId, params.draftId);
@@ -874,7 +878,7 @@ export async function archiveLocalDraftIfResolved(
   await awardDraftCompletionReward(
     repos,
     { profileId: params.profileId, draftId: params.draftId, reward },
-    { clock },
+    { clock, creditBalance: deps.creditLifetimeBalance },
   );
   return true;
 }

@@ -13,6 +13,7 @@ import {
   JanuaryTrashCanNavIcon,
 } from "@/components/layout/nav-icons";
 import { HalloweenDialogDecoration } from "./halloween-dialog-decoration";
+import { HalloweenEndingDecoration } from "./halloween-ending-decoration";
 import { renderHalloweenIntroContent } from "./halloween-intro-content";
 
 export interface EventVisualTheme {
@@ -51,6 +52,21 @@ export interface EventVisualTheme {
    * (today: everyone but Halloween).
    */
   renderIntroContent?: () => ReactNode;
+  /**
+   * The Event-ending dialog's own root class override (see
+   * `EventEndingDialog`) — a SEPARATE, optional field from `rootClassName`
+   * above so an event can give its ending a deliberately quieter
+   * treatment than its join modal (see docs/updates, "EVENT SYSTEM —
+   * EVENT-OVER EXPERIENCE" §8: "quieter than the Event introduction").
+   * Falls back to `rootClassName` when absent — an event that hasn't
+   * defined a distinct ending look yet still gets its normal theme
+   * applied, never an unstyled dialog.
+   */
+  endingRootClassName?: string;
+  /** The Event-ending dialog's own title class override — same fallback-to-`titleClassName` convention as `endingRootClassName`. */
+  endingTitleClassName?: string;
+  /** The Event-ending dialog's own purely decorative component — same contract as `DecorationComponent` above, just for the ending surface instead of the join modal. Absent means no decoration (a plain, undecorated ending — still fully functional, just visually bare, exactly like an undecorated join modal today for January/Frontier/Signal). */
+  EndingDecorationComponent?: ComponentType;
 }
 
 /**
@@ -87,6 +103,16 @@ export const EVENT_VISUAL_THEMES: Record<string, EventVisualTheme> = {
       "flex-col items-center justify-center gap-2 text-center text-4xl sm:text-5xl font-extrabold text-halloween-pumpkin [&_svg]:size-9 sm:[&_svg]:size-11",
     DecorationComponent: HalloweenDialogDecoration,
     renderIntroContent: renderHalloweenIntroContent,
+    // Deliberately quieter than the join modal above (see docs/updates,
+    // "EVENT SYSTEM — EVENT-OVER EXPERIENCE" §8: "quieter... chilly...
+    // eerie... slightly melancholy") — a smaller, unbolded title in the
+    // muted cream/charcoal ends of the palette rather than the join
+    // modal's huge bold pumpkin-orange, and no huge width/height jump
+    // (this dialog's body is much shorter than the join modal's).
+    endingRootClassName: "theme-halloween w-[92vw] sm:w-[80vw] max-w-lg",
+    endingTitleClassName:
+      "flex-col items-center justify-center gap-2 text-center text-2xl sm:text-3xl font-semibold text-halloween-cream [&_svg]:size-6",
+    EndingDecorationComponent: HalloweenEndingDecoration,
   },
 };
 

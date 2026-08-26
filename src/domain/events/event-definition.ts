@@ -137,6 +137,69 @@ export interface EventPageContent {
   navLabel: string;
 }
 
+/**
+ * An event's own PER-FILM-WATCHED currency (see docs/updates, "EVENT
+ * SYSTEM — UNIVERSAL EVENT CURRENCY EARNING") — the universal rule is
+ * "watch one film in this event's Draft → `pointsPerFilm` points of
+ * `id`," applied to EVERY film in that Draft, not just whichever one
+ * happens to complete it. Configuration only; no event-specific code
+ * anywhere ever branches on `id` — `awardEventDraftItemReward`
+ * (`draft-completion-reward.ts`) is the one generic engine every event
+ * with a `currency` runs through.
+ *
+ * Deliberately separate from `pointType` (which still governs the
+ * OLDER, unrelated per-DRAFT-COMPLETION reward every event has always
+ * had — see that field's own comment): an event that sets `currency`
+ * has its completion reward simplified to plain Lifetime Points only
+ * (`resolveDraftCompletionReward` checks this field first), since this
+ * field's own per-film mechanism is what pays out real currency instead,
+ * continuously, not just once at the end. An event with no `currency`
+ * (Frontier, Signal, today) keeps its exact pre-existing `pointType`-at-
+ * completion behaviour, completely unchanged.
+ */
+export interface EventCurrency {
+  id: PointCurrency;
+  /** Display label — e.g. "Haunted Points". The one place this project spells out a currency's name; UI reads this instead of keeping its own parallel label map. */
+  label: string;
+  /** How many points of `id` ONE watched film in this event's own Draft is worth. Almost always `1`; configurable so a future event isn't forced to reuse that exact number. */
+  pointsPerFilm: number;
+}
+
+/**
+ * The content the generic Event-ending experience renders for this event
+ * (see docs/updates, "EVENT SYSTEM — EVENT-OVER EXPERIENCE") — the
+ * end-of-event counterpart to `EventIntroContent` above, shown once a
+ * JOINED occurrence's window has closed and not yet acknowledged (see
+ * `resolveEventEndingCandidate`, `event-discovery.ts`). No per-event
+ * modal component exists; the one generic `EventEndingDialog` renders
+ * whichever event is eligible, reading only this config plus (for
+ * artwork) `EventVisualTheme`'s optional `EndingDecorationComponent` — an
+ * event with no `ending` (or `enabled: false`) simply never has an ending
+ * shown, which is the correct, safe default for every event that hasn't
+ * defined one yet (January, Frontier, Signal from Beyond today).
+ */
+export interface EventEndingContent {
+  /** Whether this event has a real, ready-to-show ending at all — lets an event reserve the shape without turning the experience on yet. */
+  enabled: boolean;
+  /** Overrides the dialog's default title (`event.name`). Absent means the event's own name. */
+  title?: string;
+  /** The main goodbye message — rendered verbatim, exact wording, never generated. */
+  message: string;
+  /**
+   * An optional second line, rendered in italics beneath `message` — may
+   * contain the literal placeholder `{ordinal}`, substituted with this
+   * occurrence's annual number in ordinal form (e.g. `"1st"`) via
+   * `resolveEventEndingSecondaryMessage` (`event-ending-annual.ts`).
+   * Requires `foundingYear` to resolve; absent (on either field) means no
+   * secondary line at all.
+   */
+  secondaryMessageTemplate?: string;
+  /** The occurrence year this event's annual numbering starts counting from (occurrence #1) — e.g. Halloween's `2026`. See `computeEventAnnualNumber`. */
+  foundingYear?: number;
+  /** The dismiss/acknowledge button's exact label — e.g. Halloween's "See you next year." There is no secondary/decline action on this dialog (see `EventEndingDialog`'s own doc comment for why). */
+  buttonLabel: string;
+}
+
 export interface EventDefinition {
   id: string;
   name: string;
@@ -146,6 +209,8 @@ export interface EventDefinition {
   intro: EventIntroContent;
   /** This event's own permanent currency, or `null` if it only ever awards generic/Lifetime Points (see the event system's CRITICAL RULE, enforced centrally by `awardDraftCompletionReward`, not here). */
   pointType: PointCurrency | null;
+  /** This event's per-film-watched currency, or `null`/absent for an event that earns no currency of its own beyond the universal per-completion Lifetime Point — see `EventCurrency`'s own doc comment for how this relates to `pointType`. */
+  currency?: EventCurrency | null;
   /** Identifier for a visual theme a later phase will define and apply — `null` for no theme. */
   visualTheme: string | null;
   /** Whether a profile can opt into this event manually via `EventSettings.manuallyEnabledEvents`, independent of `availability`. `false` for an event that must only ever be joined during its real (or Admin-simulated) natural window — see Halloween. */
@@ -175,4 +240,6 @@ export interface EventDefinition {
    * this — only the progress-bar DISPLAY differs.
    */
   fixedEventDeadline?: boolean;
+  /** This event's own Event-over/ending experience config, or `null`/absent for an event with no ending defined yet — see `EventEndingContent`. */
+  ending?: EventEndingContent | null;
 }

@@ -27,6 +27,7 @@ function halloweenStatus(
     available: true,
     manuallyEnabled: false,
     participation: "joined",
+    endingAcknowledged: false,
     ...overrides,
   };
 }
@@ -46,6 +47,7 @@ describe("HauntedSection — visibility", () => {
         available: true,
         manuallyEnabled: false,
         participation: "joined",
+        endingAcknowledged: false,
       },
     ];
     const { container } = render(<HauntedSection />);

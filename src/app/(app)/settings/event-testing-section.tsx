@@ -7,8 +7,11 @@ import {
   getEventDateOverride,
   setEventDateOverride,
 } from "@/application/events/event-date-override-store";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
+import { clearEventEndingAcknowledgement } from "@/application/events/event-ending-acknowledgement-store";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { useProfileContext } from "@/components/profiles/profile-provider";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import type { EventDateOverride } from "@/domain/events/event-date-override";
@@ -199,7 +202,134 @@ export function EventTestingSection() {
             )}
           </p>
         ) : null}
+
+        <EventStateDiagnostic timezone={timezone} />
+        <EventEndingAcknowledgementReset />
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Developer-only testing reset (see docs/updates, "EVENT SYSTEM —
+ * EVENT-OVER EXPERIENCE" §14) — lets an Admin re-trigger an already-
+ * acknowledged Event-ending experience while iterating on the Event Date
+ * Override above, without needing to fabricate a brand-new occurrence.
+ * Narrowly scoped: only ever operates on the CURRENT occurrence of
+ * whichever event(s) this profile joined and whose ending is currently
+ * acknowledged — never exposed outside this Admin-Mode-gated section, and
+ * never touches participation, currency, or the Draft itself.
+ */
+function EventEndingAcknowledgementReset() {
+  const { activeProfile, repositories } = useProfileContext();
+  const discovery = useEventDiscovery();
+  const [isResetting, setIsResetting] = useState<string | null>(null);
+  const profileId = activeProfile?.id ?? null;
+
+  const resettable = discovery.result.statuses.filter(
+    (status) =>
+      status.occurrenceKey !== null &&
+      status.event.ending?.enabled &&
+      status.participation === "joined" &&
+      status.endingAcknowledged,
+  );
+
+  if (!profileId || resettable.length === 0) {
+    return null;
+  }
+
+  async function handleReset(occurrenceKey: string) {
+    if (!profileId) return;
+    setIsResetting(occurrenceKey);
+    try {
+      await clearEventEndingAcknowledgement(repositories, {
+        profileId,
+        occurrenceKey,
+      });
+      await discovery.refresh();
+    } finally {
+      setIsResetting(null);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <p className="text-muted-foreground text-xs tracking-wide uppercase">
+        Reset Event-ending acknowledgement
+      </p>
+      {resettable.map((status) => (
+        <Button
+          key={status.occurrenceKey}
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isResetting === status.occurrenceKey}
+          onClick={() => void handleReset(status.occurrenceKey!)}
+        >
+          Reset {status.event.name} ending ({status.occurrenceKey})
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A read-only diagnostic — Developer/Admin-only, never shown to a normal
+ * user (see docs/updates, "EVENT SYSTEM BUGFIX — JANUARY REMAINS ACTIVE
+ * DURING HALLOWEEN TESTING", "DEBUGGING") — printing exactly what the
+ * shared `EventDiscoveryProvider` snapshot currently says: the effective
+ * `EventClock` time this whole read was computed against, which events
+ * are naturally available right now, which of THOSE are also genuinely
+ * joined (the same `isOccurrenceActiveNow` rule nav/Settings/an event's
+ * own page all read), and every occurrence ever recorded "joined" —
+ * including ones no longer active — so a stale-vs-current mismatch like
+ * the bug this section documents is visible at a glance while testing,
+ * instead of having to guess from the UI symptoms alone.
+ */
+function EventStateDiagnostic({ timezone }: { timezone: string }) {
+  const { result } = useEventDiscovery();
+
+  const available = result.statuses.filter((status) => status.available);
+  const joinedAndAvailable = result.statuses.filter(isOccurrenceActiveNow);
+  const historicalJoined = result.statuses.filter(
+    (status) => status.participation === "joined",
+  );
+
+  return (
+    <div className="text-muted-foreground space-y-2 border-t pt-3 text-xs">
+      <p className="tracking-wide uppercase">Event State Diagnostic</p>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+        <dt>Effective Event Time</dt>
+        <dd>{formatInTimeZone(result.now, timezone, "d MMM yyyy · HH:mm")}</dd>
+
+        <dt>Available</dt>
+        <dd>
+          {available.length > 0
+            ? available.map((status) => status.event.name).join(", ")
+            : "none"}
+        </dd>
+
+        <dt>Joined + Available</dt>
+        <dd>
+          {joinedAndAvailable.length > 0
+            ? joinedAndAvailable.map((status) => status.event.name).join(", ")
+            : "none"}
+        </dd>
+
+        <dt>Historical Joined</dt>
+        <dd>
+          {historicalJoined.length > 0
+            ? historicalJoined
+                .map((status) => {
+                  const year = status.occurrenceKey?.split(":")[1];
+                  return year
+                    ? `${status.event.name} ${year}`
+                    : status.event.name;
+                })
+                .join(", ")
+            : "none"}
+        </dd>
+      </dl>
+    </div>
   );
 }

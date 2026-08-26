@@ -42,3 +42,22 @@ export function resolveEventParticipationState(
 ): EventParticipationState {
   return participations[occurrenceKey] ?? "unanswered";
 }
+
+/**
+ * The numeric year half of an occurrence key (e.g. `"halloween:2026"` ->
+ * `2026`), or `null` for a key with no parseable year suffix — a manual-
+ * only event's occurrence keys never reach this (see
+ * `computeOccurrenceKeyForEvent`'s `null` case), but a hand-edited backup
+ * or a future non-yearly occurrence id shape should degrade safely rather
+ * than throw. Used by an Event-ending's annual-number calculation (see
+ * `event-ending-annual.ts`) to recover "which year is this" from the one
+ * key participation/ending-acknowledgement state is already keyed by,
+ * rather than threading a separate year value through everywhere.
+ */
+export function parseEventOccurrenceYear(occurrenceKey: string): number | null {
+  const [, occurrenceId] = occurrenceKey.split(":");
+  if (!occurrenceId || !/^\d{4}$/.test(occurrenceId)) {
+    return null;
+  }
+  return Number(occurrenceId);
+}

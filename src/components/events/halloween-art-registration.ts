@@ -14,6 +14,10 @@ import {
   HALLOWEEN_PAGE_DECORATION_LAYOUT,
   HALLOWEEN_PAGE_SLOT_POSITIONS,
 } from "./halloween-decoration-layout";
+import {
+  HALLOWEEN_ENDING_DECORATION_LAYOUT,
+  HALLOWEEN_ENDING_SLOT_POSITIONS,
+} from "./halloween-ending-decoration-layout";
 
 /**
  * Registers Halloween into the shared Event Art API (see docs/updates,
@@ -50,6 +54,10 @@ registerEventArt({
     ambient: {
       layout: HALLOWEEN_AMBIENT_DECORATION_LAYOUT,
       positions: HALLOWEEN_AMBIENT_SLOT_POSITIONS,
+    },
+    ending: {
+      layout: HALLOWEEN_ENDING_DECORATION_LAYOUT,
+      positions: HALLOWEEN_ENDING_SLOT_POSITIONS,
     },
   },
 });

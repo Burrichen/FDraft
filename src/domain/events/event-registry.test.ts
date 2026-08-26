@@ -40,6 +40,11 @@ describe("event-registry", () => {
     });
     expect(event?.manualActivationAllowed).toBe(true);
     expect(event?.pointType).toBe("misery");
+    expect(event?.currency).toEqual({
+      id: "misery",
+      label: "Misery Points",
+      pointsPerFilm: 1,
+    });
   });
 
   it("uses normal FDraft drafting rules — only eligibility is restricted", () => {
@@ -106,9 +111,14 @@ describe("event-registry", () => {
       expect(event?.enableVisualsOnOptIn).toBe(true);
     });
 
-    it("has no dedicated reward currency defined yet — resolves to generic/Lifetime Points", () => {
+    it("has its own Haunted Points currency, earned per film watched (see draft-completion-reward.test.ts for the earning mechanic itself)", () => {
       const event = getEventDefinition(HALLOWEEN_EVENT_ID);
-      expect(event?.pointType).toBeNull();
+      expect(event?.pointType).toBe("haunted");
+      expect(event?.currency).toEqual({
+        id: "haunted",
+        label: "Haunted Points",
+        pointsPerFilm: 1,
+      });
     });
 
     it("has no curated eligibility data defined yet — uses normal FDraft drafting/eligibility", () => {
@@ -151,6 +161,10 @@ describe("event-registry", () => {
     it("awards Bounty Points when normally active", () => {
       const event = getEventDefinition(WATCHLIST_FRONTIER_EVENT_ID);
       expect(event?.pointType).toBe("bounty");
+      // No per-film `currency` configured (see docs/updates, "EVENT
+      // SYSTEM — UNIVERSAL EVENT CURRENCY EARNING") — Frontier keeps its
+      // pre-existing per-completion-only Bounty award, unchanged.
+      expect(event?.currency).toBeFalsy();
     });
 
     it("is eligible via normal Western genre OR the curated Neo-Western list, currently empty (no such list exists in the project yet)", () => {
@@ -191,6 +205,7 @@ describe("event-registry", () => {
     it("awards Signal Points when normally active", () => {
       const event = getEventDefinition(SIGNAL_FROM_BEYOND_EVENT_ID);
       expect(event?.pointType).toBe("signal");
+      expect(event?.currency).toBeFalsy();
     });
 
     it("is eligible via normal Science Fiction genre OR the curated whitelist, currently empty (no such list exists in the project yet)", () => {

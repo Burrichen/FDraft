@@ -296,6 +296,23 @@ export interface DraftItemRecord {
   originFilmId: string | null;
   /** `null` whenever `originFilmId` is `null`. */
   substitutionReason: DraftItemSubstitutionReason | null;
+  /**
+   * ISO 8601 timestamp of when THIS item's own per-film event-currency
+   * reward was granted, or `null` if it never was — see
+   * `awardEventDraftItemReward` (`draft-completion-reward.ts`), docs/
+   * updates "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY EARNING". The
+   * per-ITEM idempotency guard, parallel to `DraftRecord.
+   * rewardsGrantedAt`'s per-DRAFT one: a film watched twice (via an Undo
+   * and a genuine re-watch) can only ever be credited once per genuine
+   * watch. Always `null`/absent for a normal (non-event) draft's items,
+   * or for an item in an event draft with no `EventDefinition.currency`
+   * configured. Optional (unlike `originFilmId`/`substitutionReason`)
+   * specifically so the many pre-existing fixtures/call sites across the
+   * codebase that construct a `DraftItemRecord` for unrelated reasons
+   * don't all need touching for a field irrelevant to them — always read
+   * through `LocalDraftRepository`'s normalization, never trusted raw.
+   */
+  eventRewardGrantedAt?: string | null;
   createdAt: string;
 }
 

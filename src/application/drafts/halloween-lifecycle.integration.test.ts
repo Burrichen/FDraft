@@ -249,13 +249,24 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     expect(draft?.rewardsGrantedAt).not.toBeNull();
     expect(draft?.sourceEventId).toBe(HALLOWEEN_EVENT_ID);
 
-    // Halloween has no dedicated currency (`pointType: null`), so
-    // completion banks the generic Lifetime currency.
+    // Draft completion always banks the generic Lifetime currency now
+    // (Halloween's own `haunted` currency is earned per-film instead, via
+    // `awardEventDraftItemReward` — see the Haunted assertion below).
     const lifetimeBalance = await repos.points.getBalance(
       PROFILE_ID,
       "lifetime",
     );
     expect(lifetimeBalance).toBeGreaterThan(0);
+
+    // Every one of the 5 items earned exactly 1 Haunted Point each, with no
+    // distinction between halloween-adjacent/horror/kitsch pools — the
+    // undone-then-rewatched horror item earned exactly once, not twice.
+    const hauntedBalance = await repos.points.getBalance(PROFILE_ID, "haunted");
+    const completedItems = await repos.drafts.listItemsForDraft(draftId);
+    expect(hauntedBalance).toBe(5);
+    expect(completedItems.every((item) => item.eventRewardGrantedAt)).toBe(
+      true,
+    );
 
     // 9. POST-DRAFT / HISTORY — the archived draft and every watch
     // (including the Event-only films) are visible exactly like any other

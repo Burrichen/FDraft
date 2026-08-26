@@ -22,6 +22,25 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.6",
+    nickname: "Trick or Treat (Beta 6)",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          "Watching a film in a Halloween Draft now earns a permanent Haunted Point, and watching one in a January Draft now earns a permanent Misery Point — on top of the usual Lifetime Point, for every film, in any of Halloween's three pools.",
+          'Halloween now has its own end-of-event moment: once the season closes for a profile who joined, a quiet goodbye screen appears (however FDraft is currently being used) with a "See you next year." button, and the year is tracked automatically (2026 is the 1st annual event).',
+        ],
+      },
+      {
+        heading: "Changed",
+        items: [
+          "A finished Halloween Draft is now safely wrapped up the moment the season ends, whether or not it was fully watched — nothing is lost, and it stays visible in Draft History afterward.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.5",
     nickname: "Trick or Treat (Beta 5)",
     sections: [

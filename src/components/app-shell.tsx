@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { refreshHalloweenManifest } from "@/application/events/halloween-manifest-service";
 import { refreshJanuaryManifest } from "@/application/events/january-manifest-service";
+import { EventEndingDialog } from "@/components/events/event-ending-dialog";
 import { EventIntroDialog } from "@/components/events/event-intro-dialog";
 import {
   HalloweenAmbientDecorations,
@@ -134,6 +135,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     // navigating between pages never resets it — only a hard reload does.
     <WatchUndoProvider key={activeProfile.id}>
       <EventIntroDialog key={activeProfile.id} />
+      <EventEndingDialog key={activeProfile.id} />
       {halloweenAmbientVisible ? <HalloweenAmbientDecorations /> : null}
       <div className="flex min-h-full flex-col">
         <Header activeProfile={activeProfile} profiles={profiles} />

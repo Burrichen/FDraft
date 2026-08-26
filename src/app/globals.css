@@ -521,6 +521,38 @@
       opacity: 0.85;
     }
   }
+
+  /* The Event-ending scene's own two quiet motions (see docs/updates,
+     "EVENT SYSTEM — EVENT-OVER EXPERIENCE" §8) — deliberately slower and
+     smaller-amplitude than every other Halloween animation above, to read
+     as "the party's over," not festive. */
+  .halloween-cloud-drift {
+    animation: halloween-cloud-drift 9s ease-in-out infinite;
+  }
+  @keyframes halloween-cloud-drift {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(0.4rem);
+    }
+  }
+
+  .halloween-ghost-depart {
+    animation: halloween-ghost-depart 7s ease-in-out infinite;
+  }
+  @keyframes halloween-ghost-depart {
+    0%,
+    100% {
+      transform: translate(0, 0);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translate(0.3rem, -0.4rem);
+      opacity: 0.4;
+    }
+  }
 }
 
 /*

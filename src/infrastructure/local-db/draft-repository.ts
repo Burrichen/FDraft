@@ -27,12 +27,13 @@ function normalizeDraft(draft: DraftRecord): DraftRecord {
   };
 }
 
-/** Same backward-compatibility rationale as `normalizeDraft`, for the selection-provenance fields v1.0.2 added. */
+/** Same backward-compatibility rationale as `normalizeDraft`, for the selection-provenance fields v1.0.2 added, plus `eventRewardGrantedAt` (see that field's own doc comment in `records.ts`). */
 function normalizeDraftItem(item: DraftItemRecord): DraftItemRecord {
   return {
     ...item,
     originFilmId: item.originFilmId ?? null,
     substitutionReason: item.substitutionReason ?? null,
+    eventRewardGrantedAt: item.eventRewardGrantedAt ?? null,
   };
 }
 

@@ -20,6 +20,14 @@ import { getJanuaryManifestCuratedFilmIds } from "./january-manifest-overlay";
  * itself is NOT static data here; see `getEventDefinition` below for how
  * it's overlaid in from the remotely-configurable manifest system
  * (`january-manifest-overlay.ts`) without this literal ever changing.
+ *
+ * `currency` (see docs/updates, "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY
+ * EARNING") makes Misery Points earn PER FILM WATCHED in a January
+ * Draft, not once at the draft's own completion — `pointType: "misery"`
+ * below is kept only for the unrelated legacy per-completion path
+ * (`resolveDraftCompletionReward`), which `currency` being set makes
+ * fall back to plain Lifetime Points instead of ever reading it, so
+ * nothing double-awards Misery.
  */
 export const F_YOU_ITS_JANUARY_EVENT_ID = "f-you-its-january";
 
@@ -41,14 +49,15 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
   eligibilityRules: { maxAverageRating: 3.5, curatedFilmIds: [] },
   intro: {
     description:
-      "The worst week of the cinematic year has arrived. Every draft you finish this week banks permanent Misery Points instead of the usual reward.",
+      "The worst week of the cinematic year has arrived. Every film you watch from a January Draft banks a permanent Misery Point instead of the usual reward.",
     bullets: [
       "Eligible films: anything rated 3.5 or lower, plus this year's curated January picks",
-      "Draft completions earn permanent Misery Points instead of Lifetime Points",
+      "Every film watched in a January Draft earns a permanent Misery Point instead of a Lifetime Point",
       "You can still opt in manually outside this week from Settings, but it only ever earns Lifetime Points off-season",
     ],
   },
   pointType: "misery",
+  currency: { id: "misery", label: "Misery Points", pointsPerFilm: 1 },
   // Reuses this event's own id as its visual theme id (see
   // docs/product-spec.md, event system Phase 8) — the presentation layer
   // (`src/components/events/event-visual-themes.ts`) maps this to an
@@ -95,11 +104,16 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
  *    treats that as "no restriction," so a Halloween-owned draft draws
  *    from the profile's normal FDraft-eligible candidates exactly like
  *    a non-event draft, until real curated data exists to configure here.
- *  - `pointType` is `null` — no dedicated currency has been assigned to
- *    Halloween anywhere in the project (the reserved-but-unused
- *    `"signal"`/`"bounty"` currencies are not this event's to claim
- *    unilaterally), so completions earn generic/Lifetime Points, the same
- *    as a normal draft.
+ *  - `pointType: "haunted"` plus `currency` (see docs/updates, "EVENT
+ *    SYSTEM — UNIVERSAL EVENT CURRENCY EARNING") give Halloween its own
+ *    real, permanent, per-film-watched currency — every film watched
+ *    from a Halloween Draft (Halloween-adjacent, Horror, or Kitsch
+ *    alike, no distinction) earns one Haunted Point, in addition to the
+ *    Lifetime Point the draft's own eventual completion still earns like
+ *    any other draft. `pointType` itself is no longer read for
+ *    Halloween's completion reward (see `resolveDraftCompletionReward`
+ *    — `currency` being set makes it fall back to plain Lifetime Points
+ *    instead), only kept for consistency with every other event's shape.
  *  - `visualTheme` is this event's own id (see docs/updates, "PROMPT 20 —
  *    HIGH-EFFORT HALLOWEEN UI + APPROVED EASTER EGGS") — a real Kitsch
  *    Halloween theme (see `src/components/events/event-visual-themes.ts`);
@@ -150,7 +164,8 @@ const HALLOWEEN: EventDefinition = {
     primaryActionLabel: "Let me in.",
     secondaryActionLabel: "I don't want to be scared!",
   },
-  pointType: null,
+  pointType: "haunted",
+  currency: { id: "haunted", label: "Haunted Points", pointsPerFilm: 1 },
   // See docs/updates, "PROMPT 20 — HIGH-EFFORT HALLOWEEN UI + APPROVED
   // EASTER EGGS" — Halloween now has a real Kitsch Halloween theme (see
   // `src/components/events/event-visual-themes.ts`), reusing this event's
@@ -164,6 +179,21 @@ const HALLOWEEN: EventDefinition = {
   // STATS" §3 — Halloween has ONE fixed deadline (the event's own end),
   // not a Calendar/Timer choice.
   fixedEventDeadline: true,
+  // See docs/updates, "EVENT SYSTEM — EVENT-OVER EXPERIENCE" — Halloween
+  // is the first event with a real, fully-defined ending. Exact copy from
+  // that prompt's §9/§10/§11 — never rephrase. `foundingYear: 2026` is
+  // Halloween's real first occurrence on this branch; `{ordinal}` is
+  // substituted generically by `resolveEventEndingSecondaryMessage`
+  // (`event-ending-annual.ts`), not hand-formatted here.
+  ending: {
+    enabled: true,
+    message:
+      "The dark cloud over FDraft finally parts, leaving a brisk chill in the air. It's passed, but you get the feeling it'll be back again soon.",
+    secondaryMessageTemplate:
+      "You survived the {ordinal} annual FDraft Halloween event.",
+    foundingYear: 2026,
+    buttonLabel: "See you next year.",
+  },
 };
 
 /**

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { setEventDateOverride } from "@/application/events/event-date-override-store";
 import {
   getEventDiscovery,
+  isOccurrenceActiveNow,
   resolveEventIntroCandidate,
   resolveVisibleEventPages,
 } from "@/application/events/event-discovery";
@@ -11,7 +12,10 @@ import {
   declineEventOccurrence,
 } from "@/application/events/event-opt-in";
 import { getEventSettings } from "@/application/events/event-settings-store";
-import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
+import {
+  F_YOU_ITS_JANUARY_EVENT_ID,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import { FixedClock } from "@/domain/time/clock";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
@@ -329,5 +333,238 @@ describe("Event Lifecycle Repair — occurrence-based discovery", () => {
     // (see docs/updates, "EVENT LIFECYCLE REPAIR" §9).
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.activeEvent).toBeNull();
+  });
+});
+
+/**
+ * Regression coverage for docs/updates, "EVENT SYSTEM BUGFIX — JANUARY
+ * REMAINS ACTIVE DURING HALLOWEEN TESTING": `isOccurrenceActiveNow` (the
+ * canonical "is this event genuinely current" rule) is a per-event,
+ * independently-evaluated filter, never a single global "selected event"
+ * — a naturally-joined event outside its own window must never appear
+ * active just because a DIFFERENT event's window is currently the one
+ * simulated, and both events' historical participation coexisting must
+ * never make more than the genuinely-in-window one(s) considered active.
+ */
+describe("Event Lifecycle Repair — per-event availability never leaks across events", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  const PROFILE_ID = "alex";
+
+  async function seedProfile(databaseName: string) {
+    db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.profiles.create({
+      id: PROFILE_ID,
+      displayName: "Alex",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastOpenedAt: "2026-01-01T00:00:00.000Z",
+      timezone: "UTC",
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist",
+        franchiseChronologicalOrder: false,
+        adminMode: false,
+        halloweenPumpkinState: "uncarved",
+      },
+      dataVersion: 1,
+    });
+    return repos;
+  }
+
+  it("Halloween test date: Halloween available, January unavailable", async () => {
+    const repos = await seedProfile(crypto.randomUUID());
+    const clock = new FixedClock(new Date("2026-10-15T20:00:00.000Z"));
+    const { statuses } = await getEventDiscovery(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock },
+    );
+    const halloween = statuses.find((s) => s.event.id === HALLOWEEN_EVENT_ID)!;
+    const january = statuses.find(
+      (s) => s.event.id === F_YOU_ITS_JANUARY_EVENT_ID,
+    )!;
+    expect(halloween.available).toBe(true);
+    expect(january.available).toBe(false);
+  });
+
+  it("January test date: January available, Halloween unavailable", async () => {
+    const repos = await seedProfile(crypto.randomUUID());
+    const clock = new FixedClock(new Date("2026-01-28T20:00:00.000Z"));
+    const { statuses } = await getEventDiscovery(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock },
+    );
+    const halloween = statuses.find((s) => s.event.id === HALLOWEEN_EVENT_ID)!;
+    const january = statuses.find(
+      (s) => s.event.id === F_YOU_ITS_JANUARY_EVENT_ID,
+    )!;
+    expect(january.available).toBe(true);
+    expect(halloween.available).toBe(false);
+  });
+
+  it("a naturally-joined (never manually-activated) January occurrence is NOT currently active once Halloween's window is simulated", async () => {
+    const repos = await seedProfile(crypto.randomUUID());
+    const januaryClock = new FixedClock(new Date("2026-01-28T20:00:00.000Z"));
+    await beginEventOptIn(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
+      },
+      { clock: januaryClock },
+    );
+
+    const halloweenClock = new FixedClock(new Date("2026-10-15T20:00:00.000Z"));
+    const discovery = await getEventDiscovery(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock: halloweenClock },
+    );
+    const january = discovery.statuses.find(
+      (s) => s.event.id === F_YOU_ITS_JANUARY_EVENT_ID,
+    )!;
+    expect(january.participation).toBe("joined");
+    expect(january.manuallyEnabled).toBe(false);
+    expect(january.available).toBe(false);
+    expect(isOccurrenceActiveNow(january)).toBe(false);
+
+    const halloween = discovery.statuses.find(
+      (s) => s.event.id === HALLOWEEN_EVENT_ID,
+    )!;
+    expect(halloween.available).toBe(true);
+  });
+
+  it("a naturally-joined Halloween occurrence is NOT currently active once its window has closed, later the same year", async () => {
+    const repos = await seedProfile(crypto.randomUUID());
+    const halloweenClock = new FixedClock(new Date("2026-10-15T20:00:00.000Z"));
+    await beginEventOptIn(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC", eventId: HALLOWEEN_EVENT_ID },
+      { clock: halloweenClock },
+    );
+
+    // Same occurrence year (2026) so this is genuinely still the SAME
+    // joined occurrence, just past its own window — not a fresh, unrelated
+    // "unanswered" occurrence from crossing a year boundary.
+    const laterClock = new FixedClock(new Date("2026-11-15T00:00:00.000Z"));
+    const discovery = await getEventDiscovery(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock: laterClock },
+    );
+    const halloween = discovery.statuses.find(
+      (s) => s.event.id === HALLOWEEN_EVENT_ID,
+    )!;
+    expect(halloween.occurrenceKey).toBe(`${HALLOWEEN_EVENT_ID}:2026`);
+    expect(halloween.participation).toBe("joined");
+    expect(halloween.manuallyEnabled).toBe(false);
+    expect(halloween.available).toBe(false);
+    expect(isOccurrenceActiveNow(halloween)).toBe(false);
+  });
+
+  it("both events have historical joined occurrences — only the one currently in its effective date range is considered active", async () => {
+    const repos = await seedProfile(crypto.randomUUID());
+    await beginEventOptIn(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
+      },
+      { clock: new FixedClock(new Date("2026-01-28T20:00:00.000Z")) },
+    );
+    await beginEventOptIn(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC", eventId: HALLOWEEN_EVENT_ID },
+      { clock: new FixedClock(new Date("2026-10-15T20:00:00.000Z")) },
+    );
+
+    const discovery = await getEventDiscovery(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock: new FixedClock(new Date("2026-10-20T00:00:00.000Z")) },
+    );
+    const currentlyActive = discovery.statuses.filter(isOccurrenceActiveNow);
+    expect(currentlyActive.map((s) => s.event.id)).toEqual([
+      HALLOWEEN_EVENT_ID,
+    ]);
+  });
+
+  it("Admin Event Testing 'Off' after a Halloween override: the real clock controls availability immediately, with no event left stuck active", async () => {
+    const databaseName = crypto.randomUUID();
+    const repos = await seedProfile(databaseName);
+    const profile = await repos.profiles.getById(PROFILE_ID);
+    await repos.profiles.update({
+      ...profile!,
+      settings: { ...profile!.settings, adminMode: true },
+    });
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T20:00:00.000Z",
+    });
+    await beginEventOptIn(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC", eventId: HALLOWEEN_EVENT_ID },
+      { clock: new FixedClock(new Date("2026-10-15T20:00:00.000Z")) },
+    );
+
+    // Turn the override off — the real clock (fixed here to a date outside
+    // Halloween's window) must take over immediately, with no restart.
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: false,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T20:00:00.000Z",
+    });
+    const realClock = new FixedClock(new Date("2026-03-01T00:00:00.000Z"));
+    const discovery = await getEventDiscovery(
+      repos,
+      { profileId: PROFILE_ID, timezone: "UTC" },
+      { clock: realClock },
+    );
+    const halloween = discovery.statuses.find(
+      (s) => s.event.id === HALLOWEEN_EVENT_ID,
+    )!;
+    expect(halloween.available).toBe(false);
+    expect(isOccurrenceActiveNow(halloween)).toBe(false);
+  });
+
+  it("restarting with a Halloween override persisted: Halloween stays available, January stays unavailable", async () => {
+    const databaseName = crypto.randomUUID();
+    const repos = await seedProfile(databaseName);
+    const profile = await repos.profiles.getById(PROFILE_ID);
+    await repos.profiles.update({
+      ...profile!,
+      settings: { ...profile!.settings, adminMode: true },
+    });
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T20:00:00.000Z",
+    });
+    await db.close();
+
+    const reopened = new FDraftLocalDatabase(databaseName);
+    const reopenedRepos = createLocalRepositories(reopened);
+    const discovery = await getEventDiscovery(reopenedRepos, {
+      profileId: PROFILE_ID,
+      timezone: "UTC",
+    });
+    const halloween = discovery.statuses.find(
+      (s) => s.event.id === HALLOWEEN_EVENT_ID,
+    )!;
+    const january = discovery.statuses.find(
+      (s) => s.event.id === F_YOU_ITS_JANUARY_EVENT_ID,
+    )!;
+    expect(halloween.available).toBe(true);
+    expect(january.available).toBe(false);
+    await reopened.close();
+    db = reopened;
   });
 });

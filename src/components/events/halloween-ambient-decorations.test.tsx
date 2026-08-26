@@ -41,6 +41,7 @@ function halloweenStatus(
     available: true,
     manuallyEnabled: false,
     participation: "joined",
+    endingAcknowledged: false,
     ...overrides,
   };
 }
@@ -75,6 +76,7 @@ describe("useHalloweenAmbientVisible / HalloweenAmbientDecorations", () => {
         available: true,
         manuallyEnabled: false,
         participation: "joined",
+        endingAcknowledged: false,
       },
     ];
     mockEventVisualsEnabled = true;

@@ -1,5 +1,9 @@
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
+  getEventEndingAcknowledgements,
+  type EventEndingAcknowledgements,
+} from "@/application/events/event-ending-acknowledgement-store";
+import {
   getEventParticipations,
   type EventParticipations,
 } from "@/application/events/event-participation-store";
@@ -76,6 +80,17 @@ export interface EventOccurrenceStatus {
    * introduction modal to decline in the first place).
    */
   participation: EventParticipationState;
+  /**
+   * Whether this profile has already dismissed this occurrence's
+   * Event-ending experience (see `event-ending-acknowledgement-store.ts`,
+   * docs/updates "EVENT SYSTEM — EVENT-OVER EXPERIENCE") — `false` for a
+   * manual-only event with no occurrence key at all (there is nothing to
+   * "end"). Only ever meaningful alongside `isOccurrenceExpired`/
+   * `resolveEventEndingCandidate` below; every other consumer of this
+   * type can ignore it exactly like they already ignore fields they don't
+   * need.
+   */
+  endingAcknowledged: boolean;
 }
 
 export interface EventDiscoveryResult {
@@ -121,15 +136,22 @@ export async function getEventDiscovery(
   const now = await getEffectiveEventDate(repos, params.profileId, {
     clock: deps.clock,
   });
-  const [participations, eventSettings] = await Promise.all([
-    getEventParticipations(repos, params.profileId),
-    getEventSettings(repos, params.profileId),
-  ]);
+  const [participations, eventSettings, endingAcknowledgements] =
+    await Promise.all([
+      getEventParticipations(repos, params.profileId),
+      getEventSettings(repos, params.profileId),
+      getEventEndingAcknowledgements(repos, params.profileId),
+    ]);
 
   const statuses = EVENT_DEFINITIONS.map((event) =>
-    resolveOccurrenceStatus(event, now, params.timezone, participations, {
-      manuallyEnabledEvents: eventSettings.manuallyEnabledEvents,
-    }),
+    resolveOccurrenceStatus(
+      event,
+      now,
+      params.timezone,
+      participations,
+      endingAcknowledgements,
+      { manuallyEnabledEvents: eventSettings.manuallyEnabledEvents },
+    ),
   );
 
   return {
@@ -145,6 +167,7 @@ function resolveOccurrenceStatus(
   now: Date,
   timezone: string,
   participations: EventParticipations,
+  endingAcknowledgements: EventEndingAcknowledgements,
   eventSettings: { manuallyEnabledEvents: string[] },
 ): EventOccurrenceStatus {
   const available = isEventAvailable(event.availability, now, timezone);
@@ -158,7 +181,18 @@ function resolveOccurrenceStatus(
       : manuallyEnabled
         ? "joined"
         : "unanswered";
-  return { event, occurrenceKey, available, manuallyEnabled, participation };
+  const endingAcknowledged =
+    occurrenceKey !== null
+      ? (endingAcknowledgements[occurrenceKey] ?? false)
+      : false;
+  return {
+    event,
+    occurrenceKey,
+    available,
+    manuallyEnabled,
+    participation,
+    endingAcknowledged,
+  };
 }
 
 /**
@@ -230,6 +264,51 @@ export function resolveEventIntroCandidate(
       status.occurrenceKey !== null &&
       status.available &&
       status.participation === "unanswered",
+  );
+  return candidate
+    ? { ...candidate, occurrenceKey: candidate.occurrenceKey! }
+    : null;
+}
+
+/**
+ * A JOINED occurrence whose window has now closed — see docs/updates,
+ * "EVENT SYSTEM — EVENT-OVER EXPERIENCE" §1: "ACTIVE -> EXPIRED." The
+ * inverse of `isOccurrenceActiveNow`'s own `available || manuallyEnabled`
+ * check, deliberately excluding a manual activation the same way that
+ * function does: a `manualActivationAllowed` event (January) that was
+ * manually enabled stays active indefinitely by design (see
+ * `isOccurrenceActiveNow`'s doc comment) — there is no "window closing" to
+ * mark as an ending for that kind of join, only for a natural-only one
+ * (Halloween) whose window has a real, meaningful close.
+ */
+export function isOccurrenceExpired(status: EventOccurrenceStatus): boolean {
+  return (
+    status.participation === "joined" &&
+    !status.available &&
+    !status.manuallyEnabled
+  );
+}
+
+/**
+ * Which event's Event-over/ending experience should show right now, if
+ * any — see docs/updates, "EVENT SYSTEM — EVENT-OVER EXPERIENCE" §4/§6:
+ * the FIRST (registry order) event whose CURRENT occurrence this profile
+ * joined has expired, whose ending is `enabled`, and hasn't already been
+ * acknowledged. A manual-only event (`occurrenceKey === null`) is never
+ * offered here (same reasoning as `resolveEventIntroCandidate` — there is
+ * no occurrence to key acknowledgement against). Declined/unanswered/
+ * non-participant occurrences never qualify — only `participation ===
+ * "joined"` does, via `isOccurrenceExpired`.
+ */
+export function resolveEventEndingCandidate(
+  statuses: EventOccurrenceStatus[],
+): (EventOccurrenceStatus & { occurrenceKey: string }) | null {
+  const candidate = statuses.find(
+    (status) =>
+      status.occurrenceKey !== null &&
+      Boolean(status.event.ending?.enabled) &&
+      isOccurrenceExpired(status) &&
+      !status.endingAcknowledged,
   );
   return candidate
     ? { ...candidate, occurrenceKey: candidate.occurrenceKey! }

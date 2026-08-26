@@ -382,6 +382,14 @@ export const backupDraftItemSchema = z.object({
   substitutionReason: draftItemSubstitutionReasonSchema
     .nullable()
     .default(null),
+  // A backup exported before this field existed has no such key — the
+  // same "never actually granted" default `LocalDraftRepository`'s own
+  // normalization falls back to (see docs/updates, "EVENT SYSTEM —
+  // UNIVERSAL EVENT CURRENCY EARNING"). Restoring this field verbatim
+  // (rather than always resetting it to `null`) is what stops a restored
+  // backup from letting an already-rewarded item earn its event currency
+  // a second time.
+  eventRewardGrantedAt: nullableIsoDateTimeSchema.default(null),
   createdAt: isoDateTimeSchema,
 });
 

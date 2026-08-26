@@ -1,5 +1,8 @@
 import { createLocalDraft } from "@/application/drafts/local-draft-service";
-import { getEventSettings } from "@/application/events/event-settings-store";
+import {
+  getEventDiscovery,
+  isOccurrenceActiveNow,
+} from "@/application/events/event-discovery";
 import { draftConfigInputSchema } from "@/domain/drafts/schemas";
 import type { Repositories } from "@/repositories";
 
@@ -75,20 +78,30 @@ export async function createDraftAction(
   // reusing this exact, unmodified draft-creation flow rather than a
   // separate "event draft" path; normal FDraft drafting/eligibility
   // applies unchanged either way.
-  const eventSettings = await getEventSettings(
-    context.repositories,
-    context.profileId,
-  );
-  const sourceEventId = eventSettings.eventsEnabled
-    ? eventSettings.activeEvent
-    : null;
-  // Captured once, now, so a later change to `manuallyEnabledEvents` (e.g.
-  // opting into a different event, or this one's availability window
-  // changing) can never retroactively alter which currency THIS draft's
-  // completion awards (see docs/product-spec.md, event system Phase 10).
-  const sourceEventManuallyEnabled = sourceEventId
-    ? eventSettings.manuallyEnabledEvents.includes(sourceEventId)
-    : null;
+  //
+  // Derived from the shared `isOccurrenceActiveNow` rule (genuinely
+  // joined AND currently available/manually-enabled), never from
+  // `EventSettings.activeEvent` directly (see docs/updates, "EVENT SYSTEM
+  // BUGFIX — JANUARY REMAINS ACTIVE DURING HALLOWEEN TESTING") — that
+  // field is only ever set on join and never cleared when its own window
+  // closes, so trusting it here could silently tag a plain draft created
+  // during Halloween's window with January's stale id, awarding Misery
+  // Points instead of Lifetime Points for a draft that has nothing to do
+  // with January.
+  const discovery = await getEventDiscovery(context.repositories, {
+    profileId: context.profileId,
+    timezone: context.timezone,
+  });
+  const currentEventStatus = discovery.eventsEnabled
+    ? discovery.statuses.find(isOccurrenceActiveNow)
+    : undefined;
+  const sourceEventId = currentEventStatus?.event.id ?? null;
+  // Captured once, now, so a later change to participation/availability
+  // (e.g. opting into a different event, or this one's window closing)
+  // can never retroactively alter which currency THIS draft's completion
+  // awards (see docs/product-spec.md, event system Phase 10).
+  const sourceEventManuallyEnabled =
+    currentEventStatus?.manuallyEnabled ?? null;
 
   const outcome = await createLocalDraft(context.repositories, {
     profileId: context.profileId,

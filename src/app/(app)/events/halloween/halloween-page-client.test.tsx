@@ -169,6 +169,48 @@ describe("HalloweenPageClient — empty page (no draft yet)", () => {
       screen.queryByText(/a few hidden interactions to find/i),
     ).not.toBeInTheDocument();
   });
+
+  // Regression for docs/updates, "EVENT SYSTEM BUGFIX — JANUARY REMAINS
+  // ACTIVE DURING HALLOWEEN TESTING": header identity comes from the
+  // route/page definition (this component always renders "Halloween"),
+  // never from any globally "active" event — a profile with January
+  // participation history (even a stale `EventSettings.activeEvent`
+  // still pointing at it) must never leak January's identity onto this
+  // page.
+  it("the header always reads Halloween, even with January participation history and a stale activeEvent pointing at January", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.settings.set(PROFILE_ID, "events.settings", {
+      eventsEnabled: true,
+      eventVisualsEnabled: true,
+      activeEvent: "f-you-its-january",
+      manuallyEnabledEvents: [],
+    });
+    await repos.settings.set(PROFILE_ID, "events.participations", {
+      [`${HALLOWEEN_EVENT_ID}:2026`]: "joined",
+      "f-you-its-january:2026": "joined",
+    });
+    await db.close();
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Halloween" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("heading", { name: "F* You, It's January!" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/F\* You, It's January!/),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("HalloweenPageClient — active Draft rendered directly on the page", () => {

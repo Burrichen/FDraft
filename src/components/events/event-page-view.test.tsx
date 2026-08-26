@@ -172,7 +172,7 @@ describe("EventPageView (PROMPT 18)", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 
-  it("opted into Halloween shows the empty-state placeholder and no points balance (pointType is null)", async () => {
+  it("opted into Halloween shows the empty-state placeholder and its real (currently 0) Haunted Points balance — this generic shell isn't what production actually routes Halloween through (see halloween-page-client.tsx), but proves the balance card correctly reflects Halloween now having a real `currency` configured", async () => {
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, { activeEvent: HALLOWEEN_EVENT_ID });
 
@@ -183,7 +183,7 @@ describe("EventPageView (PROMPT 18)", () => {
     await waitFor(() =>
       expect(screen.getByText(/nothing here yet/i)).toBeInTheDocument(),
     );
-    expect(screen.queryByText(/points/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/haunted points/i)).toBeInTheDocument();
   });
 });
 

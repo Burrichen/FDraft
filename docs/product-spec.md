@@ -2227,6 +2227,47 @@ or any other real data.
 
 ---
 
+## EVENT CURRENCY & EVENT ENDINGS — CANONICAL RULES
+
+These four rules are the generic engine every current and future Event's
+currency and ending behavior is derived from — nothing here is Halloween-
+or January-specific code; each event only ever supplies its own
+`EventDefinition.currency`/`EventDefinition.ending` configuration.
+
+**EVENT CURRENCY**: Watching one film contained in an active Event Draft
+awards +1 of that Event's configured permanent currency
+(`EventDefinition.currency.pointsPerFilm`, almost always `1`). This is
+independent of, and additional to, whatever Lifetime Point that same
+watch action already earns through normal progression — an Event Draft
+film watched banks both. Earning is per FILM, not per draft completion,
+and applies identically no matter which curated pool/source the film came
+from within that Draft.
+
+**HALLOWEEN**: +1 Haunted Point per Halloween Draft film watched — every
+Halloween-adjacent, Horror, or Kitsch film alike, with no distinction
+between pools.
+
+**JANUARY**: +1 Misery Point per January Event Draft film watched.
+
+**EVENT ENDINGS**: Each Event may define its own unique end-of-Event
+presentation (`EventDefinition.ending`), shown once to a profile that
+PARTICIPATED IN (joined) that occurrence, after that occurrence's window
+has closed. A profile that declined or never answered never sees it. Once
+acknowledged, that SPECIFIC occurrence's ending never shows again; a new
+occurrence (e.g. next year) begins unacknowledged regardless of the last
+one's history. Driven globally from the app shell, not any one page — a
+profile never has to visit the Event's own page, Settings, or Drafts to
+see it, including on the next launch after the Event ended while FDraft
+was closed.
+
+**HALLOWEEN END**: 2026 is the 1st annual Halloween Event
+(`EventDefinition.ending.foundingYear: 2026`), and the "Nth annual" label
+increments automatically each subsequent year (2027 = 2nd, 2028 = 3rd,
+...) via the same generic ordinal-number calculation every Event's ending
+would use — never a hardcoded table of years.
+
+---
+
 ## STATE / CONSISTENCY
 
 Do not let important state live only in React component state.
@@ -6473,3 +6514,77 @@ Christmas gameplay, `EventDefinition`, route, or nav entry was added.
 test.tsx`), lint, strict typecheck, production build, the Tauri static
   export, `cargo check`, and a temporary live-browser screenshot check
   (since deleted) of the dev preview section itself.
+
+### Phase 24 — Event system bugfix: January remains active during Halloween testing
+
+A genuine state-management bug, found and fixed — not a redesign. Root
+cause: `EventSettings.activeEvent`, documented as "the event a NEW plain
+draft's reward currency is tagged with," was ALSO being read in two
+places as if it meant "the current event" — a single, persisted slot set
+on every join and never cleared when that event's own window closed. A
+profile who naturally joined January, then later had Halloween's window
+simulated via Admin Event Testing, kept seeing January treated as
+current in those two places, while the real current event (Halloween)
+was hidden.
+
+- **Stale/incorrect authoritative state**: `EventSwitcherSection`
+  (Settings' "Current Event" card) derived `isCurrentlyJoined` from
+  `settings.activeEvent` + `participation === "joined"` alone, never
+  checking `available`/`manuallyEnabled` — so a joined-but-now-out-of-
+  window event stayed shown as current forever, while its "Available
+  now" list separately excluded the REAL current event as "already
+  joined to something else." `drafts/new/actions.ts`'s
+  `createDraftAction` had the identical flaw: it tagged a brand-new
+  plain draft's `sourceEventId` straight from `activeEvent` whenever
+  `eventsEnabled` was on, with no availability check — a latent reward-
+  currency corruption bug (a draft made during Halloween's window could
+  silently earn Misery Points instead of Lifetime Points).
+- **New derivation model**: both sites now derive from
+  `isOccurrenceActiveNow` (`event-discovery.ts`) — the SAME shared rule
+  nav (`resolveVisibleEventPages`), the intro modal
+  (`resolveEventIntroCandidate`), `HauntedSection`, and both event pages
+  already correctly used; those were never part of this bug. `EventSwitcherSection`
+  now filters `discovery.result.statuses` into `currentJoinedStatuses` —
+  an array, not a single hardcoded lookup, so a future event whose window
+  genuinely overlaps another's is displayed correctly instead of one
+  silently hiding the other (per this phase's own "multiple event
+  future-safety" requirement) — while its "Available now" filter
+  simplified to `available && !isOccurrenceActiveNow(status)`, replacing
+  the old redundant `activeEvent`/`joinedEventIds` combination.
+  `createDraftAction` now calls `getEventDiscovery` directly and picks
+  `statuses.find(isOccurrenceActiveNow)`, so a plain draft's currency
+  tagging can never disagree with what's actually currently active.
+  `EventSettings.activeEvent` itself is untouched/unremoved — it's still
+  a legitimate, narrowly-scoped field for its one real remaining purpose
+  (nothing else reads it anymore).
+- **Cache/reactivity**: no fix needed here — already correct.
+  `EventTestingSection` already calls `discovery.refresh()` immediately
+  after saving an override, and every consumer already reads the same
+  shared `EventDiscoveryProvider` snapshot; the bug was purely about
+  which field one consumer combined that snapshot with, not staleness.
+  Verified live: switching Admin Event Testing between January and
+  Halloween updates Settings/nav/page headers instantly, with no route
+  change or reload.
+- **New diagnostic** (dev-only, per this phase's own "DEBUGGING"
+  section): `EventTestingSection` now also renders an "Event State
+  Diagnostic" block — Effective Event Time, Available, Joined +
+  Available, and Historical Joined, read straight from the shared
+  discovery snapshot — visible only under Admin Mode, never to a normal
+  user.
+- **Verification**: reproduced the exact reported bug live in a browser
+  first (join January naturally, switch to Halloween via Admin Event
+  Testing — January stayed "Current Event," Halloween never appeared),
+  confirmed the fix resolves it with zero console errors and no
+  restart/reload needed, then ran the full unit/integration suite (166
+  files / 1,837 tests, up from 165/1,824 — new coverage: two regression
+  tests in `event-switcher-section.test.tsx` (stale-January-during-
+  Halloween-testing, and live override-switching via the real
+  `EventTestingSection` UI with no remount), six new tests in
+  `event-lifecycle-repair.integration.test.ts` (per-event availability
+  never leaking, both-historically-joined filtering, override-off
+  restoring real-clock control, restart persistence), three new tests
+  in `actions.test.ts` (`sourceEventId` tagging), and one new header-
+  identity regression test in `halloween-page-client.test.tsx`; one
+  pre-existing test fixed for inadvertently relying on the bug itself),
+  lint, strict typecheck, production build, and the existing Halloween
+  e2e suite.

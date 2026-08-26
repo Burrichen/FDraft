@@ -101,6 +101,7 @@ function minimalBackup(): BackupV1 {
         watchedHistoryId: "history-1",
         originFilmId: null,
         substitutionReason: null,
+        eventRewardGrantedAt: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ],

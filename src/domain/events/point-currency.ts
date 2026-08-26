@@ -1,20 +1,14 @@
 /**
  * Every permanent point currency FDraft's event system can award (see
  * docs/product-spec.md, event system Phase 4). `"lifetime"` is the
- * existing generic currency every profile has always implicitly earned —
- * `"misery"` and `"bounty"`/`"signal"` are awarded by January/Frontier/
- * Signal respectively. `"haunted"` (FDraft Beta 2, "PROMPT B2.1 — DUAL
- * DRAFT ARCHITECTURE + EVENT ROUTING/SETTINGS FIXES" §5) is Halloween's
- * own reserved currency — the storage/UI plumbing exists and every
- * profile has a real (default 0) balance for it, but nothing awards it
- * yet: `HALLOWEEN_EVENT_ID`'s `EventDefinition.pointType` deliberately
- * stays `null` (see `event-registry.ts`) rather than being set to
- * `"haunted"`, since flipping that field on would immediately start
- * awarding it through the existing generic `awardDraftCompletionReward`
- * path for every natural-window Halloween Draft completion — inventing an
- * earning mechanic this phase was explicitly told not to invent. A later
- * phase defines earning by setting `pointType: "haunted"` once that's an
- * intentional decision, not a side effect of this currency existing.
+ * generic currency every profile earns from any draft's own completion
+ * (see `resolveDraftCompletionReward`) — `"bounty"`/`"signal"` are still
+ * awarded that same way by Frontier/Signal. `"misery"` (January) and
+ * `"haunted"` (Halloween) are different: both events declare an
+ * `EventDefinition.currency` (see `event-definition.ts`, docs/updates,
+ * "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY EARNING"), which earns their
+ * currency PER FILM WATCHED in that event's own Draft, via
+ * `awardEventDraftItemReward` — not once at completion.
  */
 export type PointCurrency =
   "lifetime" | "misery" | "signal" | "bounty" | "haunted";

@@ -14,6 +14,7 @@ import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
 import { EventSwitcherSection } from "./event-switcher-section";
+import { EventTestingSection } from "./event-testing-section";
 
 const PROFILE_ID = "alex";
 
@@ -542,9 +543,17 @@ describe("EventSwitcherSection — Available Events (PROMPT B2.1 §4: active eve
 describe("EventSwitcherSection — Current Event: Open <event> link", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   it("links straight to the joined event's own page", async () => {
+    // Pinned INSIDE Halloween's real natural window — "Current Event" is
+    // now derived from `isOccurrenceActiveNow` (joined AND available),
+    // not the raw `activeEvent` field, so this event must genuinely be
+    // available for this test to mean anything (see docs/updates, "EVENT
+    // SYSTEM BUGFIX — JANUARY REMAINS ACTIVE DURING HALLOWEEN TESTING").
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
     const databaseName = crypto.randomUUID();
     await seedProfile(databaseName, {
       eventsEnabled: true,
@@ -558,5 +567,126 @@ describe("EventSwitcherSection — Current Event: Open <event> link", () => {
     );
     const openLink = screen.getByRole("button", { name: "Open Halloween" });
     expect(openLink).toHaveAttribute("href", "/events/halloween");
+  });
+});
+
+describe("EventSwitcherSection — regression: January remains active during Halloween testing", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  // THE exact reported bug: a profile naturally joined January (during
+  // its own real window, NEVER manually activated), then later has
+  // Halloween's window simulated via Admin Event Testing. "Current
+  // Event" used to keep showing January forever — read straight off the
+  // stale, single-slot `EventSettings.activeEvent`, which is set on
+  // every join and never cleared when that event's own window closes —
+  // while the real current event (Halloween, once joined) silently
+  // disappeared, having already been excluded from "Available now" as
+  // "already joined to something." Fixed by deriving "Current Event"
+  // from `isOccurrenceActiveNow` (participation joined AND currently
+  // available) instead.
+  it("a naturally-joined (never manually-activated) January occurrence is NOT shown as Current Event once Halloween's window is simulated", async () => {
+    const databaseName = crypto.randomUUID();
+    // `manuallyEnabledEvents: []` is the crux — this is a NATURAL join,
+    // which `isOccurrenceActiveNow` correctly does NOT exempt from the
+    // closing-window check (unlike a manual activation, which legitimately
+    // stays active year-round by design).
+    await seedProfile(databaseName, {
+      eventsEnabled: true,
+      activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
+      manuallyEnabledEvents: [],
+    });
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T20:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
+    // Halloween is now the genuinely current, available event — Settings
+    // must offer it, never keep showing January's stale "Current Event".
+    await waitFor(() =>
+      expect(screen.getByText("Available now")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Current Event")).not.toBeInTheDocument();
+    expect(screen.queryByText("F* You, It's January!")).not.toBeInTheDocument();
+    expect(screen.getByText("Halloween")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Let me in." }),
+    ).toBeInTheDocument();
+  });
+
+  it("switching the Admin Event Testing override live (no remount) immediately updates which event Settings shows as current", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, {
+      eventsEnabled: true,
+      activeEvent: F_YOU_ITS_JANUARY_EVENT_ID,
+      manuallyEnabledEvents: [],
+    });
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    const profile = await repos.profiles.getById(PROFILE_ID);
+    await repos.profiles.update({
+      ...profile!,
+      settings: { ...profile!.settings, adminMode: true },
+    });
+    await db.close();
+
+    function CombinedHarness({ dbName }: { dbName: string }) {
+      return (
+        <ProfileProvider databaseName={dbName}>
+          <EventDiscoveryProvider>
+            <EventTestingSection />
+            <EventSwitcherSection />
+          </EventDiscoveryProvider>
+        </ProfileProvider>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<CombinedHarness dbName={databaseName} />);
+
+    // Still January's real window is irrelevant here — no override is set
+    // yet, so nothing is naturally available and January isn't manually
+    // enabled: neither event shows as current.
+    await waitFor(() =>
+      expect(screen.getByText("Available now")).toBeInTheDocument(),
+    );
+
+    // Switch the override live to Halloween, no remount anywhere. Halloween
+    // is available but not yet joined, so it shows with a Join button —
+    // unambiguous even alongside the diagnostic panel's own "Halloween"
+    // text and the <select>'s own "Halloween" option.
+    await user.selectOptions(
+      screen.getByLabelText("Event Date Override"),
+      HALLOWEEN_EVENT_ID,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Let me in." }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Open F* You, It's January!" }),
+    ).not.toBeInTheDocument();
+
+    // Switch it again, straight to January — Halloween's Join button must
+    // disappear and January's own genuinely-joined, now-available
+    // occurrence must show as Current Event, all without a reload.
+    await user.selectOptions(
+      screen.getByLabelText("Event Date Override"),
+      F_YOU_ITS_JANUARY_EVENT_ID,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Open F* You, It's January!" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Let me in." }),
+    ).not.toBeInTheDocument();
   });
 });

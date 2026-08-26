@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import {
   getEventSettings,
   setEventSettings,
@@ -13,7 +14,6 @@ import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { getEventDefinition } from "@/domain/events/event-registry";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { describeEventAvailabilityWindow } from "./event-availability-copy";
 
@@ -37,9 +37,24 @@ import { describeEventAvailabilityWindow } from "./event-availability-copy";
  *    link straight to its page, and exposes its two independent toggles —
  *    "Event Visuals" (purely cosmetic) and "Event Gameplay".
  *
- * "Current Event" is shown whenever `EventSettings.activeEvent` names an
- * event this profile is genuinely JOINED to (occurrence participation
- * `"joined"`) — NOT gated on `eventsEnabled` (see docs/updates, "HALLOWEEN
+ * "Current Event" is shown whenever `isOccurrenceActiveNow` is true for at
+ * least one status — i.e. genuinely JOINED for its current occurrence AND
+ * (naturally available right now OR manually enabled) — the exact same
+ * shared rule navigation/`HauntedSection`/an event's own page all already
+ * use. NEVER derived from `EventSettings.activeEvent` (see docs/updates,
+ * "EVENT SYSTEM BUGFIX — JANUARY REMAINS ACTIVE DURING HALLOWEEN TESTING":
+ * that field is only "the event a NEW plain draft's reward currency is
+ * tagged with," a single slot set on every join and never cleared when its
+ * own window closes — reading it as "the current event" meant a profile
+ * who joined January, then later had Halloween's window simulated via
+ * Admin Event Testing, kept seeing January as "Current Event" here even
+ * though January was no longer actually active, while Halloween — the
+ * real current event — silently disappeared from the list entirely,
+ * having already been filtered out of "Available now" as "already
+ * joined"). `currentJoinedStatuses` is a FILTER, not a single lookup, so
+ * a future registered event whose window genuinely overlaps another's
+ * is displayed correctly instead of one silently hiding the other — NOT
+ * gated on `eventsEnabled` (see docs/updates, "HALLOWEEN
  * PAGE REBUILD" §10, fixing a real bug: turning Event Gameplay off used to
  * ALSO decline the occurrence via `leaveEventOccurrence`, which silently
  * removed the profile's joined page/nav the moment Gameplay was switched
@@ -89,29 +104,24 @@ export function EventSwitcherSection() {
     return null;
   }
 
-  const currentEvent = settings.activeEvent
-    ? getEventDefinition(settings.activeEvent)
-    : null;
-  const currentEventStatus = currentEvent
-    ? discovery.result.statuses.find(
-        (status) => status.event.id === currentEvent.id,
-      )
-    : undefined;
-  const isCurrentlyJoined =
-    currentEvent !== null && currentEventStatus?.participation === "joined";
-
-  const joinedEventIds = new Set(
-    discovery.result.statuses
-      .filter((status) => status.participation === "joined")
-      .map((status) => status.event.id),
+  // The one, shared "is this event genuinely current" rule — see this
+  // component's own doc comment for exactly why `EventSettings.activeEvent`
+  // must never be read for this instead. A plain filter, not a `.find` for
+  // one hardcoded id, so more than one simultaneously current event (a
+  // future overlapping window) is handled by construction.
+  const currentJoinedStatuses = discovery.result.statuses.filter(
+    isOccurrenceActiveNow,
   );
+  const isCurrentlyJoined = currentJoinedStatuses.length > 0;
+  // The primary current event this card's Visuals/Gameplay toggles apply
+  // to — `EventSettings.eventVisualsEnabled`/`eventsEnabled` remain a
+  // single per-profile pair (not per-event) by existing design, so a
+  // second simultaneously-current event, if one ever exists, still shows
+  // in the list below but shares these same two toggles.
+  const currentEvent = currentJoinedStatuses[0]?.event ?? null;
+
   const availableEvents = discovery.result.statuses
-    .filter(
-      (status) =>
-        status.available &&
-        status.event.id !== settings.activeEvent &&
-        !joinedEventIds.has(status.event.id),
-    )
+    .filter((status) => status.available && !isOccurrenceActiveNow(status))
     .map((status) => status.event);
 
   async function handleEventVisualsChange(value: boolean) {
@@ -155,27 +165,32 @@ export function EventSwitcherSection() {
       <CardContent className="space-y-4">
         {isCurrentlyJoined && currentEvent ? (
           <>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Current Event
-                </p>
-                <p className="text-foreground text-sm font-medium">
-                  {currentEvent.name}
-                </p>
+            {currentJoinedStatuses.map(({ event }) => (
+              <div
+                key={event.id}
+                className="flex items-center justify-between gap-3"
+              >
+                <div>
+                  <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    Current Event
+                  </p>
+                  <p className="text-foreground text-sm font-medium">
+                    {event.name}
+                  </p>
+                </div>
+                {event.page ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={event.page.route} />}
+                  >
+                    Open {event.name}
+                  </Button>
+                ) : null}
               </div>
-              {currentEvent.page ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={<Link href={currentEvent.page.route} />}
-                >
-                  Open {currentEvent.name}
-                </Button>
-              ) : null}
-            </div>
+            ))}
 
             <div className="flex items-center justify-between gap-3 border-t pt-4">
               <div>

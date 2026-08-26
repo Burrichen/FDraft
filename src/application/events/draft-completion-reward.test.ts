@@ -399,7 +399,7 @@ describe("resolveDraftCompletionReward", () => {
     expect(reward).toEqual({ currency: "lifetime", amount: 1 });
   });
 
-  it("a January-sourced draft, normally active (not manually enabled), resolves to Misery Points", async () => {
+  it("a January-sourced draft, normally active (not manually enabled), resolves to plain Lifetime Points at completion — Misery is earned separately, per film watched (see awardEventDraftItemReward)", async () => {
     db = new FDraftLocalDatabase(`resolve-reward-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     const draftId = await seedDraft(repos);
@@ -411,17 +411,10 @@ describe("resolveDraftCompletionReward", () => {
       profileId: PROFILE_ID,
       draft: { ...draft!, sourceEventId: F_YOU_ITS_JANUARY_EVENT_ID },
     });
-    expect(reward).toEqual({
-      currency: "misery",
-      amount: 1,
-      eventContext: {
-        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-        manuallyEnabled: false,
-      },
-    });
+    expect(reward).toEqual({ currency: "lifetime", amount: 1 });
   });
 
-  it("a January-sourced draft the profile manually enabled resolves with manuallyEnabled: true (the downgrade itself happens in awardDraftCompletionReward)", async () => {
+  it("a January-sourced draft the profile manually enabled ALSO resolves to plain Lifetime Points at completion — same as the naturally-active case, since January's own currency is never awarded here either way any more", async () => {
     db = new FDraftLocalDatabase(`resolve-reward-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     const draftId = await seedDraft(repos);
@@ -437,14 +430,7 @@ describe("resolveDraftCompletionReward", () => {
       profileId: PROFILE_ID,
       draft: { ...draft!, sourceEventId: F_YOU_ITS_JANUARY_EVENT_ID },
     });
-    expect(reward).toEqual({
-      currency: "misery",
-      amount: 1,
-      eventContext: {
-        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-        manuallyEnabled: true,
-      },
-    });
+    expect(reward).toEqual({ currency: "lifetime", amount: 1 });
   });
 
   it("Phase 10 reward safety: a draft's persisted activation context is authoritative — a LATER manual opt-in into the same event must not retroactively downgrade an already-in-flight, naturally-activated Signal from Beyond draft's reward", async () => {
@@ -566,7 +552,7 @@ describe("event system Phase 5 — F* You, It's January! end to end", () => {
     await db?.delete();
   });
 
-  it("normal January activation: completing the draft awards Misery Points, not Lifetime", async () => {
+  it("normal January activation: DRAFT COMPLETION itself now awards plain Lifetime Points — Misery is earned separately, per film, before completion ever happens (see the 'per-film event currency earning' describe block below)", async () => {
     db = new FDraftLocalDatabase(`january-e2e-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     await seedActiveFilmWithRating(repos, "film-0", 2.5);
@@ -590,6 +576,10 @@ describe("event system Phase 5 — F* You, It's January! end to end", () => {
     });
     if (!created.ok) throw new Error("unreachable");
 
+    // Completes the item DIRECTLY (bypassing the real watch-action flow —
+    // see `markLocalFilmWatched`), the same way this file's other
+    // completion-mechanics tests do, to isolate the completion reward
+    // itself from the separate per-film mechanism.
     const items = await repos.drafts.listItemsForDraft(created.draftId);
     await repos.drafts.updateItem({
       ...items[0],
@@ -602,8 +592,8 @@ describe("event system Phase 5 — F* You, It's January! end to end", () => {
     });
     expect(archived).toBe(true);
 
-    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(1);
-    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(0);
+    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(0);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
     const draft = await repos.drafts.getById(PROFILE_ID, created.draftId);
     expect(draft?.sourceEventId).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
     expect(draft?.rewardsGrantedAt).not.toBeNull();
@@ -690,7 +680,7 @@ describe("event system Phase 5 — F* You, It's January! end to end", () => {
     });
     expect(first).toBe(true);
     expect(second).toBe(false);
-    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
   });
 });
 
@@ -700,17 +690,20 @@ describe("event system Phase 6 — Halloween end to end", () => {
     await db?.delete();
   });
 
-  // Halloween has no dedicated reward currency configured anywhere in the
-  // project yet (see `event-registry.ts`'s `HALLOWEEN` entry — `pointType:
-  // null`), so both its "normal" and "manual" activation paths resolve to
-  // the same generic/Lifetime Points a plain draft would earn. These tests
-  // still matter as real regression coverage: they prove the reward-
-  // routing/idempotency machinery works correctly for an event with no
-  // unique currency of its own, exactly the same way it does for one that
-  // has one (F* You, It's January!, covered above) — see the Phase 6 task
-  // notes for why no currency is invented here.
+  // Halloween now has its own real per-film-watched currency (Haunted
+  // Points — see `event-registry.ts`'s `HALLOWEEN.currency`, docs/
+  // updates "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY EARNING"), but that
+  // currency is earned via `awardEventDraftItemReward`, per film watched
+  // — NOT here, at draft completion. Because Halloween has a `currency`
+  // configured, `resolveDraftCompletionReward` makes its COMPLETION
+  // reward plain Lifetime Points regardless of activation type — these
+  // tests cover exactly that completion-time behaviour (identical in
+  // shape to January's own completion-time tests above, now that both
+  // resolve to Lifetime at completion the same way); Haunted Point
+  // earning itself is covered separately, in the "per-film event
+  // currency earning" describe block below.
 
-  it("normal Halloween activation: completing the draft awards generic Lifetime Points (no dedicated currency is configured)", async () => {
+  it("normal Halloween activation: completing the draft awards plain Lifetime Points at completion (Haunted Points are earned separately, per film watched)", async () => {
     db = new FDraftLocalDatabase(`halloween-e2e-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db);
     await seedActiveFilms(repos, 1);
@@ -1267,7 +1260,7 @@ describe("event system Phase 10 — reward safety end to end (persistence/lifecy
       draftId: created.draftId,
     });
     expect(archived).toBe(true);
-    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
   });
 
   it("audit fix: undoing a manually-enabled event draft's auto-archive reverses the Lifetime Points it actually granted, never its (never-credited) event currency", async () => {

@@ -1,7 +1,9 @@
 import { formatInTimeZone } from "date-fns-tz";
 import {
+  awardEventDraftItemReward,
   resolveDraftCompletionReward,
   resolveEffectiveRewardCurrency,
+  reverseEventDraftItemReward,
 } from "@/application/events/draft-completion-reward";
 import type { IdGenerator } from "@/domain/shared/id";
 import { defaultIdGenerator } from "@/domain/shared/id";
@@ -10,7 +12,11 @@ import { SystemClock } from "@/domain/time/clock";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
 import type { PointsRepository } from "@/repositories/points-repository";
-import type { WatchlistEntryRecord } from "@/repositories/records";
+import type {
+  DraftItemRecord,
+  PointCurrency,
+  WatchlistEntryRecord,
+} from "@/repositories/records";
 import type { SettingsRepository } from "@/repositories/settings-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 import type { archiveLocalDraftIfResolved } from "@/application/drafts/local-draft-service";
@@ -173,12 +179,45 @@ export async function markLocalFilmWatched(
     watchedHistoryId,
     now,
   });
+  // At most ONE credit of any given CURRENCY per WATCH ACTION, never one
+  // per completed draft — a film shared between a normal Draft and an
+  // event Draft can resolve BOTH from this single action, and (today)
+  // both always resolve to the same "lifetime" currency (see
+  // docs/updates, "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY EARNING" §5:
+  // "+1 Lifetime, NOT +2 Lifetime"). Deliberately keyed by CURRENCY, not
+  // just "has anything been credited yet" — a hypothetical normal Draft
+  // + Frontier/Signal Draft sharing a film should still credit BOTH
+  // Lifetime AND Bounty/Signal independently, since those are genuinely
+  // different currencies, not a duplicate of the same one. Each draft
+  // still gets its own `rewardsGrantedAt` stamped regardless (via
+  // `creditLifetimeBalance`, which lets the stamp happen without a
+  // second credit) so neither can be re-completed and re-rewarded later.
+  const creditedCurrenciesThisAction = new Set<PointCurrency>();
   for (const completion of completions) {
     if (deps.archiveIfResolved) {
+      const draft = await repos.drafts.getById(
+        params.profileId,
+        completion.draftId,
+      );
+      const currency = draft
+        ? resolveEffectiveRewardCurrency(
+            await resolveDraftCompletionReward(repos, {
+              profileId: params.profileId,
+              draft,
+            }),
+          )
+        : null;
+      const alreadyCredited =
+        currency !== null && creditedCurrenciesThisAction.has(currency);
+
       completion.draftArchivedByThisAction = await deps.archiveIfResolved(
         repos,
         { profileId: params.profileId, draftId: completion.draftId },
+        { creditLifetimeBalance: !alreadyCredited },
       );
+      if (completion.draftArchivedByThisAction && currency !== null) {
+        creditedCurrenciesThisAction.add(currency);
+      }
     }
   }
   const [primary = null, secondary = null] = completions;
@@ -270,11 +309,21 @@ export async function markLocalDraftItemWatchedWithoutEntry(
     createdAt: now.toISOString(),
   });
 
-  await repos.drafts.updateItem({
+  const completedItem: DraftItemRecord = {
     ...item,
     isCompleted: true,
     completedAt: now.toISOString(),
     watchedHistoryId,
+  };
+  await repos.drafts.updateItem(completedItem);
+  // See `completeMatchingActiveDraftItem`'s identical call — a Halloween
+  // Horror/Kitsch film (the whole reason this entry point exists at all)
+  // earns its Haunted Point the same way any other Halloween Draft film
+  // does, per film watched, independent of draft completion.
+  await awardEventDraftItemReward(repos, {
+    profileId: params.profileId,
+    draft,
+    item: completedItem,
   });
 
   let draftArchivedByThisAction = false;
@@ -366,6 +415,17 @@ export async function undoLocalFilmWatched(
 
   const now = clock.now().toISOString();
 
+  // Mirrors `markLocalFilmWatched`'s own `creditedCurrenciesThisAction`
+  // dedup (see its comment) — when one watch action archived TWO drafts
+  // at once, only ONE of them actually credited a given currency's
+  // balance, so only ONE of these two `revertDraftCompletion` calls may
+  // actually reverse that SAME currency; the other must still clear its
+  // own draft's `rewardsGrantedAt` (it WAS genuinely stamped) without
+  // touching the balance a second time. Keyed by currency, not a plain
+  // boolean, so a genuinely different currency (e.g. Bounty alongside
+  // Lifetime) still reverses independently.
+  const reversedCurrenciesThisAction = new Set<PointCurrency>();
+
   async function revertDraftCompletion(completion: {
     draftItemId: string;
     draftId: string | null;
@@ -375,21 +435,40 @@ export async function undoLocalFilmWatched(
     if (!item || item.watchedHistoryId !== record.watchedHistoryId) {
       return;
     }
+    const draft = completion.draftId
+      ? await repos.drafts.getById(params.profileId, completion.draftId)
+      : null;
+
+    // Per-film event currency is earned independent of draft archival
+    // (see `awardEventDraftItemReward`), so it must be reversed
+    // independent of it too — every reverted item is checked, not just
+    // ones whose completion happened to archive the whole draft.
+    let eventRewardReversed = false;
+    if (draft) {
+      eventRewardReversed = await reverseEventDraftItemReward(repos, {
+        profileId: params.profileId,
+        draft,
+        item,
+      });
+    }
+
+    // `item` was fetched before the reversal above — spreading it verbatim
+    // would silently resurrect the just-cleared `eventRewardGrantedAt`
+    // (the reversal's own `updateItem` write, then immediately overwritten
+    // by this one using the stale snapshot). Clear it explicitly here too
+    // whenever the reversal actually fired.
     await repos.drafts.updateItem({
       ...item,
       isCompleted: false,
       completedAt: null,
       watchedHistoryId: null,
+      ...(eventRewardReversed ? { eventRewardGrantedAt: null } : {}),
     });
 
-    if (!completion.draftId || !completion.draftArchivedByThisAction) {
+    if (!draft || !completion.draftArchivedByThisAction) {
       return;
     }
-    const draft = await repos.drafts.getById(
-      params.profileId,
-      completion.draftId,
-    );
-    if (!draft || draft.status !== "archived") {
+    if (draft.status !== "archived") {
       return;
     }
     // Undoing the completion that archived this draft must also undo
@@ -414,8 +493,8 @@ export async function undoLocalFilmWatched(
         profileId: params.profileId,
         draft,
       });
-      if (reward.amount !== 0) {
-        const currency = resolveEffectiveRewardCurrency(reward);
+      const currency = resolveEffectiveRewardCurrency(reward);
+      if (reward.amount !== 0 && !reversedCurrenciesThisAction.has(currency)) {
         const currentTotal = await repos.points.getBalance(
           params.profileId,
           currency,
@@ -426,6 +505,7 @@ export async function undoLocalFilmWatched(
           total: Math.max(0, currentTotal - reward.amount),
           updatedAt: now,
         });
+        reversedCurrenciesThisAction.add(currency);
       }
     }
     await repos.drafts.updateDraft({
@@ -481,7 +561,11 @@ export async function undoLocalFilmWatched(
  * to each currently-`"active"` draft's own items avoids that.
  */
 async function completeMatchingActiveDraftItem(
-  repos: { drafts: DraftRepository },
+  repos: {
+    drafts: DraftRepository;
+    points: PointsRepository;
+    settings: SettingsRepository;
+  },
   params: {
     profileId: string;
     watchlistEntryId: string;
@@ -502,11 +586,23 @@ async function completeMatchingActiveDraftItem(
       continue;
     }
 
-    await repos.drafts.updateItem({
+    const completedItem: DraftItemRecord = {
       ...incompleteItem,
       isCompleted: true,
       completedAt: params.now.toISOString(),
       watchedHistoryId: params.watchedHistoryId,
+    };
+    await repos.drafts.updateItem(completedItem);
+    // Every film in an event Draft earns that event's own currency, not
+    // just whichever one happens to complete the draft — see
+    // docs/updates, "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY EARNING"
+    // §1. Independent of `archiveIfResolved` below: a Halloween film
+    // watched mid-draft still earns its Haunted Point immediately, long
+    // before the draft itself is anywhere near resolved.
+    await awardEventDraftItemReward(repos, {
+      profileId: params.profileId,
+      draft,
+      item: completedItem,
     });
     completions.push({
       draftItemId: incompleteItem.id,

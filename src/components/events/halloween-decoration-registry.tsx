@@ -17,6 +17,10 @@ import {
   HalloweenTinyPumpkin,
   HalloweenWrappedCandy,
 } from "./halloween-decorations";
+import {
+  HalloweenCandleExtinguished,
+  HalloweenCloud,
+} from "./halloween-ending-decorations";
 
 /**
  * Every decorative piece Halloween's Designed Slots can pick, keyed by
@@ -94,5 +98,44 @@ export const HALLOWEEN_DECORATION_REGISTRY: DecorationAssetRegistry = {
       <HalloweenHangingOrnament className="halloween-ornament-sway aspect-[12/30] h-8 [animation-delay:400ms]" />
       <HalloweenHangingOrnament className="halloween-ornament-sway aspect-[12/30] h-5 [animation-delay:200ms]" />
     </div>
+  ),
+
+  // Below: the Event-ending scene's own quieter pieces (see docs/updates,
+  // "EVENT SYSTEM — EVENT-OVER EXPERIENCE" §8) — the party's over, so
+  // every one of these reads as faded, empty, or departing rather than
+  // festive. Reused from artwork that already exists for a different
+  // purpose (the interactive pumpkin/candy bowl easter eggs' own "rotting"/
+  // "empty" states) wherever real bundled art already covers it, per
+  // "Do not create another parallel art pipeline" — only the cloud and
+  // extinguished candle above are genuinely new shapes.
+  "pumpkin-faded": () => (
+    <EventArtImage
+      src={HALLOWEEN_ART.pumpkinRotting}
+      className="size-12 opacity-80 grayscale-[35%]"
+    />
+  ),
+  "candy-bowl-empty": () => (
+    <EventArtImage src={HALLOWEEN_ART.candyBowlEmpty} className="size-14" />
+  ),
+  "candle-out": () => (
+    <HalloweenCandleExtinguished className="size-6 opacity-80" />
+  ),
+  "ghost-departing": () => (
+    <HalloweenGhost className="halloween-ghost-depart size-9 opacity-60" />
+  ),
+  "moon-clearing": () => (
+    <div className="relative size-10">
+      <HalloweenMoon className="absolute top-0 right-0 size-8 opacity-90" />
+      <HalloweenCloud className="halloween-cloud-drift absolute top-1 left-0 w-9" />
+    </div>
+  ),
+  "cobweb-sparse": () => (
+    <HalloweenCobwebCorner className="size-14 opacity-30" />
+  ),
+  "leaf-fallen": () => (
+    <HalloweenLeaf className="size-5 rotate-[100deg] opacity-60" />
+  ),
+  "bunting-fallen": () => (
+    <HalloweenBunting className="w-24 rotate-[8deg] opacity-50" />
   ),
 };

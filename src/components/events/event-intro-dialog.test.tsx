@@ -130,7 +130,7 @@ describe("EventIntroDialog (real fake-indexeddb)", () => {
       expect(screen.getByText(EVENT_NAME)).toBeInTheDocument(),
     );
     expect(
-      screen.getAllByText(/permanent Misery Points/i).length,
+      screen.getAllByText(/permanent Misery Point/i).length,
     ).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Opt In" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nah" })).toBeInTheDocument();
