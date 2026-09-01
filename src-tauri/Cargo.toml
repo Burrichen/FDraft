@@ -1,6 +1,6 @@
 [package]
 name = "fdraft"
-version = "1.2.0-dev.6"
+version = "1.2.0-dev.7"
 description = "FDraft — a local-first Letterboxd watchlist and Monthly Watchlist Draft companion"
 authors = ["Burrichen"]
 license = ""
