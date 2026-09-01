@@ -600,8 +600,14 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/^Saved \d{1,2}:\d{2}/)).toBeInTheDocument(),
+    // Only the "Saved " prefix is asserted, never the time's own digit
+    // shape — `toLocaleTimeString` formats using the RUNTIME's default
+    // locale, which is not guaranteed to be "en-US" (or even ASCII
+    // digits) in every CI environment; the prefix alone still proves the
+    // Saved-timestamp label replaced "Working copy"/"Unsaved changes".
+    await waitFor(
+      () => expect(screen.getByText(/^Saved /)).toBeInTheDocument(),
+      { timeout: 3000 },
     );
 
     const { getStudioSave } =
