@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "themeId": "halloween",
+  "eventId": "halloween",
+  "scope": "event",
+  "displayName": "Halloween",
+  "assets": {
+    "ghost": "events/halloween/modal/ghost.png",
+    "pumpkin-faded": "events/halloween/interactives/pumpkin-rotten.png",
+    "candy-bowl-empty": "events/halloween/interactives/candy-bowl-empty.png"
+  },
+  "layouts": {
+    "eventPage": {
+      "states": {
+        "active": {
+          "breakpoints": {
+            "desktop": {
+              "placements": [
+                {
+                  "id": "ghost-corner",
+                  "kind": "fixed",
+                  "assetId": "ghost",
+                  "anchor": "top-right",
+                  "offsetX": -1,
+                  "offsetY": 1,
+                  "width": 3.5,
+                  "opacity": 0.9,
+                  "layer": "mid"
+                },
+                {
+                  "id": "gravestone",
+                  "kind": "fixed",
+                  "assetId": null,
+                  "interactionId": "halloween-gravestone",
+                  "anchor": "bottom-left",
+                  "offsetX": 2,
+                  "offsetY": -2
+                },
+                {
+                  "id": "pumpkin",
+                  "kind": "fixed",
+                  "assetId": null,
+                  "interactionId": "halloween-pumpkin",
+                  "anchor": "bottom-center",
+                  "offsetY": -2
+                },
+                {
+                  "id": "candy-bowl",
+                  "kind": "fixed",
+                  "assetId": null,
+                  "interactionId": "halloween-candy-bowl",
+                  "anchor": "bottom-right",
+                  "offsetX": -2,
+                  "offsetY": -2
+                }
+              ]
+            },
+            "mobile": {
+              "placements": [
+                {
+                  "id": "gravestone",
+                  "kind": "fixed",
+                  "assetId": null,
+                  "interactionId": "halloween-gravestone",
+                  "anchor": "bottom-left",
+                  "offsetX": 1,
+                  "offsetY": -1
+                },
+                {
+                  "id": "pumpkin",
+                  "kind": "fixed",
+                  "assetId": null,
+                  "interactionId": "halloween-pumpkin",
+                  "anchor": "bottom-center",
+                  "offsetY": -1
+                },
+                {
+                  "id": "candy-bowl",
+                  "kind": "fixed",
+                  "assetId": null,
+                  "interactionId": "halloween-candy-bowl",
+                  "anchor": "bottom-right",
+                  "offsetX": -1,
+                  "offsetY": -1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "introModal": {
+      "states": {
+        "default": {
+          "breakpoints": {
+            "desktop": {
+              "placements": [
+                {
+                  "id": "modal-bottom-right",
+                  "kind": "weighted",
+                  "anchor": "bottom-right",
+                  "offsetX": -0.5,
+                  "offsetY": -1,
+                  "width": 3.5,
+                  "layer": "foreground",
+                  "variants": [
+                    { "id": "ghost", "assetId": "ghost", "weight": 35 },
+                    { "id": "nothing", "assetId": null, "weight": 65 }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "endingModal": {
+      "states": {
+        "default": {
+          "breakpoints": {
+            "desktop": {
+              "placements": [
+                {
+                  "id": "modal-bottom-left",
+                  "kind": "weighted",
+                  "anchor": "bottom-left",
+                  "offsetX": 1,
+                  "offsetY": -0.5,
+                  "width": 3,
+                  "layer": "foreground",
+                  "variants": [
+                    {
+                      "id": "pumpkin-faded",
+                      "assetId": "pumpkin-faded",
+                      "weight": 40
+                    },
+                    { "id": "nothing", "assetId": null, "weight": 60 }
+                  ]
+                },
+                {
+                  "id": "modal-bottom-right",
+                  "kind": "weighted",
+                  "anchor": "bottom-right",
+                  "offsetX": -1,
+                  "offsetY": -0.5,
+                  "width": 3.5,
+                  "layer": "foreground",
+                  "variants": [
+                    {
+                      "id": "candy-bowl-empty",
+                      "assetId": "candy-bowl-empty",
+                      "weight": 30
+                    },
+                    { "id": "nothing", "assetId": null, "weight": 70 }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

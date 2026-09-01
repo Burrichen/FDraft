@@ -22,6 +22,18 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.7",
+    nickname: "Trick or Treat (Beta 7)",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          'A Developer-only "FDraft Theme Preview" tool (Settings → Developer → Admin Mode) for trying out an exported seasonal theme file before it ships for real — no effect on ordinary use.',
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.6",
     nickname: "Trick or Treat (Beta 6)",
     sections: [

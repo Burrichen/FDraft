@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FDraft (Beta)",
-  "version": "1.2.0-beta.6",
+  "version": "1.2.0-beta.7",
   "identifier": "com.burrichen.fdraft",
   "build": {
     "frontendDist": "../out",
@@ -37,7 +37,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "createUpdaterArtifacts": true,
     "publisher": "Burrichen",
     "copyright": "© 2026 Burrichen",

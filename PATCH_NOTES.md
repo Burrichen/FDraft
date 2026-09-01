@@ -1,5 +1,11 @@
 # Patch Notes
 
+### v1.2.0-beta.7 — Trick or Treat (Beta 7)
+
+#### Added
+
+- A Developer-only "FDraft Theme Preview" tool (Settings → Developer → Admin Mode) for trying out an exported seasonal theme file before it ships for real — no effect on ordinary use.
+
 ### v1.2.0-beta.6 — Trick or Treat (Beta 6)
 
 #### Added

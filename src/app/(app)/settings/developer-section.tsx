@@ -6,6 +6,7 @@ import { resolveAdminMode } from "@/domain/profiles/profile";
 import { AdminModeSection } from "./admin-mode-section";
 import { EventArtSystemPreviewSection } from "./event-art-system-preview-section";
 import { EventTestingSection } from "./event-testing-section";
+import { FDraftThemeImportSection } from "./fdraft-theme-import-section";
 import { HalloweenManifestSection } from "./halloween-manifest-section";
 import { JanuaryManifestSection } from "./january-manifest-section";
 
@@ -40,6 +41,7 @@ export function DeveloperSection() {
           <HalloweenManifestSection />
           <JanuaryManifestSection />
           <EventArtSystemPreviewSection />
+          <FDraftThemeImportSection />
         </>
       ) : null}
     </div>

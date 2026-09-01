@@ -1,6 +1,6 @@
 {
   "name": "fdraft",
-  "version": "1.2.0-beta.6",
+  "version": "1.2.0-beta.7",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "sync-desktop-version": "tsx scripts/sync-desktop-version.ts",
+    "theme:apply": "tsx scripts/theme-apply.ts",
     "desktop:dev": "pnpm run sync-desktop-version && tauri dev",
     "build:desktop-frontend": "tsx scripts/build-desktop-frontend.ts",
     "desktop:build": "pnpm run sync-desktop-version && tauri build"

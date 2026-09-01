@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "themeId": "christmas",
+  "eventId": "christmas",
+  "scope": "event",
+  "displayName": "Christmas",
+  "assets": {
+    "tree": "events/christmas/interactives/christmas-tree.png",
+    "presents": "events/christmas/interactives/presents.png",
+    "snowman": "events/christmas/interactives/snowman.png",
+    "stocking": "events/christmas/interactives/stocking.png",
+    "fairy-lights": "events/christmas/decorations/fairy-lights.png"
+  },
+  "layouts": {
+    "eventPage": {
+      "states": {
+        "default": {
+          "breakpoints": {
+            "desktop": {
+              "placements": [
+                {
+                  "id": "lower-left",
+                  "kind": "weighted",
+                  "anchor": "bottom-left",
+                  "offsetX": 2.5,
+                  "offsetY": -1.5,
+                  "width": 5,
+                  "variants": [
+                    { "id": "presents", "assetId": "presents", "weight": 50 },
+                    { "id": "tree", "assetId": "tree", "weight": 50 }
+                  ]
+                },
+                {
+                  "id": "lower-right",
+                  "kind": "weighted",
+                  "anchor": "bottom-right",
+                  "offsetX": -2.5,
+                  "offsetY": -1.5,
+                  "width": 4,
+                  "variants": [
+                    { "id": "snowman", "assetId": "snowman", "weight": 40 },
+                    { "id": "stocking", "assetId": "stocking", "weight": 35 },
+                    { "id": "nothing", "assetId": null, "weight": 25 }
+                  ]
+                },
+                {
+                  "id": "header-right",
+                  "kind": "fixed",
+                  "assetId": "fairy-lights",
+                  "anchor": "top-right",
+                  "offsetX": -4,
+                  "offsetY": 1,
+                  "width": 8,
+                  "opacity": 0.9
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
