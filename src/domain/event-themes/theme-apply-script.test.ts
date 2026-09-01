@@ -36,14 +36,33 @@ function runThemeApply(filePath: string): {
 } {
   try {
     const stdout = execFileSync(
-      "npx",
-      ["tsx", "scripts/theme-apply.ts", filePath],
-      { cwd: REPO_ROOT, encoding: "utf-8" },
+      "pnpm",
+      ["exec", "tsx", "scripts/theme-apply.ts", filePath],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf-8",
+        // On Windows, `pnpm` (and `npx`) resolve to a `.cmd` shim —
+        // `execFileSync` can't launch those directly without a shell, and
+        // fails to spawn at all (a `null` exit status, no real stdout/
+        // stderr captured) rather than actually running the script — the
+        // same issue `build-desktop-frontend.ts`/`studio-dev-frontend.ts`
+        // already document and guard against for their own `spawnSync`
+        // calls.
+        shell: process.platform === "win32",
+      },
     );
     return { status: 0, stdout, stderr: "" };
   } catch (cause) {
-    const error = cause as { status: number; stdout: string; stderr: string };
-    return { status: error.status, stdout: error.stdout, stderr: error.stderr };
+    const error = cause as {
+      status: number | null;
+      stdout: string | null;
+      stderr: string | null;
+    };
+    return {
+      status: error.status ?? 1,
+      stdout: error.stdout ?? "",
+      stderr: error.stderr ?? "",
+    };
   }
 }
 

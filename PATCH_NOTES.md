@@ -1,5 +1,11 @@
 # Patch Notes
 
+### v1.2.0-beta.9 — Trick or Treat (Beta 9)
+
+#### Fixed
+
+- Fixed a test that only ran correctly on macOS/Linux, breaking Windows CI — again nothing to do with app behaviour.
+
 ### v1.2.0-beta.8 — Trick or Treat (Beta 8)
 
 #### Fixed

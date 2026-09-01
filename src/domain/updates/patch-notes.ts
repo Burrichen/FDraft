@@ -22,6 +22,18 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.9",
+    nickname: "Trick or Treat (Beta 9)",
+    sections: [
+      {
+        heading: "Fixed",
+        items: [
+          "Fixed a test that only ran correctly on macOS/Linux, breaking Windows CI — again nothing to do with app behaviour.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.8",
     nickname: "Trick or Treat (Beta 8)",
     sections: [
