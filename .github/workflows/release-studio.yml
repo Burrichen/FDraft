@@ -1,0 +1,93 @@
+name: Release Event Studio dev build
+
+# Fires on a dev-track version tag push (e.g. "v1.2.0-dev.1") — the
+# separate versioning scheme for FDraft (Dev)/Event Studio work (see
+# docs/updates, "EVENT STUDIO"), never the same `beta.X` counter Beta
+# releases use, so a dev build's tag can never be mistaken for — or
+# collide with — a real Beta release. Builds `tauri.studio.conf.json`
+# (the "FDraft (Dev)" identity/branding), not the normal
+# `tauri.conf.json` `release.yml` builds. Windows-only, matching FDraft's
+# distribution scope.
+on:
+  push:
+    tags:
+      - "v*-dev.*"
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # Same "tag must match package.json" sanity check `release.yml`
+      # runs — catches an un-bumped version before shipping a dev build
+      # whose binary disagrees with its own tag.
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION — bump the version and commit before tagging."
+            exit 1
+          fi
+
+      # Same quality gate `release.yml` runs — a dev build gets no less
+      # scrutiny than a real Beta release before it ships.
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - run: pnpm run sync-desktop-version
+
+      # No PATCH_NOTES entry is expected for a dev build (that file is
+      # Beta-facing, read by the normal app's in-app Patch Notes viewer —
+      # Event Studio isn't reachable from there at all). This body is a
+      # plain, static note instead of `generate-release-body.ts`'s
+      # PATCH_NOTES lookup.
+      - name: Build release body
+        id: release-body
+        shell: bash
+        run: |
+          {
+            echo "body<<RELEASE_BODY_EOF"
+            echo "FDraft (Dev) / Event Studio development build."
+            echo ""
+            echo "Built from \`${{ github.ref_name }}\` on \`${{ github.sha }}\`."
+            echo "Internal use only — not for Beta distribution. See \`docs/event-studio-guide.md\`."
+            echo "RELEASE_BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # `createUpdaterArtifacts: false` in `tauri.studio.conf.json` means
+      # this build never needs `TAURI_SIGNING_PRIVATE_KEY` — a dev build
+      # isn't part of the auto-update channel Beta's own
+      # `tauri.conf.json` updater endpoint serves.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        with:
+          args: --config src-tauri/tauri.studio.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: "FDraft (Dev) ${{ github.ref_name }}"
+          releaseBody: ${{ steps.release-body.outputs.body }}
+          releaseDraft: true
+          prerelease: true

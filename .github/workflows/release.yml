@@ -5,10 +5,16 @@ name: Release desktop build
 # FDraft Version 1's distribution scope: no macOS/Linux packaging, no
 # Windows publisher/Authenticode signing (see docs/product-spec.md,
 # "SMARTSCREEN / WINDOWS SIGNING" — explicitly out of scope).
+#
+# `v*-dev.*` tags (Event Studio/FDraft (Dev) builds) are excluded — this
+# workflow builds the normal Beta app and requires a matching
+# `PATCH_NOTES` entry, neither of which applies to a dev build. See
+# `release-studio.yml` for that separate pipeline.
 on:
   push:
     tags:
       - "v*.*.*"
+      - "!v*-dev.*"
 
 jobs:
   release:
