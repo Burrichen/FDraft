@@ -622,10 +622,14 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
     // Saved-timestamp label replaced "Working copy"/"Unsaved changes".
     // A generous timeout — a full-suite parallel run on a slower/more
     // contended CI runner (observed on Windows) can take noticeably
-    // longer to flush this than in isolation on a dev machine.
+    // longer to flush this than in isolation on a dev machine. 8000ms
+    // was occasionally still not enough on a contended Windows runner;
+    // the underlying writes are a handful of sequential IndexedDB puts
+    // (verified fast — well under 1s locally), so this is purely
+    // buffering for runner variance, not tolerance for a hang.
     await waitFor(
       () => expect(screen.getByText(/^Saved /)).toBeInTheDocument(),
-      { timeout: 8000 },
+      { timeout: 15000 },
     );
 
     const { getStudioSave } =
@@ -635,7 +639,7 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
     const save = await getStudioSave(repos, PROFILE_ID, "default");
     expect(save?.theme.layouts.watchlist).toBeDefined();
     await db.close();
-  }, 10000);
+  }, 18000);
 
   it("Load warns before discarding unsaved changes, and does nothing until confirmed", async () => {
     const databaseName = crypto.randomUUID();
