@@ -620,11 +620,9 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
     // locale, which is not guaranteed to be "en-US" (or even ASCII
     // digits) in every CI environment; the prefix alone still proves the
     // Saved-timestamp label replaced "Working copy"/"Unsaved changes".
-    // A generous timeout — this awaits three sequential IndexedDB writes
-    // (setStudioSave -> addStudioRevision -> clearStudioAutosave), which
-    // can occasionally take noticeably longer under a fully-parallel
-    // full-suite test run (many workers sharing the machine) than in
-    // isolation.
+    // A generous timeout — a full-suite parallel run on a slower/more
+    // contended CI runner (observed on Windows) can take noticeably
+    // longer to flush this than in isolation on a dev machine.
     await waitFor(
       () => expect(screen.getByText(/^Saved /)).toBeInTheDocument(),
       { timeout: 8000 },

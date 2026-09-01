@@ -465,6 +465,11 @@ export function StudioPageClient() {
   async function handleSave() {
     if (!profileId || !theme) return;
     const savedAt = new Date().toISOString();
+    // Sequential, not `Promise.all` — these three writes all touch the
+    // same underlying settings store (different keys, but overlapping
+    // IndexedDB transactions against one object store), which genuinely
+    // deadlocks under fake-indexeddb when run concurrently. Kept
+    // sequential deliberately.
     await setStudioSave(repositories, profileId, presetId, theme, savedAt);
     await addStudioRevision(
       repositories,
