@@ -33,7 +33,9 @@ describe("loadCanonicalEventTheme — offline/Tauri-safe static loading (EVENT S
 
   it("returns a clear failure (never throws) for a missing bundled theme (e.g. an event with no theme yet)", async () => {
     const fetchImpl = fakeFetch({ ok: false, status: 404, text: "" });
-    const result = await loadCanonicalEventTheme("no-such-event", { fetchImpl });
+    const result = await loadCanonicalEventTheme("no-such-event", {
+      fetchImpl,
+    });
     expect(result.ok).toBe(false);
   });
 

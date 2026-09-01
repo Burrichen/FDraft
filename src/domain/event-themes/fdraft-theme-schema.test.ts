@@ -15,7 +15,9 @@ function readBundledTheme(fileName: string): string {
 
 describe("parseFDraftThemeText — the four bundled canonical themes (EVENT STUDIO — PHASE 1 §13/§17)", () => {
   it("parses the bundled Halloween theme", () => {
-    const result = parseFDraftThemeText(readBundledTheme("halloween.fdraft-theme"));
+    const result = parseFDraftThemeText(
+      readBundledTheme("halloween.fdraft-theme"),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.theme.themeId).toBe("halloween");
@@ -27,7 +29,9 @@ describe("parseFDraftThemeText — the four bundled canonical themes (EVENT STUD
   });
 
   it("parses the bundled January theme (an event with genuinely no decorations)", () => {
-    const result = parseFDraftThemeText(readBundledTheme("january.fdraft-theme"));
+    const result = parseFDraftThemeText(
+      readBundledTheme("january.fdraft-theme"),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.theme.eventId).toBe("f-you-its-january");
@@ -35,7 +39,9 @@ describe("parseFDraftThemeText — the four bundled canonical themes (EVENT STUD
   });
 
   it("parses the bundled Default theme", () => {
-    const result = parseFDraftThemeText(readBundledTheme("default.fdraft-theme"));
+    const result = parseFDraftThemeText(
+      readBundledTheme("default.fdraft-theme"),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.theme.scope).toBe("default");
@@ -43,7 +49,9 @@ describe("parseFDraftThemeText — the four bundled canonical themes (EVENT STUD
   });
 
   it("parses the bundled Christmas scaffold theme", () => {
-    const result = parseFDraftThemeText(readBundledTheme("christmas.fdraft-theme"));
+    const result = parseFDraftThemeText(
+      readBundledTheme("christmas.fdraft-theme"),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.theme.eventId).toBe("christmas");
@@ -226,7 +234,12 @@ describe("parseFDraftThemeText — rejection cases (§16/§17)", () => {
   });
 
   it("rejects a crop rect that extends past the source image bounds", () => {
-    const result = fdraftThemeCropRectCheck({ x: 0.8, y: 0, width: 0.5, height: 0.5 });
+    const result = fdraftThemeCropRectCheck({
+      x: 0.8,
+      y: 0,
+      width: 0.5,
+      height: 0.5,
+    });
     expect(result.success).toBe(false);
   });
 });

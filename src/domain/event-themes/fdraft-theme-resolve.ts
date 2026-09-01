@@ -124,9 +124,10 @@ function buildPlacementSeed(
  * valid to pick), which the caller treats exactly like an explicit
  * "nothing" pick.
  */
-function pickWeightedVariant<
-  TVariant extends { weight: number },
->(seed: string, variants: readonly TVariant[]): TVariant | null {
+function pickWeightedVariant<TVariant extends { weight: number }>(
+  seed: string,
+  variants: readonly TVariant[],
+): TVariant | null {
   const totalWeight = variants.reduce(
     (sum, variant) => sum + Math.max(0, variant.weight),
     0,

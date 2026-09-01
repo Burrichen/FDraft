@@ -4,7 +4,10 @@ import {
   getThemePreviewOverride,
   setThemePreviewOverride,
 } from "./theme-preview-override-store";
-import { fdraftThemeSchema, type FDraftThemeFile } from "@/domain/event-themes/fdraft-theme-schema";
+import {
+  fdraftThemeSchema,
+  type FDraftThemeFile,
+} from "@/domain/event-themes/fdraft-theme-schema";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
 
@@ -83,9 +86,9 @@ describe("Theme preview override store â€” Admin-only QA import (EVENT STUDIO â€
 
     const reopened = new FDraftLocalDatabase(databaseName);
     const reopenedRepos = createLocalRepositories(reopened);
-    expect((await getThemePreviewOverride(reopenedRepos, PROFILE_ID))?.themeId).toBe(
-      "halloween",
-    );
+    expect(
+      (await getThemePreviewOverride(reopenedRepos, PROFILE_ID))?.themeId,
+    ).toBe("halloween");
     db = reopened;
   });
 
@@ -96,6 +99,8 @@ describe("Theme preview override store â€” Admin-only QA import (EVENT STUDIO â€
       not: "a valid theme",
     });
 
-    await expect(getThemePreviewOverride(repos, PROFILE_ID)).resolves.toBeNull();
+    await expect(
+      getThemePreviewOverride(repos, PROFILE_ID),
+    ).resolves.toBeNull();
   });
 });

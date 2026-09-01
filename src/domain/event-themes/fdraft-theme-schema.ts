@@ -98,7 +98,7 @@ export const fdraftThemeAssetPathSchema = z
   .min(1)
   .max(300)
   .refine((value) => !value.includes(".."), {
-    message: "Asset paths may not contain \"..\" (no path traversal).",
+    message: 'Asset paths may not contain ".." (no path traversal).',
   })
   .refine((value) => ASSET_CATEGORY_PATTERN.test(value), {
     message:
@@ -195,7 +195,9 @@ const stateLayoutSchema = z.object({
 export type FDraftThemeStateLayout = z.infer<typeof stateLayoutSchema>;
 
 const pageLayoutSchema = z.object({
-  states: z.record(z.string().trim().min(1).max(100), stateLayoutSchema).default({}),
+  states: z
+    .record(z.string().trim().min(1).max(100), stateLayoutSchema)
+    .default({}),
 });
 export type FDraftThemePageLayout = z.infer<typeof pageLayoutSchema>;
 
@@ -210,8 +212,12 @@ const baseFdraftThemeSchema = z.object({
   scope: z.enum(FDRAFT_THEME_SCOPES),
   displayName: z.string().trim().min(1).max(200).optional(),
   /** Symbolic asset id -> validated real path (see `fdraftThemeAssetPathSchema`) — every placement/variant `assetId` is a KEY into this map, resolved through the existing Event Asset root, never a literal path repeated inline. */
-  assets: z.record(z.string().trim().min(1).max(100), fdraftThemeAssetPathSchema).default({}),
-  layouts: z.record(z.string().trim().min(1).max(100), pageLayoutSchema).default({}),
+  assets: z
+    .record(z.string().trim().min(1).max(100), fdraftThemeAssetPathSchema)
+    .default({}),
+  layouts: z
+    .record(z.string().trim().min(1).max(100), pageLayoutSchema)
+    .default({}),
 });
 
 /**
@@ -285,7 +291,11 @@ export type FDraftThemeFile = z.infer<typeof fdraftThemeSchema>;
 
 export type FDraftThemeParseResult =
   | { ok: true; theme: FDraftThemeFile }
-  | { ok: false; reason: "invalid_json" | "unsupported_schema_version" | "invalid_schema"; message: string };
+  | {
+      ok: false;
+      reason: "invalid_json" | "unsupported_schema_version" | "invalid_schema";
+      message: string;
+    };
 
 /**
  * The ONE place raw, untrusted text (a bundled canonical file fetched

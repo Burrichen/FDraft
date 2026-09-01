@@ -5,7 +5,9 @@ import { fdraftThemeSchema, type FDraftThemeFile } from "./fdraft-theme-schema";
 
 type FDraftThemeInput = z.input<typeof fdraftThemeSchema>;
 
-function buildTheme(overrides: Partial<FDraftThemeInput> = {}): FDraftThemeFile {
+function buildTheme(
+  overrides: Partial<FDraftThemeInput> = {},
+): FDraftThemeFile {
   const parsed = fdraftThemeSchema.parse({
     schemaVersion: 1,
     themeId: "test",
@@ -78,7 +80,12 @@ describe("resolveFDraftThemeLayout — fixed placements", () => {
               breakpoints: {
                 desktop: {
                   placements: [
-                    { id: "p1", kind: "fixed", assetId: "ghost", visible: false },
+                    {
+                      id: "p1",
+                      kind: "fixed",
+                      assetId: "ghost",
+                      visible: false,
+                    },
                   ],
                 },
               },
@@ -102,7 +109,9 @@ describe("resolveFDraftThemeLayout — fixed placements", () => {
           states: {
             default: {
               breakpoints: {
-                desktop: { placements: [{ id: "p1", kind: "fixed", assetId: null }] },
+                desktop: {
+                  placements: [{ id: "p1", kind: "fixed", assetId: null }],
+                },
               },
             },
           },
@@ -296,7 +305,14 @@ describe("resolveFDraftThemeLayout — weighted variants (§6/§7)", () => {
                       kind: "weighted",
                       width: 4,
                       height: 4,
-                      variants: [{ id: "ghost", assetId: "ghost", weight: 1, scale: 0.5 }],
+                      variants: [
+                        {
+                          id: "ghost",
+                          assetId: "ghost",
+                          weight: 1,
+                          scale: 0.5,
+                        },
+                      ],
                     },
                   ],
                 },
@@ -341,10 +357,14 @@ describe("resolveFDraftThemeLayout — breakpoint fallback (§3)", () => {
             default: {
               breakpoints: {
                 mobile: {
-                  placements: [{ id: "mobile-only", kind: "fixed", assetId: "ghost" }],
+                  placements: [
+                    { id: "mobile-only", kind: "fixed", assetId: "ghost" },
+                  ],
                 },
                 desktop: {
-                  placements: [{ id: "desktop-only", kind: "fixed", assetId: "ghost" }],
+                  placements: [
+                    { id: "desktop-only", kind: "fixed", assetId: "ghost" },
+                  ],
                 },
               },
             },
@@ -378,7 +398,11 @@ describe("resolveFDraftThemeLayout — breakpoint fallback (§3)", () => {
     const theme = buildTheme();
     const resolved = resolveFDraftThemeLayout(
       theme,
-      { pageId: "nonexistent", stateId: "nonexistent", breakpointId: "desktop" },
+      {
+        pageId: "nonexistent",
+        stateId: "nonexistent",
+        breakpointId: "desktop",
+      },
       { sessionSeed: "s" },
     );
     expect(resolved).toEqual([]);

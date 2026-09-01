@@ -1,5 +1,11 @@
 # Patch Notes
 
+### v1.2.0-beta.8 — Trick or Treat (Beta 8)
+
+#### Fixed
+
+- Fixed a code-formatting check failure in the last build that had nothing to do with app behaviour — this release exists purely to get the pipeline green again.
+
 ### v1.2.0-beta.7 — Trick or Treat (Beta 7)
 
 #### Added
