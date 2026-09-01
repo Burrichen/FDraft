@@ -26,6 +26,20 @@ export function EventArtImage({
   ...rest
 }: ImgHTMLAttributes<HTMLImageElement>) {
   const [failed, setFailed] = useState(false);
+  // A previous `src` failing must not permanently hide a LATER, valid
+  // one — e.g. the Studio canvas (see `useWorkspaceAssetSources`)
+  // initially renders a placement's plain static path, which genuinely
+  // 404s in a packaged FDraft (Dev) build before the connected
+  // workspace's own `data:` URI resolves moments later. Reset during
+  // render itself (React's own recommended "adjusting state when a prop
+  // changes" pattern), not an effect — an effect-based reset would still
+  // let the FIRST render after a `src` change briefly treat the new,
+  // valid `src` as failed.
+  const [lastSrc, setLastSrc] = useState(rest.src);
+  if (rest.src !== lastSrc) {
+    setLastSrc(rest.src);
+    setFailed(false);
+  }
 
   if (failed) {
     return null;

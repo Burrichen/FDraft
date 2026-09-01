@@ -39,4 +39,20 @@ describe("EventArtImage", () => {
       screen.queryByRole("presentation", { hidden: true }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows a later, valid src again after an earlier one failed — a failure must not permanently hide the component (EVENT STUDIO — PHASE 9 workspace-bridge fix)", () => {
+    const { rerender } = render(
+      <EventArtImage src="/events/halloween/interactives/missing.png" />,
+    );
+    const img = screen.getByRole("presentation", { hidden: true });
+    fireEvent.error(img);
+    expect(
+      screen.queryByRole("presentation", { hidden: true }),
+    ).not.toBeInTheDocument();
+
+    rerender(<EventArtImage src="data:image/png;base64,AAAA" />);
+
+    const recovered = screen.getByRole("presentation", { hidden: true });
+    expect(recovered).toHaveAttribute("src", "data:image/png;base64,AAAA");
+  });
 });
