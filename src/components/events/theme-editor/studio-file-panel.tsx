@@ -646,8 +646,8 @@ function ExportSection({
       {workspacePath ? (
         <div className="border-border space-y-2 border-t pt-2">
           <p className="text-muted-foreground text-xs">
-            A connected Event Art Workspace lets you write straight to the
-            canonical theme file.
+            A connected FDraft Project lets you write straight to the canonical
+            theme file.
           </p>
           <Button
             type="button"

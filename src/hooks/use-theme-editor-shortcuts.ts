@@ -21,7 +21,8 @@ export interface ThemeEditorShortcutHandlers {
   onUngroup: (placementIds: string[]) => void;
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
+/** Exported for reuse by other window-level shortcut listeners (e.g. Studio's own Fullscreen Edit toggle) that need the identical "ignore keys typed into a form field" guard. */
+export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return (

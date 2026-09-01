@@ -22,6 +22,23 @@ export const WORKSPACE_ASSET_COMMON_EVENT_ID = "common";
 /** The pseudo-filter id meaning "show every scanned asset, regardless of event." */
 export const WORKSPACE_ASSET_ALL_FILTER_ID = "all";
 
+/**
+ * The exact five categories every real Event asset lives under (see
+ * docs/updates, "EVENT STUDIO — PHASE 9" §3: "optionally chooses a
+ * category") — kept in the SAME order/spelling as
+ * `fdraft-theme-schema.ts`'s own `ASSET_CATEGORY_PATTERN` and Rust's
+ * `ASSET_CATEGORIES`, the one shared source the Import dialog's Folder
+ * dropdown reads from rather than re-typing this list a fourth time.
+ */
+export const EVENT_ASSET_CATEGORIES = [
+  "decorations",
+  "interactives",
+  "modal",
+  "icons",
+  "backgrounds",
+] as const;
+export type EventAssetCategory = (typeof EVENT_ASSET_CATEGORIES)[number];
+
 export interface WorkspaceAssetFilterOption {
   id: string;
   label: string;

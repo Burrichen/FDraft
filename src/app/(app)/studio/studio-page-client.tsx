@@ -2,6 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Crop,
+  ImagePlus,
+  Lock,
+  LockOpen,
+  Maximize2,
+  Minimize2,
+  Monitor,
+  Pin,
+  PinOff,
+  Redo2,
+  SlidersHorizontal,
+  Trash2,
+  Undo2,
+  Wrench,
+} from "lucide-react";
+import {
   clearEventArtWorkspacePath,
   getEventArtWorkspacePath,
   setEventArtWorkspacePath,
@@ -25,6 +44,7 @@ import {
   DEFAULT_EVENT_STUDIO_PRESET_ID,
 } from "@/components/events/event-studio-presets";
 import { AssetBrowserPanel } from "@/components/events/theme-editor/asset-browser-panel";
+import { ImportAssetDialog } from "@/components/events/theme-editor/import-asset-dialog";
 import {
   EditableThemeCanvas,
   type PlacementUpdater,
@@ -45,6 +65,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import type {
@@ -105,7 +131,16 @@ import {
   placementCopyWouldOverwriteExisting,
 } from "@/domain/event-studio/placement-breakpoint-copy";
 import { findSafeZoneOverlapWarnings } from "@/domain/event-studio/safe-zone-check";
-import { friendlyAssetName } from "@/domain/event-studio/workspace-asset";
+import {
+  friendlyAssetName,
+  WORKSPACE_ASSET_COMMON_EVENT_ID,
+  type WorkspaceAssetEntry,
+} from "@/domain/event-studio/workspace-asset";
+import {
+  findAssetReferences,
+  formatAssetReference,
+  type AssetReference,
+} from "@/domain/event-studio/theme-asset-references";
 import {
   addVariantOption,
   convertToVariantGroup,
@@ -115,16 +150,24 @@ import {
   updateVariantOption,
 } from "@/domain/event-studio/variant-group-ops";
 import {
+  copyEventArtAsset,
+  deleteEventArtAsset,
+  getDevProjectRoot,
   openEventArtWorkspaceFolder,
   pickEventArtWorkspaceFolder,
+  pickImportSourceFile,
   validateEventArtWorkspaceFolder,
 } from "@/infrastructure/tauri/event-art-workspace";
 import { isDesktopRuntime } from "@/infrastructure/tauri/desktop-runtime";
 import { isEventStudioBuild } from "@/lib/event-studio-build";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { useUndoableTheme } from "@/hooks/use-undoable-theme";
-import { useThemeEditorShortcuts } from "@/hooks/use-theme-editor-shortcuts";
+import {
+  isEditableTarget,
+  useThemeEditorShortcuts,
+} from "@/hooks/use-theme-editor-shortcuts";
 import { useStudioAutosave } from "@/hooks/use-studio-autosave";
+import { toggleWindowFullscreen } from "@/infrastructure/tauri/window-fullscreen";
 
 /** The Reroll Preview's own "at rest" baseline (see docs/updates, "EVENT STUDIO — PHASE 5" §4) — "Reset Preview Seed" returns to exactly this, never a freshly-random one, so resetting is a real, predictable action rather than just another reroll. */
 const DEFAULT_PREVIEW_SEED = "event-studio-preview-seed";
@@ -244,6 +287,22 @@ export function StudioPageClient() {
   const [gridSizePx, setGridSizePx] = useState(20);
   const [showGrid, setShowGrid] = useState(false);
 
+  // Fullscreen Edit (see docs/updates, "EVENT STUDIO — PHASE 8" §3/§4) —
+  // collapses the toolbar/Asset panel/Inspector panel so the canvas gets
+  // essentially the whole window; each panel is still reachable as a
+  // temporary floating drawer (`openDrawer`) that OVERLAYS the canvas
+  // (fixed-position, never part of the flex layout — see §5) rather than
+  // resizing it. Entirely orthogonal to `mode` ("edit"/"preview") — the
+  // canvas's own editing overlay (selection handles, safe zones, grid,
+  // crop, snapping) keeps working identically in Fullscreen Edit; only
+  // Preview Mode is fully chrome-free (see §13).
+  const [fullscreenEdit, setFullscreenEdit] = useState(false);
+  const [openDrawer, setOpenDrawer] = useState<
+    "assets" | "inspector" | "toolbar" | null
+  >(null);
+  // Assets auto-closes after placing one (§6) unless pinned open.
+  const [assetsPanelPinned, setAssetsPanelPinned] = useState(false);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a locked/selected/grouped/cropping placement id is only meaningful within the view it was set in, same accepted "reset on context change" pattern as `useAsyncData`.
     setSelectedPlacementIds(new Set());
@@ -265,11 +324,57 @@ export function StudioPageClient() {
   const [isPickingWorkspace, setIsPickingWorkspace] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
+  // Import / Replace / Delete asset state (see docs/updates, "EVENT
+  // STUDIO — PHASE 9" §3/§6/§14/§16).
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importSourcePath, setImportSourcePath] = useState<string | null>(null);
+  const [assetRefreshToken, setAssetRefreshToken] = useState(0);
+  const [pendingReplace, setPendingReplace] = useState<{
+    asset: WorkspaceAssetEntry;
+    sourcePath: string;
+  } | null>(null);
+  const [pendingDeleteAsset, setPendingDeleteAsset] =
+    useState<WorkspaceAssetEntry | null>(null);
+  const [deleteReferences, setDeleteReferences] = useState<AssetReference[]>(
+    [],
+  );
+  const [assetActionError, setAssetActionError] = useState<string | null>(null);
+  /** A small session-derived "what changed" summary (§16) — NOT real Git status parsing, just counting Studio's own operations this session. */
+  const [projectChanges, setProjectChanges] = useState({
+    imported: 0,
+    replaced: 0,
+    deleted: 0,
+  });
+
   const { data: workspacePath, reloadSilently: reloadWorkspacePath } =
     useAsyncData(async () => {
       if (!profileId) return null;
       return getEventArtWorkspacePath(repositories, profileId);
     }, [profileId, repositories]);
+
+  // Dev-from-source project-root auto-detection (see docs/updates,
+  // "EVENT STUDIO — PHASE 9" §12: "do not make me reselect the
+  // repository every single dev launch") — only fires once nothing is
+  // already connected (never overrides an intentional prior choice,
+  // including a deliberate Disconnect), and `getDevProjectRoot` itself
+  // only ever resolves to a real path for a genuine `cargo tauri dev`/
+  // `pnpm run studio:dev` launch — always `null` in a packaged build,
+  // which instead just keeps using whatever was already persisted.
+  useEffect(() => {
+    if (!profileId || workspacePath !== null) return;
+    let cancelled = false;
+    void getDevProjectRoot().then(async (detected) => {
+      if (cancelled || !detected) return;
+      const validation = await validateEventArtWorkspaceFolder(detected);
+      if (cancelled || !validation.valid) return;
+      await setEventArtWorkspacePath(repositories, profileId, detected);
+      if (!cancelled) await reloadWorkspacePath();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `reloadWorkspacePath`/`repositories` are fresh per render by design; re-running this whenever `workspacePath` itself changes (e.g. right after this same effect connects it) is exactly what "only fires while nothing is connected" already guards against via the `!== null` check above.
+  }, [profileId, workspacePath]);
 
   const presets = useMemo(() => getEventStudioPresets(), []);
   const pages = useMemo(
@@ -878,6 +983,41 @@ export function StudioPageClient() {
     onUngroup: handleUngroup,
   });
 
+  // Fullscreen Edit toggle (Ctrl/Cmd+Shift+F — see §8) and Escape (§7) —
+  // a separate listener from `useThemeEditorShortcuts` since it applies
+  // regardless of selection and isn't a placement-editing action.
+  // Escape's priority (§7's "should first respect any currently active
+  // crop/modal operation"): close an active crop first, then a floating
+  // drawer, then Fullscreen Edit itself — never more than one of these
+  // per keypress, so a single Escape never surprises the user by jumping
+  // two levels at once.
+  useEffect(() => {
+    if (mode !== "edit") return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (isEditableTarget(event.target)) return;
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "f"
+      ) {
+        event.preventDefault();
+        setFullscreenEdit((value) => !value);
+        return;
+      }
+      if (event.key === "Escape") {
+        if (cropPlacementId !== null) {
+          setCropPlacementId(null);
+        } else if (openDrawer !== null) {
+          setOpenDrawer(null);
+        } else if (fullscreenEdit) {
+          setFullscreenEdit(false);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mode, cropPlacementId, openDrawer, fullscreenEdit]);
+
   const safeZoneWarnings = useMemo(() => {
     if (!theme || selectedPlacementIds.size !== 1) return [];
     const [id] = Array.from(selectedPlacementIds);
@@ -930,6 +1070,89 @@ export function StudioPageClient() {
     await reloadWorkspacePath();
   }
 
+  // Import / Replace / Delete (see docs/updates, "EVENT STUDIO — PHASE
+  // 9" §3/§6/§14) — the project's own `public/events/` tree is the ONLY
+  // canonical asset store (§7: "no duplicate art storage"); every one of
+  // these actions copies/removes a real project file and then bumps
+  // `assetRefreshToken` so the Asset Browser rescans the SAME filesystem
+  // truth it always reads from, never a second in-memory copy.
+  async function handleRequestImport() {
+    if (!workspacePath) return;
+    const source = await pickImportSourceFile();
+    if (!source) return;
+    setImportSourcePath(source);
+    setImportDialogOpen(true);
+  }
+
+  function handleImported() {
+    setAssetRefreshToken((token) => token + 1);
+    setProjectChanges((current) => ({
+      ...current,
+      imported: current.imported + 1,
+    }));
+  }
+
+  async function handleRequestReplace(asset: WorkspaceAssetEntry) {
+    if (!workspacePath) return;
+    const source = await pickImportSourceFile();
+    if (!source) return;
+    setPendingReplace({ asset, sourcePath: source });
+  }
+
+  async function confirmReplace() {
+    if (!pendingReplace || !workspacePath) return;
+    const { asset, sourcePath } = pendingReplace;
+    setPendingReplace(null);
+    const result = await copyEventArtAsset(
+      workspacePath,
+      sourcePath,
+      asset.eventId,
+      asset.category,
+      asset.fileName,
+    );
+    if (result.ok) {
+      setAssetRefreshToken((token) => token + 1);
+      setProjectChanges((current) => ({
+        ...current,
+        replaced: current.replaced + 1,
+      }));
+    } else {
+      setAssetActionError(result.error);
+    }
+  }
+
+  function handleRequestDelete(asset: WorkspaceAssetEntry) {
+    const matchingAssetIds = theme
+      ? Object.entries(theme.assets)
+          .filter(([, path]) => path === asset.relativePath)
+          .map(([assetId]) => assetId)
+      : [];
+    const references = theme
+      ? matchingAssetIds.flatMap((assetId) =>
+          findAssetReferences(theme, assetId),
+        )
+      : [];
+    setPendingDeleteAsset(asset);
+    setDeleteReferences(references);
+  }
+
+  async function confirmDeleteAsset() {
+    if (!pendingDeleteAsset || !workspacePath) return;
+    const asset = pendingDeleteAsset;
+    setPendingDeleteAsset(null);
+    setDeleteReferences([]);
+    const result = await deleteEventArtAsset(workspacePath, asset.relativePath);
+    if (result.ok) {
+      setAssetRefreshToken((token) => token + 1);
+      setProjectChanges((current) => ({
+        ...current,
+        deleted: current.deleted + 1,
+      }));
+    } else {
+      setAssetActionError(result.error);
+    }
+  }
+
   if (!isEventStudioBuild) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -940,64 +1163,204 @@ export function StudioPageClient() {
 
   const previewSrc = `/studio-preview?db=${encodeURIComponent(previewDbName)}&page=${encodeURIComponent(pageId)}&state=${encodeURIComponent(stateId)}&preset=${encodeURIComponent(presetId)}`;
 
-  return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col gap-3">
-      {mode === "edit" ? (
-        <StudioToolbar
-          presetId={presetId}
-          presets={presets}
-          onPresetChange={setPresetId}
-          pages={pages}
-          pageId={pageId}
-          onPageChange={(id) => {
-            setPageId(id);
-            const def = getStudioPage(id);
-            setStateId(def?.states[0]?.id ?? "");
-          }}
-          currentPage={currentPage}
-          stateId={stateId}
-          onStateChange={setStateId}
-          breakpointId={breakpointId}
-          onBreakpointChange={setBreakpointId}
-          showSafeZones={showSafeZones}
-          onToggleSafeZones={() => setShowSafeZones((value) => !value)}
-          onEnterPreview={() => setMode("preview")}
-          zoomSetting={zoomSetting}
-          effectiveZoom={effectiveZoom}
-          onZoomChange={setZoomSetting}
-          themeSource={themeSource}
-          themeLoading={themeLoading}
-          hasUnsavedChanges={hasUnsavedChanges}
-          lastSavedAt={lastSavedAt}
-          canSave={Boolean(theme && profileId)}
-          onLoad={requestLoad}
-          onSave={() => void handleSave()}
-          onOpenFile={() => setFilePanelOpen(true)}
-          onCopyDesktopToTablet={() =>
-            requestCopyBreakpoint("desktop", "tablet")
-          }
-          onCopyTabletToMobile={() => requestCopyBreakpoint("tablet", "mobile")}
-          copyDisabled={!theme}
-          canUndo={undoableTheme.canUndo}
-          canRedo={undoableTheme.canRedo}
-          onUndo={undoableTheme.undo}
-          onRedo={undoableTheme.redo}
-          snapToGrid={snapToGrid}
-          onToggleSnapToGrid={() => setSnapToGrid((v) => !v)}
-          snapToPage={snapToPage}
-          onToggleSnapToPage={() => setSnapToPage((v) => !v)}
-          snapToCenter={snapToCenter}
-          onToggleSnapToCenter={() => setSnapToCenter((v) => !v)}
-          snapToObjects={snapToObjects}
-          onToggleSnapToObjects={() => setSnapToObjects((v) => !v)}
-          showGrid={showGrid}
-          onToggleShowGrid={() => setShowGrid((v) => !v)}
-          gridSizePx={gridSizePx}
-          onGridSizeChange={setGridSizePx}
-        />
-      ) : null}
+  const firstSelectedId =
+    selectedPlacementIds.size === 1
+      ? Array.from(selectedPlacementIds)[0]!
+      : null;
 
-      {mode === "edit" && recoverableAutosave ? (
+  const assetsPanelBody = (
+    <>
+      <AssetBrowserPanel
+        workspacePath={workspacePath ?? null}
+        onPlaceAsset={(relativePath, naturalAspectRatio) => {
+          handleAssetBrowserPlace(relativePath, naturalAspectRatio);
+          // Quick auto-close (see docs/updates, "EVENT STUDIO — PHASE 8"
+          // §6) — placing something is usually the whole reason the
+          // drawer was opened; Pin Panel opts out for anyone placing
+          // several assets in a row.
+          if (fullscreenEdit && !assetsPanelPinned) {
+            setOpenDrawer(null);
+          }
+        }}
+        pickerBannerText={
+          variantPickingPlacementId
+            ? `Picking an asset for "${variantPickingPlacementId}" — click one below.`
+            : undefined
+        }
+        onCancelPicker={() => setVariantPickingPlacementId(null)}
+        onRequestImport={
+          workspacePath ? () => void handleRequestImport() : undefined
+        }
+        onRequestReplace={
+          workspacePath
+            ? (asset) => void handleRequestReplace(asset)
+            : undefined
+        }
+        onRequestDelete={workspacePath ? handleRequestDelete : undefined}
+        refreshToken={assetRefreshToken}
+      />
+      {assetActionError ? (
+        <p className="text-destructive text-xs" role="alert">
+          {assetActionError}
+        </p>
+      ) : null}
+      {projectChanges.imported +
+        projectChanges.replaced +
+        projectChanges.deleted >
+      0 ? (
+        <div className="border-border bg-muted/30 rounded border p-2 text-[0.65rem]">
+          <p className="text-foreground font-semibold">Project</p>
+          {projectChanges.imported > 0 ? (
+            <p className="text-muted-foreground">
+              {projectChanges.imported} image
+              {projectChanges.imported === 1 ? "" : "s"} added
+            </p>
+          ) : null}
+          {projectChanges.replaced > 0 ? (
+            <p className="text-muted-foreground">
+              {projectChanges.replaced} image
+              {projectChanges.replaced === 1 ? "" : "s"} replaced
+            </p>
+          ) : null}
+          {projectChanges.deleted > 0 ? (
+            <p className="text-muted-foreground">
+              {projectChanges.deleted} image
+              {projectChanges.deleted === 1 ? "" : "s"} deleted
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      <WorkspaceConnectSection
+        workspacePath={workspacePath ?? null}
+        workspaceError={workspaceError}
+        isPickingWorkspace={isPickingWorkspace}
+        onChangeWorkspaceFolder={() => void handleChangeWorkspaceFolder()}
+        onDisconnectWorkspace={() => void handleDisconnectWorkspace()}
+        onOpenWorkspaceFolder={() =>
+          workspacePath
+            ? void openEventArtWorkspaceFolder(workspacePath)
+            : undefined
+        }
+      />
+    </>
+  );
+
+  const importEventOptions = [
+    { id: WORKSPACE_ASSET_COMMON_EVENT_ID, label: "Common" },
+    ...presets.filter((preset) => preset.id !== DEFAULT_EVENT_STUDIO_PRESET_ID),
+  ];
+
+  const inspectorPanelBody = (
+    <InspectorPanel
+      theme={theme}
+      location={location}
+      selectedPlacementIds={selectedPlacementIds}
+      onSelectionChange={handleSelectionChange}
+      groups={groups}
+      onGroup={handleGroup}
+      onUngroup={handleUngroup}
+      lockedPlacementIds={lockedPlacementIds}
+      onToggleLock={handleToggleLock}
+      freeResize={freeResize}
+      onToggleFreeResize={() => setFreeResize((value) => !value)}
+      cropActive={cropPlacementId !== null}
+      onStartCrop={(id) => setCropPlacementId(id)}
+      interactionTestMode={interactionTestMode}
+      onToggleInteractionTestMode={() =>
+        setInteractionTestMode((value) => !value)
+      }
+      onCommit={handleCommitPlacement}
+      onRename={handleRenamePlacement}
+      onDelete={() => handleDeletePlacements(Array.from(selectedPlacementIds))}
+      onDuplicate={() =>
+        handleDuplicatePlacements(Array.from(selectedPlacementIds))
+      }
+      onReorder={handleReorderPlacement}
+      onToggleVisible={handleToggleVisible}
+      onAlign={handleAlign}
+      onDistribute={handleDistribute}
+      onConvertToVariantGroup={handleConvertToVariantGroup}
+      onStartVariantAssetPick={(id) => setVariantPickingPlacementId(id)}
+      onAddNothingOption={handleAddNothingOption}
+      onRemoveVariantOption={handleRemoveVariantOption}
+      onUpdateVariantOptionWeight={handleUpdateVariantOptionWeight}
+      onUpdateVariantOptionAdjustments={handleUpdateVariantOptionAdjustments}
+      onReorderVariantOption={handleReorderVariantOption}
+      previewSeed={previewSeed}
+      onRerollPreview={() => setPreviewSeed(crypto.randomUUID())}
+      onResetPreviewSeed={() => setPreviewSeed(DEFAULT_PREVIEW_SEED)}
+      onCopyToBreakpoint={(target) =>
+        requestCopyToBreakpoints(Array.from(selectedPlacementIds), [target])
+      }
+      onCopyToAllBreakpoints={() =>
+        requestCopyToBreakpoints(
+          Array.from(selectedPlacementIds),
+          otherBreakpoints(breakpointId),
+        )
+      }
+      safeZoneWarnings={safeZoneWarnings}
+    />
+  );
+
+  const toolbarElement = (
+    <StudioToolbar
+      presetId={presetId}
+      presets={presets}
+      onPresetChange={setPresetId}
+      pages={pages}
+      pageId={pageId}
+      onPageChange={(id) => {
+        setPageId(id);
+        const def = getStudioPage(id);
+        setStateId(def?.states[0]?.id ?? "");
+      }}
+      currentPage={currentPage}
+      stateId={stateId}
+      onStateChange={setStateId}
+      breakpointId={breakpointId}
+      onBreakpointChange={setBreakpointId}
+      showSafeZones={showSafeZones}
+      onToggleSafeZones={() => setShowSafeZones((value) => !value)}
+      onEnterPreview={() => setMode("preview")}
+      zoomSetting={zoomSetting}
+      effectiveZoom={effectiveZoom}
+      onZoomChange={setZoomSetting}
+      themeSource={themeSource}
+      themeLoading={themeLoading}
+      hasUnsavedChanges={hasUnsavedChanges}
+      lastSavedAt={lastSavedAt}
+      canSave={Boolean(theme && profileId)}
+      onLoad={requestLoad}
+      onSave={() => void handleSave()}
+      onOpenFile={() => setFilePanelOpen(true)}
+      onCopyDesktopToTablet={() => requestCopyBreakpoint("desktop", "tablet")}
+      onCopyTabletToMobile={() => requestCopyBreakpoint("tablet", "mobile")}
+      copyDisabled={!theme}
+      canUndo={undoableTheme.canUndo}
+      canRedo={undoableTheme.canRedo}
+      onUndo={undoableTheme.undo}
+      onRedo={undoableTheme.redo}
+      snapToGrid={snapToGrid}
+      onToggleSnapToGrid={() => setSnapToGrid((v) => !v)}
+      snapToPage={snapToPage}
+      onToggleSnapToPage={() => setSnapToPage((v) => !v)}
+      snapToCenter={snapToCenter}
+      onToggleSnapToCenter={() => setSnapToCenter((v) => !v)}
+      snapToObjects={snapToObjects}
+      onToggleSnapToObjects={() => setSnapToObjects((v) => !v)}
+      showGrid={showGrid}
+      onToggleShowGrid={() => setShowGrid((v) => !v)}
+      gridSizePx={gridSizePx}
+      onGridSizeChange={setGridSizePx}
+      onEnterFullscreenEdit={() => setFullscreenEdit(true)}
+    />
+  );
+
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      {mode === "edit" && !fullscreenEdit ? toolbarElement : null}
+
+      {mode === "edit" && !fullscreenEdit && recoverableAutosave ? (
         <div className="border-border bg-card flex flex-wrap items-center gap-3 rounded-lg border p-3">
           <p className="text-foreground text-xs">
             An autosaved version from{" "}
@@ -1028,31 +1391,10 @@ export function StudioPageClient() {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 gap-3">
-        {mode === "edit" ? (
-          <div className="border-border bg-card flex w-56 shrink-0 flex-col gap-3 overflow-y-auto rounded-lg border p-3">
-            <AssetBrowserPanel
-              workspacePath={workspacePath ?? null}
-              onPlaceAsset={handleAssetBrowserPlace}
-              pickerBannerText={
-                variantPickingPlacementId
-                  ? `Picking an asset for "${variantPickingPlacementId}" — click one below.`
-                  : undefined
-              }
-              onCancelPicker={() => setVariantPickingPlacementId(null)}
-            />
-            <WorkspaceConnectSection
-              workspacePath={workspacePath ?? null}
-              workspaceError={workspaceError}
-              isPickingWorkspace={isPickingWorkspace}
-              onChangeWorkspaceFolder={() => void handleChangeWorkspaceFolder()}
-              onDisconnectWorkspace={() => void handleDisconnectWorkspace()}
-              onOpenWorkspaceFolder={() =>
-                workspacePath
-                  ? void openEventArtWorkspaceFolder(workspacePath)
-                  : undefined
-              }
-            />
+      <div className="flex min-h-0 flex-1 gap-2">
+        {mode === "edit" && !fullscreenEdit ? (
+          <div className="border-border bg-card flex w-72 shrink-0 flex-col gap-3 overflow-y-auto rounded-lg border p-3">
+            {assetsPanelBody}
           </div>
         ) : null}
 
@@ -1070,6 +1412,29 @@ export function StudioPageClient() {
             >
               Exit Preview
             </Button>
+          ) : null}
+          {mode === "edit" && fullscreenEdit ? (
+            <FullscreenEditOverlay
+              canUndo={undoableTheme.canUndo}
+              canRedo={undoableTheme.canRedo}
+              onUndo={undoableTheme.undo}
+              onRedo={undoableTheme.redo}
+              onExitFullscreen={() => setFullscreenEdit(false)}
+              onOpenDrawer={setOpenDrawer}
+              selectedCount={selectedPlacementIds.size}
+              firstSelectedId={firstSelectedId}
+              lockedPlacementIds={lockedPlacementIds}
+              onDeleteSelection={() =>
+                handleDeletePlacements(Array.from(selectedPlacementIds))
+              }
+              onDuplicateSelection={() =>
+                handleDuplicatePlacements(Array.from(selectedPlacementIds))
+              }
+              onBringForward={(id) => handleReorderPlacement(id, "forward")}
+              onSendBack={(id) => handleReorderPlacement(id, "backward")}
+              onToggleLock={handleToggleLock}
+              onStartCrop={(id) => setCropPlacementId(id)}
+            />
           ) : null}
           <div
             style={{
@@ -1127,64 +1492,69 @@ export function StudioPageClient() {
           </div>
         </div>
 
-        {mode === "edit" ? (
-          <InspectorPanel
-            theme={theme}
-            location={location}
-            selectedPlacementIds={selectedPlacementIds}
-            onSelectionChange={handleSelectionChange}
-            groups={groups}
-            onGroup={handleGroup}
-            onUngroup={handleUngroup}
-            lockedPlacementIds={lockedPlacementIds}
-            onToggleLock={handleToggleLock}
-            freeResize={freeResize}
-            onToggleFreeResize={() => setFreeResize((value) => !value)}
-            cropActive={cropPlacementId !== null}
-            onStartCrop={(id) => setCropPlacementId(id)}
-            interactionTestMode={interactionTestMode}
-            onToggleInteractionTestMode={() =>
-              setInteractionTestMode((value) => !value)
-            }
-            onCommit={handleCommitPlacement}
-            onRename={handleRenamePlacement}
-            onDelete={() =>
-              handleDeletePlacements(Array.from(selectedPlacementIds))
-            }
-            onDuplicate={() =>
-              handleDuplicatePlacements(Array.from(selectedPlacementIds))
-            }
-            onReorder={handleReorderPlacement}
-            onToggleVisible={handleToggleVisible}
-            onAlign={handleAlign}
-            onDistribute={handleDistribute}
-            onConvertToVariantGroup={handleConvertToVariantGroup}
-            onStartVariantAssetPick={(id) => setVariantPickingPlacementId(id)}
-            onAddNothingOption={handleAddNothingOption}
-            onRemoveVariantOption={handleRemoveVariantOption}
-            onUpdateVariantOptionWeight={handleUpdateVariantOptionWeight}
-            onUpdateVariantOptionAdjustments={
-              handleUpdateVariantOptionAdjustments
-            }
-            onReorderVariantOption={handleReorderVariantOption}
-            previewSeed={previewSeed}
-            onRerollPreview={() => setPreviewSeed(crypto.randomUUID())}
-            onResetPreviewSeed={() => setPreviewSeed(DEFAULT_PREVIEW_SEED)}
-            onCopyToBreakpoint={(target) =>
-              requestCopyToBreakpoints(Array.from(selectedPlacementIds), [
-                target,
-              ])
-            }
-            onCopyToAllBreakpoints={() =>
-              requestCopyToBreakpoints(
-                Array.from(selectedPlacementIds),
-                otherBreakpoints(breakpointId),
-              )
-            }
-            safeZoneWarnings={safeZoneWarnings}
-          />
-        ) : null}
+        {mode === "edit" && !fullscreenEdit ? inspectorPanelBody : null}
       </div>
+
+      {/* Fullscreen Edit's floating panel drawers (see docs/updates,
+          "EVENT STUDIO — PHASE 8" §4/§5) — `Sheet` is a fixed-position
+          portal, never part of the flex layout above, so opening one of
+          these never resizes/reflows the canvas. */}
+      <Sheet
+        open={fullscreenEdit && openDrawer === "assets"}
+        onOpenChange={(open) => {
+          if (!open) setOpenDrawer(null);
+        }}
+      >
+        <SheetContent side="left" className="w-72 gap-3 p-3 sm:max-w-none">
+          <SheetHeader className="flex-row items-center justify-between space-y-0 p-0">
+            <SheetTitle className="sr-only">Asset Browser drawer</SheetTitle>
+            <Button
+              type="button"
+              variant={assetsPanelPinned ? "secondary" : "ghost"}
+              size="xs"
+              onClick={() => setAssetsPanelPinned((value) => !value)}
+              title={
+                assetsPanelPinned
+                  ? "Pinned open — placing an asset won't close this drawer"
+                  : "Pin open so placing an asset doesn't close this drawer"
+              }
+            >
+              {assetsPanelPinned ? (
+                <Pin aria-hidden="true" />
+              ) : (
+                <PinOff aria-hidden="true" />
+              )}
+              Pin Panel
+            </Button>
+          </SheetHeader>
+          {assetsPanelBody}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={fullscreenEdit && openDrawer === "inspector"}
+        onOpenChange={(open) => {
+          if (!open) setOpenDrawer(null);
+        }}
+      >
+        <SheetContent side="right" className="w-80 p-0 sm:max-w-none">
+          {inspectorPanelBody}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={fullscreenEdit && openDrawer === "toolbar"}
+        onOpenChange={(open) => {
+          if (!open) setOpenDrawer(null);
+        }}
+      >
+        <SheetContent side="top" className="h-auto gap-0 p-3 sm:max-w-none">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Studio toolbar</SheetTitle>
+          </SheetHeader>
+          {toolbarElement}
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog
         open={confirmCopy !== null}
@@ -1291,6 +1661,91 @@ export function StudioPageClient() {
         workspacePath={workspacePath ?? null}
         onCommitTheme={(next) => undoableTheme.commit(next)}
       />
+
+      {workspacePath && importSourcePath ? (
+        <ImportAssetDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          workspacePath={workspacePath}
+          sourcePath={importSourcePath}
+          eventOptions={importEventOptions}
+          defaultEventId={
+            presetId !== DEFAULT_EVENT_STUDIO_PRESET_ID
+              ? presetId
+              : WORKSPACE_ASSET_COMMON_EVENT_ID
+          }
+          onImported={handleImported}
+        />
+      ) : null}
+
+      <AlertDialog
+        open={pendingReplace !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingReplace(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace this image?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingReplace ? (
+                <>
+                  The new file overwrites{" "}
+                  <span className="font-mono">
+                    public/{pendingReplace.asset.relativePath}
+                  </span>
+                  . The asset path stays exactly the same, so every layout
+                  already using it shows the replacement immediately.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmReplace()}>
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingDeleteAsset !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteAsset(null);
+            setDeleteReferences([]);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {pendingDeleteAsset?.fileName}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteReferences.length > 0 ? (
+                <>
+                  This image is used in:
+                  <ul className="mt-1 list-inside list-disc">
+                    {deleteReferences.map((reference, index) => (
+                      <li key={index}>{formatAssetReference(reference)}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                "Not currently used in the loaded theme. This permanently removes the file from the project."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmDeleteAsset()}>
+              {deleteReferences.length > 0 ? "Delete anyway" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1340,6 +1795,7 @@ function StudioToolbar({
   onToggleShowGrid,
   gridSizePx,
   onGridSizeChange,
+  onEnterFullscreenEdit,
 }: {
   presetId: string;
   presets: { id: string; label: string }[];
@@ -1385,6 +1841,7 @@ function StudioToolbar({
   onToggleShowGrid: () => void;
   gridSizePx: number;
   onGridSizeChange: (size: number) => void;
+  onEnterFullscreenEdit: () => void;
 }) {
   return (
     <div className="border-border bg-card flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border p-3">
@@ -1591,6 +2048,28 @@ function StudioToolbar({
         >
           Preview
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onEnterFullscreenEdit}
+          title="Fullscreen Edit (Ctrl/Cmd+Shift+F)"
+        >
+          <Maximize2 aria-hidden="true" />
+          Fullscreen Edit
+        </Button>
+        {isDesktopRuntime() ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => void toggleWindowFullscreen()}
+            title="Enter Window Fullscreen — the OS window itself, separate from Fullscreen Edit"
+          >
+            <Monitor aria-hidden="true" />
+            <span className="sr-only">Enter Window Fullscreen</span>
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -1608,6 +2087,8 @@ const KEYBOARD_SHORTCUTS: readonly { combo: string; action: string }[] = [
   { combo: "Arrow keys", action: "Nudge selection" },
   { combo: "Shift + Arrow keys", action: "Nudge selection (larger step)" },
   { combo: "Shift-click / drag", action: "Multi-select" },
+  { combo: "Ctrl/Cmd+Shift+F", action: "Toggle Fullscreen Edit" },
+  { combo: "Escape", action: "Close crop / drawer / exit Fullscreen Edit" },
 ];
 
 /** A compact reference, not a wizard (§4: "Do not create a long onboarding wizard") — every shortcut in one small popover, opened on demand. */
@@ -1706,20 +2187,31 @@ function WorkspaceConnectSection({
 }) {
   return (
     <div className="border-border mt-auto space-y-2 border-t pt-3">
-      <h2 className="text-foreground text-sm font-semibold">
-        Event Art Workspace
-      </h2>
+      <h2 className="text-foreground text-sm font-semibold">FDraft Project</h2>
       {workspacePath ? (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <p className="text-foreground text-xs font-medium">
             <span aria-hidden="true">✓</span> Connected
           </p>
           <p className="text-muted-foreground truncate font-mono text-[0.65rem]">
             {workspacePath}
           </p>
+          <dl className="text-muted-foreground space-y-0.5 text-[0.65rem]">
+            <div className="flex gap-1">
+              <dt className="shrink-0">Event Art:</dt>
+              <dd className="font-mono">public/events/</dd>
+            </div>
+            <div className="flex gap-1">
+              <dt className="shrink-0">Themes:</dt>
+              <dd className="font-mono">public/event-themes/</dd>
+            </div>
+          </dl>
         </div>
       ) : (
-        <p className="text-muted-foreground text-xs">Not connected.</p>
+        <p className="text-muted-foreground text-xs">
+          Not connected. This is your actual FDraft Git checkout — not a
+          separate art library.
+        </p>
       )}
       {workspaceError ? (
         <p className="text-destructive text-xs" role="alert">
@@ -1732,6 +2224,16 @@ function WorkspaceConnectSection({
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
+          {workspacePath ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onOpenWorkspaceFolder}
+            >
+              Open Folder
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -1739,30 +2241,213 @@ function WorkspaceConnectSection({
             disabled={isPickingWorkspace}
             onClick={onChangeWorkspaceFolder}
           >
-            Change Folder
+            {workspacePath ? "Change Project" : "Connect Project"}
           </Button>
           {workspacePath ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onDisconnectWorkspace}
+            >
+              Disconnect
+            </Button>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Fullscreen Edit's own chrome (see docs/updates, "EVENT STUDIO — PHASE
+ * 8" §4/§14) — a `pointer-events-none` full-bleed layer over the canvas
+ * with individually `pointer-events-auto` controls, so every pixel NOT
+ * covered by an actual button still reaches the canvas underneath
+ * untouched. Two pieces: the always-visible corner cluster (Exit
+ * Fullscreen + Undo/Redo, kept out of a drawer since they're used
+ * constantly — burying them would make the workflow "annoying," which
+ * §6 explicitly warns against) plus the three edge tabs that pop the
+ * Assets/Inspector/Toolbar drawers open, and a small floating selection
+ * toolbar (§14) with just the highest-frequency actions — Delete/
+ * Duplicate always; Bring Forward/Send Back/Lock/Crop only for a single
+ * selection, matching the Inspector's own existing single-selection
+ * gating for those same actions. Detailed values stay in the Inspector
+ * drawer — this never duplicates it.
+ */
+function FullscreenEditOverlay({
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onExitFullscreen,
+  onOpenDrawer,
+  selectedCount,
+  firstSelectedId,
+  lockedPlacementIds,
+  onDeleteSelection,
+  onDuplicateSelection,
+  onBringForward,
+  onSendBack,
+  onToggleLock,
+  onStartCrop,
+}: {
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onExitFullscreen: () => void;
+  onOpenDrawer: (drawer: "assets" | "inspector" | "toolbar") => void;
+  selectedCount: number;
+  firstSelectedId: string | null;
+  lockedPlacementIds: ReadonlySet<string>;
+  onDeleteSelection: () => void;
+  onDuplicateSelection: () => void;
+  onBringForward: (id: string) => void;
+  onSendBack: (id: string) => void;
+  onToggleLock: (id: string) => void;
+  onStartCrop: (id: string) => void;
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20">
+      <div className="border-border bg-card/95 pointer-events-auto absolute top-2 left-2 flex items-center gap-1 rounded-lg border p-1 shadow-sm backdrop-blur-sm">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onExitFullscreen}
+          title="Exit Fullscreen (Esc)"
+        >
+          <Minimize2 aria-hidden="true" />
+          <span className="sr-only">Exit Fullscreen</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={!canUndo}
+          onClick={onUndo}
+          title="Undo (Ctrl/Cmd+Z)"
+        >
+          <Undo2 aria-hidden="true" />
+          <span className="sr-only">Undo</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={!canRedo}
+          onClick={onRedo}
+          title="Redo (Ctrl/Cmd+Shift+Z)"
+        >
+          <Redo2 aria-hidden="true" />
+          <span className="sr-only">Redo</span>
+        </Button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onOpenDrawer("toolbar")}
+        className="border-border bg-card/95 text-muted-foreground hover:text-foreground pointer-events-auto absolute top-0 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-b-lg border border-t-0 px-3 py-1 text-xs shadow-sm backdrop-blur-sm"
+      >
+        <Wrench aria-hidden="true" className="size-3.5" />
+        Toolbar
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onOpenDrawer("assets")}
+        className="border-border bg-card/95 text-muted-foreground hover:text-foreground pointer-events-auto absolute top-1/2 left-0 flex -translate-y-1/2 items-center gap-1 rounded-r-lg border border-l-0 px-2 py-3 text-xs shadow-sm backdrop-blur-sm [writing-mode:vertical-rl]"
+      >
+        <ImagePlus aria-hidden="true" className="size-3.5 rotate-90" />
+        Assets
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onOpenDrawer("inspector")}
+        className="border-border bg-card/95 text-muted-foreground hover:text-foreground pointer-events-auto absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-1 rounded-l-lg border border-r-0 px-2 py-3 text-xs shadow-sm backdrop-blur-sm [writing-mode:vertical-rl]"
+      >
+        <SlidersHorizontal aria-hidden="true" className="size-3.5 rotate-90" />
+        Inspector
+      </button>
+
+      {selectedCount > 0 ? (
+        <div className="border-border bg-card/95 pointer-events-auto absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg border p-1 shadow-sm backdrop-blur-sm">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onDeleteSelection}
+            title="Delete"
+          >
+            <Trash2 aria-hidden="true" />
+            <span className="sr-only">Delete</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onDuplicateSelection}
+            title="Duplicate"
+          >
+            <Copy aria-hidden="true" />
+            <span className="sr-only">Duplicate</span>
+          </Button>
+          {firstSelectedId ? (
             <>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={onOpenWorkspaceFolder}
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onBringForward(firstSelectedId)}
+                title="Bring Forward"
               >
-                Open
+                <ChevronUp aria-hidden="true" />
+                <span className="sr-only">Bring Forward</span>
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                onClick={onDisconnectWorkspace}
+                size="icon-sm"
+                onClick={() => onSendBack(firstSelectedId)}
+                title="Send Back"
               >
-                Disconnect
+                <ChevronDown aria-hidden="true" />
+                <span className="sr-only">Send Back</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onToggleLock(firstSelectedId)}
+                title={
+                  lockedPlacementIds.has(firstSelectedId) ? "Unlock" : "Lock"
+                }
+              >
+                {lockedPlacementIds.has(firstSelectedId) ? (
+                  <LockOpen aria-hidden="true" />
+                ) : (
+                  <Lock aria-hidden="true" />
+                )}
+                <span className="sr-only">
+                  {lockedPlacementIds.has(firstSelectedId) ? "Unlock" : "Lock"}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onStartCrop(firstSelectedId)}
+                title="Crop"
+              >
+                <Crop aria-hidden="true" />
+                <span className="sr-only">Crop</span>
               </Button>
             </>
           ) : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

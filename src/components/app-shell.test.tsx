@@ -4,6 +4,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/app-shell";
 import { ProfileService } from "@/application/profiles/profile-service";
 
+// Mirrors vitest.setup.ts's own global `next/navigation` mock (a no-op
+// `useRouter`) but also makes `usePathname` controllable per test — the
+// existing 4 tests below never touch it (default stays a normal route),
+// only the EVENT STUDIO — PHASE 8 §1/§16 tests further down switch it to
+// "/studio" to exercise the full-window bypass.
+let mockPathname = "/watchlist";
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: () => {},
+      replace: () => {},
+      back: () => {},
+      forward: () => {},
+      refresh: () => {},
+      prefetch: () => {},
+    }),
+    usePathname: () => mockPathname,
+  };
+});
+
 /**
  * Proves the core claims of "REMOVE AUTHENTICATION" (see
  * docs/product-spec.md, Prompt 9.5B): opening the app renders real content
@@ -28,6 +50,7 @@ describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
     window.localStorage.clear();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    mockPathname = "/watchlist";
   });
 
   it("first launch: shows the first-run screen, never a login page", async () => {
@@ -135,5 +158,80 @@ describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
     await waitFor(() =>
       expect(screen.getByText("Welcome to FDraft")).toBeInTheDocument(),
     );
+  });
+});
+
+describe("AppShell — Event Studio owns the full application window (EVENT STUDIO — PHASE 8 §1/§16)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("no network in tests")),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    mockPathname = "/watchlist";
+  });
+
+  it("on /studio: no global Header, no padded max-width container — children render full-bleed", async () => {
+    mockPathname = "/studio";
+    const user = userEvent.setup();
+    render(
+      <AppShell databaseName={crypto.randomUUID()}>
+        <p>Studio content</p>
+      </AppShell>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Welcome to FDraft")).toBeInTheDocument(),
+    );
+    await user.type(screen.getByLabelText("Profile name"), "Alex");
+    await user.click(screen.getByRole("button", { name: "Create Profile" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Studio content")).toBeInTheDocument(),
+    );
+    // The normal Header (home link, profile menu) never mounts on this route.
+    expect(
+      screen.queryByRole("link", { name: "FDraft — home" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Profile menu" }),
+    ).not.toBeInTheDocument();
+    // No `max-w-6xl`/padded `<main>` wraps it — the full-bleed wrapper is
+    // a direct ancestor with no such classes anywhere in between.
+    const content = screen.getByText("Studio content");
+    let ancestor: HTMLElement | null = content.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      expect(ancestor.className).not.toContain("max-w-6xl");
+      ancestor = ancestor.parentElement;
+    }
+  });
+
+  it("every other route keeps the normal Header/padded container, even in the same session", async () => {
+    mockPathname = "/watchlist";
+    const user = userEvent.setup();
+    render(
+      <AppShell databaseName={crypto.randomUUID()}>
+        <p>Watchlist content</p>
+      </AppShell>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Welcome to FDraft")).toBeInTheDocument(),
+    );
+    await user.type(screen.getByLabelText("Profile name"), "Alex");
+    await user.click(screen.getByRole("button", { name: "Create Profile" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Watchlist content")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("link", { name: "FDraft — home" }),
+    ).toBeInTheDocument();
   });
 });

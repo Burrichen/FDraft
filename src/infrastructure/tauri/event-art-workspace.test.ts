@@ -27,6 +27,10 @@ const {
   checkEventArtWorkspaceAssetPaths,
   readCanonicalThemeFile,
   writeCanonicalThemeFile,
+  pickImportSourceFile,
+  copyEventArtAsset,
+  deleteEventArtAsset,
+  getDevProjectRoot,
 } = await import("./event-art-workspace");
 
 describe("Event Art Workspace native seam — graceful degradation outside the desktop shell (EVENT STUDIO — PHASE 2 §8)", () => {
@@ -245,5 +249,148 @@ describe("readCanonicalThemeFile / writeCanonicalThemeFile (EVENT STUDIO — PHA
     const result = await writeCanonicalThemeFile("/repo", "halloween", "{}");
 
     expect(result).toEqual({ ok: false, error: "disk full" });
+  });
+});
+
+describe("pickImportSourceFile / copyEventArtAsset / deleteEventArtAsset / getDevProjectRoot (EVENT STUDIO — PHASE 9)", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("pickImportSourceFile returns null outside the desktop shell", async () => {
+    isDesktopRuntimeMock.mockReturnValue(false);
+    await expect(pickImportSourceFile()).resolves.toBeNull();
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
+  it("pickImportSourceFile opens a file dialog restricted to png/webp/svg", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    openMock.mockResolvedValue("/Users/dev/Pictures/ghost.png");
+
+    const result = await pickImportSourceFile();
+
+    expect(result).toBe("/Users/dev/Pictures/ghost.png");
+    expect(openMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: false,
+        filters: [{ name: "Images", extensions: ["png", "webp", "svg"] }],
+      }),
+    );
+  });
+
+  it("pickImportSourceFile returns null when the user cancels", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    openMock.mockResolvedValue(null);
+    expect(await pickImportSourceFile()).toBeNull();
+  });
+
+  it("copyEventArtAsset reports a clear error outside the desktop shell, never invoking", async () => {
+    isDesktopRuntimeMock.mockReturnValue(false);
+    const result = await copyEventArtAsset(
+      "/repo",
+      "/tmp/ghost.png",
+      "halloween",
+      "decorations",
+      "ghost.png",
+    );
+    expect(result.ok).toBe(false);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("copyEventArtAsset forwards to the Rust command and returns the new relative path", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    invokeMock.mockResolvedValue("events/halloween/decorations/ghost.png");
+
+    const result = await copyEventArtAsset(
+      "/repo",
+      "/tmp/ghost.png",
+      "halloween",
+      "decorations",
+      "ghost.png",
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      relativePath: "events/halloween/decorations/ghost.png",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("copy_event_art_asset", {
+      path: "/repo",
+      sourcePath: "/tmp/ghost.png",
+      eventId: "halloween",
+      category: "decorations",
+      fileName: "ghost.png",
+    });
+  });
+
+  it("copyEventArtAsset surfaces the underlying error message on failure", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    invokeMock.mockRejectedValue(new Error("Invalid category."));
+
+    const result = await copyEventArtAsset(
+      "/repo",
+      "/tmp/ghost.png",
+      "halloween",
+      "not-real",
+      "ghost.png",
+    );
+
+    expect(result).toEqual({ ok: false, error: "Invalid category." });
+  });
+
+  it("deleteEventArtAsset reports a clear error outside the desktop shell, never invoking", async () => {
+    isDesktopRuntimeMock.mockReturnValue(false);
+    const result = await deleteEventArtAsset(
+      "/repo",
+      "events/halloween/decorations/ghost.png",
+    );
+    expect(result.ok).toBe(false);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("deleteEventArtAsset forwards to the Rust command and reports success", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    invokeMock.mockResolvedValue(undefined);
+
+    const result = await deleteEventArtAsset(
+      "/repo",
+      "events/halloween/decorations/ghost.png",
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(invokeMock).toHaveBeenCalledWith("delete_event_art_asset", {
+      path: "/repo",
+      relativeAssetPath: "events/halloween/decorations/ghost.png",
+    });
+  });
+
+  it("deleteEventArtAsset surfaces the underlying error message on failure", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    invokeMock.mockRejectedValue(new Error("Asset not found."));
+
+    const result = await deleteEventArtAsset("/repo", "events/halloween/x.png");
+
+    expect(result).toEqual({ ok: false, error: "Asset not found." });
+  });
+
+  it("getDevProjectRoot returns null outside the desktop shell", async () => {
+    isDesktopRuntimeMock.mockReturnValue(false);
+    await expect(getDevProjectRoot()).resolves.toBeNull();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("getDevProjectRoot forwards to the Rust command and returns its result", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    invokeMock.mockResolvedValue("/Users/dev/FDraft");
+
+    const result = await getDevProjectRoot();
+
+    expect(result).toBe("/Users/dev/FDraft");
+    expect(invokeMock).toHaveBeenCalledWith("get_dev_project_root");
+  });
+
+  it("getDevProjectRoot returns null (never throws) if the command rejects", async () => {
+    isDesktopRuntimeMock.mockReturnValue(true);
+    invokeMock.mockRejectedValue(new Error("not registered"));
+    await expect(getDevProjectRoot()).resolves.toBeNull();
   });
 });

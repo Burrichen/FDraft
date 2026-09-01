@@ -1110,7 +1110,7 @@ export function InspectorPanel(props: InspectorPanelProps) {
     ).size === 1;
 
   return (
-    <div className="border-border bg-card w-64 shrink-0 space-y-4 overflow-y-auto rounded-lg border p-3">
+    <div className="border-border bg-card w-80 shrink-0 space-y-4 overflow-y-auto rounded-lg border p-3">
       <LayersSection {...props} />
       <div className="border-border border-t pt-3">
         {count >= 2 ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { refreshHalloweenManifest } from "@/application/events/halloween-manifest-service";
@@ -43,6 +44,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const { activeProfile, profiles, initError, retryInit, repositories } =
     useProfileContext();
   const halloweenAmbientVisible = useHalloweenAmbientVisible();
+  // Event Studio owns the entire application window (see docs/updates,
+  // "EVENT STUDIO — PHASE 8" §1) — its own toolbar replaces the normal
+  // `<Header>` (never two headers stacked), and it gets the full
+  // viewport instead of the normal narrow, padded `<main>` every other
+  // route uses. Gated on the route, not `isEventStudioBuild`, since only
+  // `/studio` itself needs this — every other page in a Studio build
+  // (Watchlist, Settings, ...) still looks like normal FDraft (see §16).
+  const isStudioRoute = usePathname() === "/studio";
 
   // Only once a real profile is active — never on the bare first-run
   // screen (see docs/product-spec.md, "BROWSER STORAGE PERSISTENCE":
@@ -137,12 +146,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <EventIntroDialog key={activeProfile.id} />
       <EventEndingDialog key={activeProfile.id} />
       {halloweenAmbientVisible ? <HalloweenAmbientDecorations /> : null}
-      <div className="flex min-h-full flex-col">
-        <Header activeProfile={activeProfile} profiles={profiles} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-          {children}
-        </main>
-      </div>
+      {isStudioRoute ? (
+        <div className="h-dvh w-full overflow-hidden">{children}</div>
+      ) : (
+        <div className="flex min-h-full flex-col">
+          <Header activeProfile={activeProfile} profiles={profiles} />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+            {children}
+          </main>
+        </div>
+      )}
     </WatchUndoProvider>
   );
 }

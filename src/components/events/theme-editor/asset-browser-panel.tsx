@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +27,14 @@ export interface AssetBrowserPanelProps {
   /** When set, the browser is in "picking an asset for a Variant option" mode (rather than "place a new decoration") — shows this text as a small banner above the grid, and a Cancel affordance via `onCancelPicker`. `undefined`/omitted is the normal placement mode. */
   pickerBannerText?: string;
   onCancelPicker?: () => void;
+  /** Opens the Import Image dialog (see docs/updates, "EVENT STUDIO — PHASE 9" §3) — this panel never performs the copy itself, only asks the parent to start that flow, which needs the current preset/theme context this panel deliberately doesn't have. */
+  onRequestImport?: () => void;
+  /** Starts a Replace Image flow for one existing asset (§6) — same reasoning, the parent owns the actual file-picker + copy call. */
+  onRequestReplace?: (asset: WorkspaceAssetEntry) => void;
+  /** Starts a Delete Asset flow for one existing asset (§14) — the parent checks theme references and confirms before actually deleting. */
+  onRequestDelete?: (asset: WorkspaceAssetEntry) => void;
+  /** Bumped by the parent after a successful import/replace/delete to trigger a rescan — a plain counter rather than an imperative ref, so "rescan now" is just an ordinary prop-driven effect like `workspacePath` changing already is. */
+  refreshToken?: number;
 }
 
 /**
@@ -45,6 +54,10 @@ export function AssetBrowserPanel({
   onPlaceAsset,
   pickerBannerText,
   onCancelPicker,
+  onRequestImport,
+  onRequestReplace,
+  onRequestDelete,
+  refreshToken,
 }: AssetBrowserPanelProps) {
   const [assets, setAssets] = useState<WorkspaceAssetEntry[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -79,10 +92,10 @@ export function AssetBrowserPanel({
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a fresh/changed workspace path means a new scan is now loading, same accepted pattern as `useAsyncData`.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a fresh/changed workspace path (or a bumped `refreshToken` after Import/Replace/Delete) means a new scan is now loading, same accepted pattern as `useAsyncData`.
     void rescan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspacePath]);
+  }, [workspacePath, refreshToken]);
 
   const filters = getWorkspaceAssetFilters(assets);
   const visible = searchWorkspaceAssetsByFilename(
@@ -143,7 +156,7 @@ export function AssetBrowserPanel({
       <div className="space-y-2">
         <h2 className="text-foreground text-sm font-semibold">Assets</h2>
         <p className="text-muted-foreground text-xs">
-          Connect an Event Art Workspace below to browse and place real Event
+          Connect your FDraft Project below to browse and place real Event
           assets.
         </p>
         {pickerBannerText ? (
@@ -164,15 +177,29 @@ export function AssetBrowserPanel({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-foreground text-sm font-semibold">Assets</h2>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          disabled={isScanning}
-          onClick={() => void rescan()}
-        >
-          {isScanning ? "Refreshing…" : "Refresh Assets"}
-        </Button>
+        <div className="flex gap-1">
+          {onRequestImport ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={onRequestImport}
+              title="Copy a new image into this FDraft project"
+            >
+              <Upload aria-hidden="true" />
+              Import Image
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            disabled={isScanning}
+            onClick={() => void rescan()}
+          >
+            {isScanning ? "Refreshing…" : "Refresh Assets"}
+          </Button>
+        </div>
       </div>
 
       {pickerBannerText ? (
@@ -225,7 +252,39 @@ export function AssetBrowserPanel({
       ) : (
         <ul className="grid grid-cols-2 gap-2">
           {visible.map((asset) => (
-            <li key={asset.relativePath}>
+            <li key={asset.relativePath} className="group relative">
+              {onRequestReplace || onRequestDelete ? (
+                <div className="absolute top-1 right-1 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                  {onRequestReplace ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRequestReplace(asset);
+                      }}
+                      title={`Replace Image — ${asset.relativePath}`}
+                      className="bg-card/90 text-muted-foreground hover:text-foreground rounded p-0.5 shadow-sm"
+                    >
+                      <RefreshCw aria-hidden="true" className="size-3" />
+                      <span className="sr-only">Replace {asset.fileName}</span>
+                    </button>
+                  ) : null}
+                  {onRequestDelete ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRequestDelete(asset);
+                      }}
+                      title={`Delete Asset — ${asset.relativePath}`}
+                      className="bg-card/90 text-muted-foreground hover:text-destructive rounded p-0.5 shadow-sm"
+                    >
+                      <Trash2 aria-hidden="true" className="size-3" />
+                      <span className="sr-only">Delete {asset.fileName}</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <button
                 type="button"
                 draggable

@@ -339,6 +339,133 @@ fn write_canonical_theme_file(
     .map_err(|error| format!("Could not write the theme file: {}", error))
 }
 
+/// Whether `segment` is safe to interpolate into a filesystem path
+/// component — the same defense-in-depth `is_safe_theme_id` already
+/// applies to `theme_id`, needed here too for `event_id`/`category`/
+/// `file_name`, none of which are validated against a fixed enum on the
+/// JS side (an event id is any registered-event slug — see
+/// `event-art-registry.tsx`).
+fn is_safe_path_segment(segment: &str) -> bool {
+  !segment.is_empty()
+    && !segment.contains('/')
+    && !segment.contains('\\')
+    && !segment.contains("..")
+}
+
+/// Copies a file from anywhere on disk (`source_path`, chosen via a
+/// native file-picker dialog — already a path the OS itself granted the
+/// app access to, not attacker-controlled input) into the connected
+/// workspace at `public/events/<event_id>/<category>/<file_name>` (see
+/// docs/updates, "EVENT STUDIO — PHASE 9" §3/§6) — the SAME command
+/// backs both "Import Image" and "Replace Image"; the only difference is
+/// whether the destination already exists, which the frontend checks
+/// first (via `check_event_art_workspace_asset_paths`) and confirms with
+/// the user before ever calling this, exactly like
+/// `write_canonical_theme_file`'s own "confirmation lives in JS, this
+/// command always writes unconditionally" convention. Creates
+/// `events/<event_id>/<category>/` if it doesn't exist yet — a brand-new
+/// event or category folder existing for the first time is exactly what
+/// a fresh Import into it means. Returns the new asset's project-relative
+/// path on success, ready to register directly into a theme's `assets`
+/// map.
+#[tauri::command]
+fn copy_event_art_asset(
+  path: String,
+  source_path: String,
+  event_id: String,
+  category: String,
+  file_name: String,
+) -> Result<String, String> {
+  if !is_safe_path_segment(&event_id)
+    || !is_safe_path_segment(&category)
+    || !is_safe_path_segment(&file_name)
+  {
+    return Err("Invalid destination.".to_string());
+  }
+  if !ASSET_CATEGORIES.contains(&category.as_str()) {
+    return Err("Invalid category.".to_string());
+  }
+  let source = Path::new(&source_path);
+  if !source.is_file() {
+    return Err("Source file not found.".to_string());
+  }
+
+  let public_root = Path::new(&path).join("public");
+  let canonical_public_root =
+    std::fs::canonicalize(&public_root).map_err(|_| "Workspace not found.".to_string())?;
+
+  let dest_dir = public_root.join("events").join(&event_id).join(&category);
+  std::fs::create_dir_all(&dest_dir)
+    .map_err(|error| format!("Could not create the destination folder: {}", error))?;
+  let dest = dest_dir.join(&file_name);
+
+  std::fs::copy(source, &dest).map_err(|error| format!("Could not copy the file: {}", error))?;
+
+  // Re-validate the file actually written still resolves inside
+  // `public/` — the same canonicalize-and-check-descendant defense every
+  // other path-accepting command here already applies, now checked
+  // against the real file that now exists at `dest`.
+  let canonical_dest = std::fs::canonicalize(&dest)
+    .map_err(|_| "Could not verify the copied file.".to_string())?;
+  if !canonical_dest.starts_with(&canonical_public_root) {
+    let _ = std::fs::remove_file(&dest);
+    return Err("Invalid destination.".to_string());
+  }
+
+  Ok(format!("events/{}/{}/{}", event_id, category, file_name))
+}
+
+/// Deletes one asset file from the connected workspace (see docs/updates,
+/// "EVENT STUDIO — PHASE 9" §14) — the frontend is responsible for
+/// checking/warning about theme references BEFORE ever calling this;
+/// this command only performs the actual removal, with the same
+/// canonicalize-and-check-descendant traversal defense
+/// `read_event_art_workspace_asset` already applies.
+#[tauri::command]
+fn delete_event_art_asset(path: String, relative_asset_path: String) -> Result<(), String> {
+  let normalized = relative_asset_path.trim_start_matches('/');
+  if normalized.contains("..") || !normalized.starts_with("events/") {
+    return Err("Invalid asset path.".to_string());
+  }
+  let public_root = Path::new(&path).join("public");
+  let candidate = public_root.join(normalized);
+
+  let canonical_root =
+    std::fs::canonicalize(&public_root).map_err(|_| "Workspace not found.".to_string())?;
+  let canonical_file =
+    std::fs::canonicalize(&candidate).map_err(|_| "Asset not found.".to_string())?;
+  if !canonical_file.starts_with(&canonical_root) {
+    return Err("Invalid asset path.".to_string());
+  }
+  if !canonical_file.is_file() {
+    return Err("Asset not found.".to_string());
+  }
+
+  std::fs::remove_file(&canonical_file)
+    .map_err(|error| format!("Could not delete the file: {}", error))
+}
+
+/// The current project root, ONLY when this binary itself was compiled
+/// as a debug build (`cargo tauri dev`/`pnpm run studio:dev`) — see
+/// docs/updates, "EVENT STUDIO — PHASE 9" §12: "automatically detect the
+/// current project root where practical" for a dev-from-source launch.
+/// Gated on `cfg!(debug_assertions)`, not merely "does this path exist
+/// on disk," because `CARGO_MANIFEST_DIR` is baked in at COMPILE time —
+/// an installed release binary would otherwise report the ORIGINAL BUILD
+/// MACHINE's own source checkout path, which is meaningless (and
+/// misleading) on an end user's machine. Always `None` in a release
+/// build, unconditionally, regardless of what happens to exist on disk.
+#[tauri::command]
+fn get_dev_project_root() -> Option<String> {
+  if cfg!(debug_assertions) {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .parent()
+      .map(|parent| parent.to_string_lossy().to_string())
+  } else {
+    None
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -775,6 +902,196 @@ mod tests {
 
     std::fs::remove_dir_all(&scratch).unwrap();
   }
+
+  #[test]
+  fn copy_event_art_asset_imports_a_new_file_into_a_fresh_event_category() {
+    let scratch = scratch_workspace("copy-import-fresh");
+    std::fs::create_dir_all(scratch.join("public")).unwrap();
+    let source = scratch.join("source.png");
+    std::fs::write(&source, b"fake png bytes").unwrap();
+
+    let result = copy_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      source.to_string_lossy().to_string(),
+      "carnival".to_string(),
+      "decorations".to_string(),
+      "ferris-wheel.png".to_string(),
+    );
+
+    assert_eq!(
+      result,
+      Ok("events/carnival/decorations/ferris-wheel.png".to_string())
+    );
+    let written = scratch
+      .join("public")
+      .join("events")
+      .join("carnival")
+      .join("decorations")
+      .join("ferris-wheel.png");
+    assert_eq!(std::fs::read(&written).unwrap(), b"fake png bytes");
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn copy_event_art_asset_overwrites_an_existing_file_at_the_same_path() {
+    let scratch = scratch_workspace("copy-replace");
+    let dest_dir = scratch
+      .join("public")
+      .join("events")
+      .join("halloween")
+      .join("interactives");
+    std::fs::create_dir_all(&dest_dir).unwrap();
+    std::fs::write(dest_dir.join("pumpkin-rotten.png"), b"old bytes").unwrap();
+    let source = scratch.join("new-source.png");
+    std::fs::write(&source, b"new bytes").unwrap();
+
+    let result = copy_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      source.to_string_lossy().to_string(),
+      "halloween".to_string(),
+      "interactives".to_string(),
+      "pumpkin-rotten.png".to_string(),
+    );
+
+    assert_eq!(
+      result,
+      Ok("events/halloween/interactives/pumpkin-rotten.png".to_string())
+    );
+    assert_eq!(
+      std::fs::read(dest_dir.join("pumpkin-rotten.png")).unwrap(),
+      b"new bytes"
+    );
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn copy_event_art_asset_rejects_an_unrecognised_category() {
+    let scratch = scratch_workspace("copy-bad-category");
+    std::fs::create_dir_all(scratch.join("public")).unwrap();
+    let source = scratch.join("source.png");
+    std::fs::write(&source, b"bytes").unwrap();
+
+    let result = copy_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      source.to_string_lossy().to_string(),
+      "halloween".to_string(),
+      "not-a-real-category".to_string(),
+      "thing.png".to_string(),
+    );
+
+    assert!(result.is_err());
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn copy_event_art_asset_rejects_path_traversal_in_any_segment() {
+    let scratch = scratch_workspace("copy-traversal");
+    std::fs::create_dir_all(scratch.join("public")).unwrap();
+    let source = scratch.join("source.png");
+    std::fs::write(&source, b"bytes").unwrap();
+
+    let result = copy_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      source.to_string_lossy().to_string(),
+      "../../etc".to_string(),
+      "decorations".to_string(),
+      "passwd.png".to_string(),
+    );
+
+    assert!(result.is_err());
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn copy_event_art_asset_fails_cleanly_when_the_source_file_does_not_exist() {
+    let scratch = scratch_workspace("copy-missing-source");
+    std::fs::create_dir_all(scratch.join("public")).unwrap();
+
+    let result = copy_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      scratch.join("nope.png").to_string_lossy().to_string(),
+      "halloween".to_string(),
+      "decorations".to_string(),
+      "thing.png".to_string(),
+    );
+
+    assert!(result.is_err());
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn delete_event_art_asset_removes_the_file() {
+    let scratch = scratch_workspace("delete-asset");
+    let dest_dir = scratch
+      .join("public")
+      .join("events")
+      .join("halloween")
+      .join("decorations");
+    std::fs::create_dir_all(&dest_dir).unwrap();
+    std::fs::write(dest_dir.join("bat.png"), b"bytes").unwrap();
+
+    let result = delete_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      "events/halloween/decorations/bat.png".to_string(),
+    );
+
+    assert!(result.is_ok());
+    assert!(!dest_dir.join("bat.png").exists());
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn delete_event_art_asset_rejects_path_traversal() {
+    let scratch = scratch_workspace("delete-traversal");
+    std::fs::create_dir_all(scratch.join("public")).unwrap();
+
+    let result = delete_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      "../../etc/passwd".to_string(),
+    );
+
+    assert!(result.is_err());
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn delete_event_art_asset_reports_a_clear_error_for_a_nonexistent_file() {
+    let scratch = scratch_workspace("delete-missing");
+    std::fs::create_dir_all(scratch.join("public").join("events")).unwrap();
+
+    let result = delete_event_art_asset(
+      scratch.to_string_lossy().to_string(),
+      "events/halloween/decorations/nope.png".to_string(),
+    );
+
+    assert!(result.is_err());
+
+    std::fs::remove_dir_all(&scratch).unwrap();
+  }
+
+  #[test]
+  fn get_dev_project_root_returns_a_path_in_this_debug_test_build() {
+    // The test binary is always a debug build, so this always exercises
+    // the `Some` branch here — the `None`-in-release behavior can't be
+    // exercised by a `#[test]` at all (it's a compile-time `cfg!`), but
+    // is trivially correct by inspection (see the function's own doc
+    // comment).
+    let result = get_dev_project_root();
+    assert!(result.is_some());
+    assert!(
+      PathBuf::from(result.unwrap())
+        .join("src-tauri")
+        .join("Cargo.toml")
+        .is_file()
+    );
+  }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -794,7 +1111,10 @@ pub fn run() {
       read_event_art_workspace_asset,
       check_event_art_workspace_asset_paths,
       read_canonical_theme_file,
-      write_canonical_theme_file
+      write_canonical_theme_file,
+      copy_event_art_asset,
+      delete_event_art_asset,
+      get_dev_project_root
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

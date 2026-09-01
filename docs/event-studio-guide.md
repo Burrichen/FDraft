@@ -12,32 +12,43 @@ with the red icon, kept in its own data directory so it never touches your
 real profile. Launch FDraft (Dev) like the normal app; a "Studio" nav
 entry appears that isn't there in normal FDraft.
 
-## Connect the Git Folder
+## Connect the FDraft Project
 
-In Studio, use **Change Folder** (bottom of the left panel) to pick your
-local clone of this repository. Studio reads artwork live from
-`public/events/` in that folder and writes exported themes into
-`public/event-themes/` when you ask it to — it never touches anything
-outside the folder you pick.
+In Studio, use **Connect Project** (bottom of the left panel) to pick your
+local clone of this repository — this is the real FDraft Git project, not
+a separate art library. Studio reads artwork live from `public/events/` in
+that folder and writes exported themes into `public/event-themes/` when
+you ask it to — it never touches anything outside the folder you pick.
+Launched from a source checkout in dev mode, Studio detects and connects
+this automatically; a packaged FDraft (Dev) remembers your last choice.
 
-## Replacing Artwork
+**Images used in production live INSIDE the FDraft project and are
+shipped with FDraft** — there is no separate art store anywhere else.
 
-Same rule as always: overwrite the file, same filename. Example:
+## Adding an Image
 
-```
-public/events/halloween/interactives/pumpkin-rotten.png
-```
+1. In the Asset Browser, press **Import Image**.
+2. Choose the source file (PNG/WebP/SVG) from anywhere on your computer.
+3. Pick the **Event** and **Folder** — Studio shows you the exact
+   destination path before you confirm.
+4. Press **Import** — Studio copies it into `public/events/<event>/...`.
+   The original file is never referenced again; only the copy is.
+5. Use it in the layout like any other asset.
+6. Commit the new image (and theme) through Git normally — Studio never
+   commits or pushes for you.
 
-1. Save your new image over that exact path/filename.
-2. In Studio, click **Refresh Assets**.
-3. Done — the new art shows up everywhere that asset is already placed.
+## Replacing an Image
 
-## Adding Artwork
+1. Find it in the Asset Browser and press its small **Replace** icon.
+2. Select the replacement file and confirm.
+3. The same filename/path is retained — every layout already using it
+   shows the replacement immediately, with nothing else to update.
 
-1. Copy a new PNG/WebP/SVG file into the right Event folder, e.g.
-   `public/events/halloween/interactives/new-thing.png`.
-2. Click **Refresh Assets** in the Asset Browser.
-3. Drag it onto the page (or click it to place it centred).
+## Deleting an Image
+
+Press an asset's **Delete** icon. If it's used anywhere in the current
+theme, Studio lists exactly where and asks you to confirm before removing
+the file.
 
 ## Designing a Page
 

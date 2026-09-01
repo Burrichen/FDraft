@@ -85,6 +85,123 @@ export async function openEventArtWorkspaceFolder(path: string): Promise<void> {
 }
 
 /**
+ * Opens the native "choose a file" dialog restricted to the recognised
+ * image formats (see docs/updates, "EVENT STUDIO — PHASE 9" §3: "Import
+ * Image... at minimum .png .webp .svg") — the source half of Import; the
+ * chosen path is later handed to `copyEventArtAsset` unchanged. `null`
+ * means the user cancelled, OR the dialog isn't available in this
+ * runtime — callers treat both identically (no file chosen).
+ */
+export async function pickImportSourceFile(): Promise<string | null> {
+  if (!isDesktopRuntime()) {
+    return null;
+  }
+  try {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title: "Choose an image to import",
+      filters: [{ name: "Images", extensions: ["png", "webp", "svg"] }],
+    });
+    return typeof selected === "string" ? selected : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Copies `sourcePath` (an arbitrary path on disk, from
+ * `pickImportSourceFile`) into the connected workspace at
+ * `public/events/<eventId>/<category>/<fileName>` — the ONE function
+ * backing both Import Image (§3) and Replace Image (§6); the only
+ * difference is whether the destination already exists, which the
+ * CALLER checks (via `checkEventArtWorkspaceAssetPaths`) and confirms
+ * with the user BEFORE calling this — this always writes unconditionally
+ * the moment it's called, same convention as `writeCanonicalThemeFile`.
+ * Returns the new asset's project-relative path
+ * (`"events/<eventId>/<category>/<fileName>"`) on success, ready to
+ * register straight into a theme's `assets` map — see §7: "the repo
+ * asset is source of truth," never a second copy anywhere else.
+ */
+export async function copyEventArtAsset(
+  path: string,
+  sourcePath: string,
+  eventId: string,
+  category: string,
+  fileName: string,
+): Promise<{ ok: true; relativePath: string } | { ok: false; error: string }> {
+  if (!isDesktopRuntime()) {
+    return { ok: false, error: "Not running inside the desktop app." };
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const relativePath = await invoke<string>("copy_event_art_asset", {
+      path,
+      sourcePath,
+      eventId,
+      category,
+      fileName,
+    });
+    return { ok: true, relativePath };
+  } catch (cause) {
+    return {
+      ok: false,
+      error:
+        cause instanceof Error ? cause.message : "Could not import the file.",
+    };
+  }
+}
+
+/**
+ * Deletes one asset file from the connected workspace (see §14) — the
+ * CALLER is responsible for checking/warning about theme references
+ * first (see `theme-asset-refs.ts`'s reference-lookup helpers); this
+ * only performs the actual file removal.
+ */
+export async function deleteEventArtAsset(
+  path: string,
+  relativeAssetPath: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isDesktopRuntime()) {
+    return { ok: false, error: "Not running inside the desktop app." };
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("delete_event_art_asset", { path, relativeAssetPath });
+    return { ok: true };
+  } catch (cause) {
+    return {
+      ok: false,
+      error:
+        cause instanceof Error ? cause.message : "Could not delete the file.",
+    };
+  }
+}
+
+/**
+ * The current project root, ONLY when this really is a dev-from-source
+ * launch (see §12: "automatically detect the current project root where
+ * practical... do not make me reselect the repository every single dev
+ * launch") — `get_dev_project_root` itself is gated on
+ * `cfg!(debug_assertions)` at COMPILE time, so a packaged release build
+ * always gets `null` here regardless of what's on disk (see that
+ * command's own doc comment for why). `null` outside the desktop
+ * runtime too, same as every other function here.
+ */
+export async function getDevProjectRoot(): Promise<string | null> {
+  if (!isDesktopRuntime()) {
+    return null;
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<string | null>("get_dev_project_root");
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Live-scans the connected workspace's asset folders via the
  * `scan_event_art_workspace_assets` Rust command (see §2: "New files
  * placed into the event folder should become available after

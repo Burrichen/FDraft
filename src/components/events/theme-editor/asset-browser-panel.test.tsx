@@ -33,7 +33,7 @@ describe("AssetBrowserPanel", () => {
   it("shows a connect prompt instead of scanning when no workspace is connected", () => {
     render(<AssetBrowserPanel workspacePath={null} onPlaceAsset={vi.fn()} />);
     expect(
-      screen.getByText(/Connect an Event Art Workspace/i),
+      screen.getByText(/Connect your FDraft Project/i),
     ).toBeInTheDocument();
     expect(scanMock).not.toHaveBeenCalled();
   });
