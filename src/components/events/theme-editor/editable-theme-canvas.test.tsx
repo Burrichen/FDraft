@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   afterEach,
@@ -9,14 +9,19 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  EditableThemeCanvas,
-  type EditableThemeCanvasProps,
-} from "./editable-theme-canvas";
+import type { EditableThemeCanvasProps } from "./editable-theme-canvas";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { fdraftThemeSchema } from "@/domain/event-themes/fdraft-theme-schema";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
+
+const readEventArtWorkspaceAssetMock = vi.fn();
+vi.mock("@/infrastructure/tauri/event-art-workspace", () => ({
+  readEventArtWorkspaceAsset: (...args: unknown[]) =>
+    readEventArtWorkspaceAssetMock(...args),
+}));
+
+const { EditableThemeCanvas } = await import("./editable-theme-canvas");
 
 beforeAll(() => {
   // jsdom doesn't implement pointer capture — react-moveable's own
@@ -145,6 +150,7 @@ function baseProps(
     onCommitMultiple: vi.fn(),
     onDropAsset: vi.fn(),
     onCloseCrop: vi.fn(),
+    workspacePath: null,
     ...overrides,
   };
 }
@@ -155,6 +161,7 @@ describe("EditableThemeCanvas", () => {
   beforeEach(async () => {
     databaseName = crypto.randomUUID();
     await seedProfile(databaseName);
+    readEventArtWorkspaceAssetMock.mockReset().mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -169,6 +176,41 @@ describe("EditableThemeCanvas", () => {
     expect(
       document.querySelector('[data-fdraft-placement-id="hidden-1"]'),
     ).toBeNull();
+  });
+
+  it("renders a placement's image via the plain static path when no workspace is connected", () => {
+    renderCanvas(baseProps({ workspacePath: null }), databaseName);
+    const img = document.querySelector(
+      '[data-fdraft-placement-id="pumpkin-1"] img',
+    );
+    expect(img).toHaveAttribute(
+      "src",
+      "/events/halloween/interactives/pumpkin-lit.png",
+    );
+    expect(readEventArtWorkspaceAssetMock).not.toHaveBeenCalled();
+  });
+
+  it("resolves a placement's image through the connected workspace (data: URI), not the plain static path — a packaged FDraft (Dev) build has no live bridge from an arbitrary connected project folder into its own bundled asset server, so a freshly imported/replaced asset must be read straight off disk instead", async () => {
+    readEventArtWorkspaceAssetMock.mockImplementation(
+      async (_path: string, relativeAssetPath: string) =>
+        relativeAssetPath === "events/halloween/interactives/pumpkin-lit.png"
+          ? "data:image/png;base64,AAAA"
+          : null,
+    );
+    renderCanvas(
+      baseProps({ workspacePath: "/Users/alex/FDraft" }),
+      databaseName,
+    );
+    await waitFor(() => {
+      const img = document.querySelector(
+        '[data-fdraft-placement-id="pumpkin-1"] img',
+      );
+      expect(img).toHaveAttribute("src", "data:image/png;base64,AAAA");
+    });
+    expect(readEventArtWorkspaceAssetMock).toHaveBeenCalledWith(
+      "/Users/alex/FDraft",
+      "events/halloween/interactives/pumpkin-lit.png",
+    );
   });
 
   it("renders a weighted group's REAL resolved content, marked with a small variant-group badge (EVENT STUDIO — PHASE 5 §4)", () => {

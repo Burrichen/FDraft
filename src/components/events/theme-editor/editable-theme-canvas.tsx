@@ -26,6 +26,7 @@ import type {
   FDraftThemeFile,
   FDraftThemePlacement,
 } from "@/domain/event-themes/fdraft-theme-schema";
+import { useWorkspaceAssetSources } from "@/hooks/use-workspace-asset-sources";
 import { CropEditorOverlay } from "./crop-editor-overlay";
 
 export type PlacementUpdater = (
@@ -69,6 +70,10 @@ export interface EditableThemeCanvasProps {
   onDropAsset: (assetId: string, xPx: number, yPx: number) => void;
   /** Fired when the crop editor's own Cancel/Apply closes it — the parent owns `cropPlacementId` (it also drives the Inspector's "Crop" button state), so closing is reported upward rather than handled locally. */
   onCloseCrop: () => void;
+  /** The connected FDraft Project folder, if any — threaded through to `useWorkspaceAssetSources` so a freshly imported/replaced asset (only on disk in this folder, not baked into a packaged build) still renders on the canvas. `null` outside the desktop runtime or with nothing connected, in which case placements render via their plain static path exactly as before. */
+  workspacePath: string | null;
+  /** Bumped after Import/Replace/Delete (see `StudioPageClient`'s own `assetRefreshToken`) — forces a re-read of any now-stale cached workspace asset, since Replace Image deliberately reuses the same path. */
+  assetRefreshToken?: number;
 }
 
 /** The raw, un-cropped servable path for an asset id (see `fdraft-theme-resolve.ts`'s own private `resolveAssetPath` — duplicated here in trivial form since the crop editor specifically needs the UNCROPPED source, which `resolveFixedPlacement`'s output never exposes on its own). */
@@ -228,6 +233,8 @@ export function EditableThemeCanvas({
   onCommitMultiple,
   onDropAsset,
   onCloseCrop,
+  workspacePath,
+  assetRefreshToken,
 }: EditableThemeCanvasProps) {
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const targetRefs = useRef(new Map<string, HTMLDivElement>());
@@ -256,7 +263,7 @@ export function EditableThemeCanvas({
 
   const placements = getPlacementsAt(theme, location);
 
-  const resolvedById = useMemo(() => {
+  const rawResolvedById = useMemo(() => {
     const map = new Map<string, FDraftThemeResolvedPlacement>();
     for (const placement of placements) {
       if (!placement.visible) continue;
@@ -274,12 +281,49 @@ export function EditableThemeCanvas({
   }, [theme, placements, previewSeed]);
 
   const editableSelectedIds = Array.from(selectedPlacementIds).filter(
-    (id) => resolvedById.has(id) && !lockedPlacementIds.has(id),
+    (id) => rawResolvedById.has(id) && !lockedPlacementIds.has(id),
   );
   const singlePlacement =
     editableSelectedIds.length === 1
       ? placements.find((p) => p.id === editableSelectedIds[0])
       : undefined;
+  const cropRawAssetPath =
+    singlePlacement && singlePlacement.kind === "fixed"
+      ? resolveRawAssetPath(theme, singlePlacement.assetId)
+      : null;
+
+  const inViewAssetPaths: (string | null)[] = [
+    ...Array.from(rawResolvedById.values(), (r) => r.assetPath),
+    cropRawAssetPath,
+  ];
+  const workspaceAssetSources = useWorkspaceAssetSources(
+    workspacePath,
+    inViewAssetPaths,
+    assetRefreshToken,
+  );
+  // Falls straight through to the raw static path (unchanged behavior)
+  // for anything the workspace bridge hasn't resolved yet, or when
+  // there's no connected workspace at all — see `useWorkspaceAssetSources`'s
+  // own doc comment for why this bridge exists at all.
+  const resolvedById = useMemo(() => {
+    if (Object.keys(workspaceAssetSources).length === 0) return rawResolvedById;
+    const map = new Map<string, FDraftThemeResolvedPlacement>();
+    for (const [id, resolved] of rawResolvedById) {
+      const resolvedSrc = resolved.assetPath
+        ? (workspaceAssetSources[resolved.assetPath] ?? resolved.assetPath)
+        : resolved.assetPath;
+      map.set(
+        id,
+        resolvedSrc === resolved.assetPath
+          ? resolved
+          : { ...resolved, assetPath: resolvedSrc },
+      );
+    }
+    return map;
+  }, [rawResolvedById, workspaceAssetSources]);
+  const cropAssetPath = cropRawAssetPath
+    ? (workspaceAssetSources[cropRawAssetPath] ?? cropRawAssetPath)
+    : null;
 
   useEffect(() => {
     const elements = editableSelectedIds
@@ -698,7 +742,7 @@ export function EditableThemeCanvas({
         <CropEditorOverlay
           targetElement={selectedElements[0]!}
           placement={singlePlacement}
-          assetPath={resolveRawAssetPath(theme, singlePlacement.assetId)}
+          assetPath={cropAssetPath}
           onCommitCrop={(crop) => {
             onCommit(singlePlacement.id, (placement) => ({
               ...placement,

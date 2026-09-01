@@ -117,6 +117,7 @@ describe("Studio canvas / Beta renderer parity (EVENT STUDIO — PHASE 7 §2)", 
         onCommitMultiple={() => {}}
         onDropAsset={() => {}}
         onCloseCrop={() => {}}
+        workspacePath={null}
       />,
     );
 

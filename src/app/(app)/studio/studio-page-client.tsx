@@ -470,9 +470,7 @@ export function StudioPageClient() {
     // IndexedDB transactions against one object store), which genuinely
     // deadlocks under fake-indexeddb when run concurrently. Kept
     // sequential deliberately.
-    console.error("DEBUG handleSave: start", Date.now());
     await setStudioSave(repositories, profileId, presetId, theme, savedAt);
-    console.error("DEBUG handleSave: after setStudioSave", Date.now());
     await addStudioRevision(
       repositories,
       profileId,
@@ -481,14 +479,11 @@ export function StudioPageClient() {
       createRevisionLabel(new Date(savedAt)),
       savedAt,
     );
-    console.error("DEBUG handleSave: after addStudioRevision", Date.now());
     await clearStudioAutosave(repositories, profileId, presetId);
-    console.error("DEBUG handleSave: after clearStudioAutosave", Date.now());
     setThemeSource("working");
     setLastSavedAt(savedAt);
     lastPersistedThemeRef.current = theme;
     setRecoverableAutosave(null);
-    console.error("DEBUG handleSave: state setters called", Date.now());
   }
 
   function requestLoad() {
@@ -1495,6 +1490,8 @@ export function StudioPageClient() {
                     placeAsset(assetId, null, { x, y })
                   }
                   onCloseCrop={() => setCropPlacementId(null)}
+                  workspacePath={workspacePath ?? null}
+                  assetRefreshToken={assetRefreshToken}
                 />
               ) : null}
               {mode === "edit" && showSafeZones ? <SafeZoneOverlay /> : null}
@@ -1853,12 +1850,6 @@ function StudioToolbar({
   onGridSizeChange: (size: number) => void;
   onEnterFullscreenEdit: () => void;
 }) {
-  console.error("DEBUG StudioToolbar render", {
-    themeLoading,
-    themeSource,
-    hasUnsavedChanges,
-    lastSavedAt,
-  });
   return (
     <div className="border-border bg-card flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border p-3">
       <div>

@@ -612,6 +612,23 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
     await waitFor(() =>
       expect(screen.getByText("pumpkin-1")).toBeInTheDocument(),
     );
+    // `canSave` (and so the Save button's disabled state) depends on
+    // BOTH the theme AND `profileId` — the theme comes from this test's
+    // own mocked `loadCanonicalEventTheme` (resolves practically
+    // instantly), while `profileId` comes from `ProfileProvider`'s own,
+    // entirely separate real IndexedDB read. "pumpkin-1" appearing only
+    // proves the theme half is ready; under a heavily-contended
+    // full-suite run the profile read can still be pending at that exact
+    // moment, in which case a click right then lands on a disabled
+    // button and is silently swallowed (a disabled element never
+    // dispatches a click at all) — so `handleSave` never runs and no
+    // amount of waiting afterward ever produces "Saved " (this is what a
+    // genuine, indefinite `waitFor` hang under full-suite load turned
+    // out to be, NOT slow IndexedDB writes as originally assumed).
+    // Waiting for the button to actually be enabled closes that race.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled(),
+    );
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -620,16 +637,8 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
     // locale, which is not guaranteed to be "en-US" (or even ASCII
     // digits) in every CI environment; the prefix alone still proves the
     // Saved-timestamp label replaced "Working copy"/"Unsaved changes".
-    // A generous timeout — a full-suite parallel run on a slower/more
-    // contended CI runner (observed on Windows) can take noticeably
-    // longer to flush this than in isolation on a dev machine. 8000ms
-    // was occasionally still not enough on a contended Windows runner;
-    // the underlying writes are a handful of sequential IndexedDB puts
-    // (verified fast — well under 1s locally), so this is purely
-    // buffering for runner variance, not tolerance for a hang.
-    await waitFor(
-      () => expect(screen.getByText(/^Saved /)).toBeInTheDocument(),
-      { timeout: 15000 },
+    await waitFor(() =>
+      expect(screen.getByText(/^Saved /)).toBeInTheDocument(),
     );
 
     const { getStudioSave } =
@@ -639,7 +648,7 @@ describe("StudioPageClient — persistence + export pipeline (EVENT STUDIO — P
     const save = await getStudioSave(repos, PROFILE_ID, "default");
     expect(save?.theme.layouts.watchlist).toBeDefined();
     await db.close();
-  }, 18000);
+  });
 
   it("Load warns before discarding unsaved changes, and does nothing until confirmed", async () => {
     const databaseName = crypto.randomUUID();
