@@ -68,6 +68,47 @@ function resolveAssetPath(
 }
 
 /**
+ * Resolves ONE `kind: "fixed"` placement on its own, with no weighted-
+ * group/session-seed machinery involved at all (a fixed placement's
+ * resolution never depends on either) — exported so the Studio canvas
+ * editor (`editable-theme-canvas.tsx`) can render/select/transform a raw
+ * placement directly, without going through `resolveFDraftThemeLayout`'s
+ * full breakpoint-fallback + weighted-variant resolution (see docs/
+ * updates, "EVENT STUDIO — PHASE 4" §15: the editor deliberately edits
+ * ONLY the current breakpoint's own explicit placements, never an
+ * inherited fallback tier — see that file's own doc comment for why).
+ * `null` for the same "nothing to render" case `resolveFDraftThemeLayout`
+ * itself skips (no asset AND no interaction).
+ */
+export function resolveFixedPlacement(
+  theme: FDraftThemeFile,
+  placement: Extract<FDraftThemePlacement, { kind: "fixed" }>,
+): FDraftThemeResolvedPlacement | null {
+  const assetPath = resolveAssetPath(theme, placement.assetId);
+  if (assetPath === null && placement.interactionId === null) {
+    return null;
+  }
+  return {
+    placementId: placement.id,
+    coordinateSpace: placement.coordinateSpace,
+    anchor: placement.anchor,
+    offsetX: placement.offsetX,
+    offsetY: placement.offsetY,
+    width: placement.width,
+    height: placement.height,
+    aspectRatio: placement.aspectRatio,
+    rotation: placement.rotation,
+    opacity: placement.opacity,
+    flipX: placement.flipX,
+    flipY: placement.flipY,
+    layer: placement.layer,
+    crop: placement.crop,
+    interactionId: placement.interactionId,
+    assetPath,
+  };
+}
+
+/**
  * Resolves ONE breakpoint's placement list, applying the fallback order
  * (see `FDRAFT_THEME_BREAKPOINT_FALLBACK`) — the first tier in the
  * fallback chain that the state actually defines wins; a state that
@@ -179,32 +220,13 @@ export function resolveFDraftThemeLayout(
     }
 
     if (placement.kind === "fixed") {
-      const assetPath = resolveAssetPath(theme, placement.assetId);
-      if (assetPath === null && placement.interactionId === null) {
-        continue;
+      const fixedResolved = resolveFixedPlacement(theme, placement);
+      if (fixedResolved) {
+        resolved.push(fixedResolved);
       }
-      resolved.push({
-        placementId: placement.id,
-        coordinateSpace: placement.coordinateSpace,
-        anchor: placement.anchor,
-        offsetX: placement.offsetX,
-        offsetY: placement.offsetY,
-        width: placement.width,
-        height: placement.height,
-        aspectRatio: placement.aspectRatio,
-        rotation: placement.rotation,
-        opacity: placement.opacity,
-        flipX: placement.flipX,
-        flipY: placement.flipY,
-        layer: placement.layer,
-        crop: placement.crop,
-        interactionId: placement.interactionId,
-        assetPath,
-      });
       continue;
     }
 
-    // Weighted group.
     const seed = buildPlacementSeed(
       seedInputs,
       theme,
@@ -213,41 +235,65 @@ export function resolveFDraftThemeLayout(
       params.breakpointId,
       placement.id,
     );
-    const picked = pickWeightedVariant(seed, placement.variants);
-    if (!picked) {
-      continue;
+    const weightedResolved = resolveWeightedPlacement(theme, placement, seed);
+    if (weightedResolved) {
+      resolved.push(weightedResolved);
     }
-    const assetPath = resolveAssetPath(theme, picked.assetId);
-    if (assetPath === null && placement.interactionId === null) {
-      continue;
-    }
-    const width =
-      picked.scale !== null && placement.width !== null
-        ? placement.width * picked.scale
-        : placement.width;
-    const height =
-      picked.scale !== null && placement.height !== null
-        ? placement.height * picked.scale
-        : placement.height;
-    resolved.push({
-      placementId: placement.id,
-      coordinateSpace: placement.coordinateSpace,
-      anchor: placement.anchor,
-      offsetX: placement.offsetX,
-      offsetY: placement.offsetY,
-      width,
-      height,
-      aspectRatio: placement.aspectRatio,
-      rotation: placement.rotation,
-      opacity: picked.opacityOverride ?? placement.opacity,
-      flipX: placement.flipX,
-      flipY: placement.flipY,
-      layer: placement.layer,
-      crop: placement.crop,
-      interactionId: placement.interactionId,
-      assetPath,
-    });
   }
 
   return resolved;
+}
+
+/**
+ * Resolves ONE `kind: "weighted"` placement group given a caller-supplied
+ * seed string — the weighted-pick half of `resolveFDraftThemeLayout`,
+ * pulled out (see docs/updates, "EVENT STUDIO — PHASE 5" §4) so the
+ * Studio canvas editor can resolve a variant group's CURRENT preview
+ * pick against its own rerollable "preview seed," entirely independent
+ * of `buildPlacementSeed`'s production session/page/state/breakpoint/
+ * profile composition — the editor's reroll changes ONLY what seed
+ * string gets passed in here, never how production computes its own.
+ * `null` when every variant weight is non-positive, or the picked
+ * variant resolves to "nothing to render" (matching
+ * `resolveFDraftThemeLayout`'s own skip conditions).
+ */
+export function resolveWeightedPlacement(
+  theme: FDraftThemeFile,
+  placement: Extract<FDraftThemePlacement, { kind: "weighted" }>,
+  seed: string,
+): FDraftThemeResolvedPlacement | null {
+  const picked = pickWeightedVariant(seed, placement.variants);
+  if (!picked) {
+    return null;
+  }
+  const assetPath = resolveAssetPath(theme, picked.assetId);
+  if (assetPath === null && placement.interactionId === null) {
+    return null;
+  }
+  const width =
+    picked.scale !== null && placement.width !== null
+      ? placement.width * picked.scale
+      : placement.width;
+  const height =
+    picked.scale !== null && placement.height !== null
+      ? placement.height * picked.scale
+      : placement.height;
+  return {
+    placementId: placement.id,
+    coordinateSpace: placement.coordinateSpace,
+    anchor: placement.anchor,
+    offsetX: placement.offsetX + picked.offsetXAdjustment,
+    offsetY: placement.offsetY + picked.offsetYAdjustment,
+    width,
+    height,
+    aspectRatio: placement.aspectRatio,
+    rotation: placement.rotation + picked.rotationAdjustment,
+    opacity: picked.opacityOverride ?? placement.opacity,
+    flipX: placement.flipX,
+    flipY: placement.flipY,
+    layer: placement.layer,
+    crop: placement.crop,
+    interactionId: placement.interactionId,
+    assetPath,
+  };
 }

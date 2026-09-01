@@ -1,7 +1,7 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import { EventArtImage } from "./event-art-image";
+import { placementWrapperStyle } from "./fdraft-theme-placement-css";
 import { THEME_INTERACTION_REGISTRY } from "./theme-interaction-registry";
 import { THEME_SESSION_SEED } from "./theme-session-seed";
 import { useThemeBreakpoint } from "./use-theme-breakpoint";
@@ -9,11 +9,7 @@ import {
   resolveFDraftThemeLayout,
   type FDraftThemeResolvedPlacement,
 } from "@/domain/event-themes/fdraft-theme-resolve";
-import type {
-  FDraftThemeAnchor,
-  FDraftThemeFile,
-  FDraftThemeLayer,
-} from "@/domain/event-themes/fdraft-theme-schema";
+import type { FDraftThemeFile } from "@/domain/event-themes/fdraft-theme-schema";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,77 +43,6 @@ export interface EventThemeLayoutRendererProps {
   className?: string;
 }
 
-const LAYER_Z_INDEX: Record<FDraftThemeLayer, number> = {
-  background: 0,
-  mid: 10,
-  foreground: 20,
-};
-
-/** Whether `anchor` centers horizontally/vertically — used to compute the anchor's own half-shift transform, combined with the placement's explicit offset below. */
-function anchorCentering(anchor: FDraftThemeAnchor): {
-  centerX: boolean;
-  centerY: boolean;
-} {
-  return {
-    centerX:
-      anchor === "top-center" ||
-      anchor === "center" ||
-      anchor === "bottom-center",
-    centerY:
-      anchor === "left-center" ||
-      anchor === "center" ||
-      anchor === "right-center",
-  };
-}
-
-function anchorEdgeStyle(anchor: FDraftThemeAnchor): CSSProperties {
-  const style: CSSProperties = {};
-  if (anchor.startsWith("top")) {
-    style.top = 0;
-  } else if (anchor.startsWith("bottom")) {
-    style.bottom = 0;
-  } else {
-    // left-center / center / right-center
-    style.top = "50%";
-  }
-  if (anchor.endsWith("left")) {
-    style.left = 0;
-  } else if (anchor.endsWith("right")) {
-    style.right = 0;
-  } else {
-    // top-center / center / bottom-center
-    style.left = "50%";
-  }
-  return style;
-}
-
-function placementWrapperStyle(
-  placement: FDraftThemeResolvedPlacement,
-): CSSProperties {
-  const { centerX, centerY } = anchorCentering(placement.anchor);
-  const translateX = `calc(${centerX ? "-50%" : "0%"} + ${placement.offsetX}rem)`;
-  const translateY = `calc(${centerY ? "-50%" : "0%"} + ${placement.offsetY}rem)`;
-  const scaleX = placement.flipX ? -1 : 1;
-  const scaleY = placement.flipY ? -1 : 1;
-
-  const height =
-    placement.height !== null
-      ? placement.height
-      : placement.width !== null && placement.aspectRatio !== null
-        ? placement.width / placement.aspectRatio
-        : null;
-
-  return {
-    position: placement.coordinateSpace === "viewport" ? "fixed" : "absolute",
-    ...anchorEdgeStyle(placement.anchor),
-    width: placement.width !== null ? `${placement.width}rem` : undefined,
-    height: height !== null ? `${height}rem` : undefined,
-    opacity: placement.opacity,
-    zIndex: LAYER_Z_INDEX[placement.layer],
-    transform: `translate(${translateX}, ${translateY}) rotate(${placement.rotation}deg) scale(${scaleX}, ${scaleY})`,
-  };
-}
-
 /**
  * Non-destructive crop (§5) via the standard normalized scale-and-offset
  * technique — an outer box sized to the FINAL (cropped) dimensions with
@@ -149,7 +74,8 @@ function CroppedImage({
   );
 }
 
-function PlacementContent({
+/** Exported so the Studio canvas editor (`editable-theme-canvas.tsx`) can reuse the exact same asset/crop/interaction rendering for its own interactive placement boxes — see docs/updates, "EVENT STUDIO — PHASE 4" §7/§8: the editor's WYSIWYG content must never be a second, hand-approximated copy of this. */
+export function PlacementContent({
   placement,
 }: {
   placement: FDraftThemeResolvedPlacement;

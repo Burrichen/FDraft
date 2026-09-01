@@ -28,7 +28,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { BackupV1 } from "@/domain/backup/backup-schema";
-import { downloadTextFile } from "./download-file";
+import { downloadTextFile } from "@/lib/download-file";
 import {
   serializeBackupCompact,
   suggestBackupFilename,

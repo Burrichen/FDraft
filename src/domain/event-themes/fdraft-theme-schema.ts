@@ -151,13 +151,31 @@ const placementBaseSchema = z.object({
   visible: z.boolean().default(true),
 });
 
-/** A weighted content option within a WEIGHTED placement group — see §6. `assetId: null` is the explicit, first-class "nothing" option (§6/§7), not a special case bolted on separately. Per-variant tweaks are ADDITIVE to the shared placement's own base values, mirroring this app's existing `DecorationVariantTweak` convention. */
+/**
+ * A weighted content option within a WEIGHTED placement group — see §6.
+ * `assetId: null` is the explicit, first-class "nothing" option (§6/§7),
+ * not a special case bolted on separately. `scale`/`opacityOverride`
+ * apply against the shared placement's base value (multiplicative /
+ * absolute-override respectively); `offsetXAdjustment`/
+ * `offsetYAdjustment`/`rotationAdjustment` (see docs/updates, "EVENT
+ * STUDIO — PHASE 5" §3: "optional per-option adjustments... offset
+ * adjustment... rotation adjustment") are ADDITIVE deltas on top of the
+ * shared placement's own `offsetX`/`offsetY`/`rotation` — same additive
+ * convention this app's existing `DecorationVariantTweak.offsetX/offsetY`
+ * already uses, extended with rotation since this format (unlike that
+ * older engine) already has a rotation concept to adjust in the first
+ * place. All three default to `0` ("no adjustment"), not `null` — every
+ * caller sums them directly with no null-check needed.
+ */
 export const fdraftThemeWeightedVariantSchema = z.object({
   id: z.string().trim().min(1).max(100),
   assetId: z.string().trim().min(1).max(100).nullable(),
   weight: z.number().finite().min(0),
   scale: z.number().finite().positive().nullable().default(null),
   opacityOverride: z.number().min(0).max(1).nullable().default(null),
+  offsetXAdjustment: z.number().finite().default(0),
+  offsetYAdjustment: z.number().finite().default(0),
+  rotationAdjustment: z.number().finite().default(0),
 });
 export type FDraftThemeWeightedVariant = z.infer<
   typeof fdraftThemeWeightedVariantSchema

@@ -1,0 +1,36 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "FDraft (Dev)",
+  "identifier": "com.burrichen.fdraft.dev",
+  "build": {
+    "beforeDevCommand": "pnpm run studio:dev-frontend",
+    "beforeBuildCommand": "pnpm run build:desktop-frontend:studio"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "FDraft (Dev)",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "capabilities": ["default", "studio"]
+    }
+  },
+  "bundle": {
+    "icon": [
+      "icons/dev/32x32.png",
+      "icons/dev/128x128.png",
+      "icons/dev/128x128@2x.png",
+      "icons/dev/icon.icns",
+      "icons/dev/icon.ico"
+    ]
+  }
+}

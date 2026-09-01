@@ -28,3 +28,15 @@ vi.mock("next/navigation", async (importOriginal) => {
     }),
   };
 });
+
+// jsdom has no `ResizeObserver` (see docs/updates, "EVENT STUDIO — PHASE
+// 7" §6, Studio's own "Fit to Screen" zoom) — a minimal no-op stand-in so
+// components that observe their own size don't throw in the unit suite;
+// tests that need actual size-change behavior drive it directly instead.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

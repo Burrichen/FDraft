@@ -3,7 +3,9 @@
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { resolveAdminMode } from "@/domain/profiles/profile";
+import { isEventStudioBuild } from "@/lib/event-studio-build";
 import { AdminModeSection } from "./admin-mode-section";
+import { CopyTestDataSection } from "./copy-test-data-section";
 import { EventArtSystemPreviewSection } from "./event-art-system-preview-section";
 import { EventTestingSection } from "./event-testing-section";
 import { FDraftThemeImportSection } from "./fdraft-theme-import-section";
@@ -44,6 +46,7 @@ export function DeveloperSection() {
           <FDraftThemeImportSection />
         </>
       ) : null}
+      {isEventStudioBuild ? <CopyTestDataSection /> : null}
     </div>
   );
 }

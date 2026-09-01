@@ -15,6 +15,14 @@
  * moves that directory out of `src/app` for the duration of the build and
  * always restores it afterward, success or failure, so `pnpm dev`/`pnpm
  * build` (the web target) are never left broken.
+ *
+ * Pass `--studio` (see docs/updates, "EVENT STUDIO — PHASE 2" §1/§5,
+ * `package.json`'s `build:desktop-frontend:studio`) to additionally set
+ * `NEXT_PUBLIC_EVENT_STUDIO=1` for this build — the ONE place that flag
+ * is threaded into a static export, so `isEventStudioBuild`
+ * (`src/lib/event-studio-build.ts`) resolves `true` throughout the
+ * resulting bundle. One script, one flag, rather than a second near-
+ * identical copy of this file for the Dev build.
  */
 import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
@@ -57,7 +65,13 @@ try {
     // those directly without a shell, and fails silently (no output, no
     // next build banner) rather than actually running the build.
     shell: process.platform === "win32",
-    env: { ...process.env, NEXT_PUBLIC_TAURI: "1" },
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_TAURI: "1",
+      ...(process.argv.includes("--studio")
+        ? { NEXT_PUBLIC_EVENT_STUDIO: "1" }
+        : {}),
+    },
   });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

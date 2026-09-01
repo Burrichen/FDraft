@@ -29,3 +29,21 @@ export function isFDraftThemeInteractionId(
 ): value is FDraftThemeInteractionId {
   return (FDRAFT_THEME_INTERACTION_IDS as readonly string[]).includes(value);
 }
+
+/**
+ * Friendly display labels for the Studio Inspector's "Interaction"
+ * dropdown (see docs/updates, "EVENT STUDIO — PHASE 4" §13) — kept here,
+ * next to the allowlist itself, so a new interaction id can never be
+ * added to `FDRAFT_THEME_INTERACTION_IDS` without also getting a real
+ * label (the `satisfies` below fails to compile otherwise), the same
+ * "kept in exact 1:1 correspondence" discipline `theme-interaction-registry.tsx`
+ * already applies to its own component map.
+ */
+export const FDRAFT_THEME_INTERACTION_LABELS: Record<
+  FDraftThemeInteractionId,
+  string
+> = {
+  "halloween-pumpkin": "Halloween Pumpkin",
+  "halloween-gravestone": "Halloween Gravestone",
+  "halloween-candy-bowl": "Halloween Candy Bowl",
+} satisfies Record<(typeof FDRAFT_THEME_INTERACTION_IDS)[number], string>;

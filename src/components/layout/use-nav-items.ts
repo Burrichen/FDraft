@@ -1,3 +1,4 @@
+import { Palette } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { resolveVisibleEventPages } from "@/application/events/event-discovery";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
@@ -5,8 +6,16 @@ import {
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
+import { isEventStudioBuild } from "@/lib/event-studio-build";
 import { HalloweenNavIcon, JanuaryTrashCanNavIcon } from "./nav-icons";
 import { NAV_ITEMS, type NavItem } from "./nav-config";
+
+/** The one clearly identifiable "EVENT STUDIO" entry FDraft (Dev) has and normal FDraft never does (see docs/updates, "EVENT STUDIO — PHASE 2" §6) — gated entirely on the central `isEventStudioBuild` flag, never a scattered per-nav-item check. Appended last, after every real event tab, so it always reads as a distinct developer-tooling entry rather than another seasonal destination. */
+const EVENT_STUDIO_NAV_ITEM: NavItem = {
+  href: "/studio",
+  label: "Event Studio",
+  icon: Palette,
+};
 
 /**
  * Which icon a currently-visible event's temporary nav tab uses — kept
@@ -69,9 +78,10 @@ export function useNavItems(): NavItem[] {
 
   const draftsIndex = NAV_ITEMS.findIndex((item) => item.href === "/drafts");
   const insertAt = draftsIndex === -1 ? NAV_ITEMS.length : draftsIndex + 1;
-  return [
+  const items = [
     ...NAV_ITEMS.slice(0, insertAt),
     ...eventNavItems,
     ...NAV_ITEMS.slice(insertAt),
   ];
+  return isEventStudioBuild ? [...items, EVENT_STUDIO_NAV_ITEM] : items;
 }

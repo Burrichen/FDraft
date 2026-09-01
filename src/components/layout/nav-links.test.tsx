@@ -284,3 +284,20 @@ describe("useNavItems — Halloween active-accent override (PROMPT 20)", () => {
     );
   });
 });
+
+describe("useNavItems — Event Studio nav item is absent from normal FDraft (EVENT STUDIO — PHASE 2 §6/§11)", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("never includes /studio when isEventStudioBuild is false (the real value in this test environment, matching every normal/Beta build)", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+
+    render(<ProbeHarness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText(/\/watchlist/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/\/studio/)).not.toBeInTheDocument();
+  });
+});

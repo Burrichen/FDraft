@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
-import { resolveFDraftThemeLayout } from "./fdraft-theme-resolve";
+import {
+  resolveFDraftThemeLayout,
+  resolveWeightedPlacement,
+} from "./fdraft-theme-resolve";
 import { fdraftThemeSchema, type FDraftThemeFile } from "./fdraft-theme-schema";
 
 type FDraftThemeInput = z.input<typeof fdraftThemeSchema>;
@@ -406,5 +409,82 @@ describe("resolveFDraftThemeLayout — breakpoint fallback (§3)", () => {
       { sessionSeed: "s" },
     );
     expect(resolved).toEqual([]);
+  });
+});
+
+describe("resolveWeightedPlacement — per-variant adjustments (EVENT STUDIO — PHASE 5 §3)", () => {
+  function singleVariantTheme(variantOverrides: Record<string, unknown>) {
+    return buildTheme({
+      assets: { ghost: "events/test/decorations/ghost.png" },
+      layouts: {
+        page: {
+          states: {
+            default: {
+              breakpoints: {
+                desktop: {
+                  placements: [
+                    {
+                      id: "mid-right",
+                      kind: "weighted",
+                      offsetX: 2,
+                      offsetY: 3,
+                      rotation: 10,
+                      variants: [
+                        {
+                          id: "ghost",
+                          assetId: "ghost",
+                          weight: 100,
+                          ...variantOverrides,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function onlyPlacement(theme: FDraftThemeFile) {
+    const placement =
+      theme.layouts.page!.states.default!.breakpoints.desktop!.placements[0];
+    return placement as Extract<typeof placement, { kind: "weighted" }>;
+  }
+
+  it("offsetXAdjustment/offsetYAdjustment are ADDED on top of the group's own offset", () => {
+    const theme = singleVariantTheme({
+      offsetXAdjustment: 1.5,
+      offsetYAdjustment: -0.5,
+    });
+    const resolved = resolveWeightedPlacement(theme, onlyPlacement(theme), "s");
+    expect(resolved?.offsetX).toBeCloseTo(3.5);
+    expect(resolved?.offsetY).toBeCloseTo(2.5);
+  });
+
+  it("rotationAdjustment is ADDED on top of the group's own rotation", () => {
+    const theme = singleVariantTheme({ rotationAdjustment: 15 });
+    const resolved = resolveWeightedPlacement(theme, onlyPlacement(theme), "s");
+    expect(resolved?.rotation).toBe(25);
+  });
+
+  it("defaults every adjustment to 0 (no change) when a variant doesn't set them", () => {
+    const theme = singleVariantTheme({});
+    const resolved = resolveWeightedPlacement(theme, onlyPlacement(theme), "s");
+    expect(resolved?.offsetX).toBe(2);
+    expect(resolved?.offsetY).toBe(3);
+    expect(resolved?.rotation).toBe(10);
+  });
+
+  it("resolveFDraftThemeLayout's weighted branch applies the same adjustments end to end", () => {
+    const theme = singleVariantTheme({ offsetXAdjustment: 4 });
+    const resolved = resolveFDraftThemeLayout(
+      theme,
+      { pageId: "page", stateId: "default", breakpointId: "desktop" },
+      { sessionSeed: "any-seed" },
+    );
+    expect(resolved[0]?.offsetX).toBe(6);
   });
 });

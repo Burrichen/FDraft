@@ -21,7 +21,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { downloadTextFile } from "./download-file";
+import { downloadTextFile } from "@/lib/download-file";
 import { ImportBackupFlow } from "./import-backup-flow";
 
 /** Backups older than this trigger the quiet "it's been a while" note — see docs/product-spec.md, "OPTIONAL AUTO-BACKUP REMINDER": "Keep this simple. Do not nag the user constantly." One line of text on a page the user opens deliberately, never a popup or a repeated toast. */

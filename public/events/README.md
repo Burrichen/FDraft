@@ -8,6 +8,15 @@ to both be called a "manifest" in this project. If you're looking for
 where to add a film to Halloween's Horror/Kitsch pools, you want the
 other folder.
 
+## Event Studio
+
+FDraft (Dev)'s Event Studio reads assets straight from this folder
+structure too (via a connected Git workspace) — the Asset Browser lists
+whatever's actually on disk here, live. There's nothing extra to set up:
+add or replace a file the normal way (below) and it just shows up next
+time Studio refreshes its asset list. See `docs/event-studio-guide.md`
+for the full editor walkthrough.
+
 ## Folder layout
 
 Every event gets its own subfolder, always shaped the same way:

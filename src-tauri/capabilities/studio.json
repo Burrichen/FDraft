@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "studio",
+  "description": "FDraft (Dev) only — adds native folder-picker access for the Event Art Workspace setting (see docs/updates, 'EVENT STUDIO — PHASE 2' §7/§8). Only included when tauri.studio.conf.json's app.security.capabilities lists this file; normal FDraft never gets it, so the dialog API is unreachable from JS in the normal build even in principle, not just hidden from its UI.",
+  "windows": ["main"],
+  "permissions": ["dialog:default"]
+}
