@@ -1,0 +1,1016 @@
+{
+  "formatVersion": "1.0.0",
+  "metadata": {
+    "id": "df5aa176-c6f9-46d4-bcd1-b6a1838f37f2",
+    "name": "Christmas"
+  },
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "tokens": {
+    "colors": [],
+    "gradients": [],
+    "shadows": [],
+    "borders": [],
+    "spacing": [],
+    "radii": [],
+    "fonts": [],
+    "breakpoints": []
+  },
+  "assets": [
+    {
+      "id": "edc50936-6e6e-4be0-97b2-a19b26eea3dc",
+      "kind": "image",
+      "path": "assets/363d0a129ed595dee202be229d4b91a1a86f008c65fcfd809569ece8060fd973.png",
+      "mimeType": "image/png",
+      "sizeBytes": 9205,
+      "sha256": "363d0a129ed595dee202be229d4b91a1a86f008c65fcfd809569ece8060fd973",
+      "name": "christmas-tree.png",
+      "originalFileName": "christmas-tree.png"
+    },
+    {
+      "id": "41af55cd-9f30-4daf-b37c-5627d81aeb8b",
+      "kind": "image",
+      "path": "assets/5186a3f0ed4078c0a6caa7cfcb89c4305d4a0e6dcb2486ba343a4a6e65177166.png",
+      "mimeType": "image/png",
+      "sizeBytes": 10061,
+      "sha256": "5186a3f0ed4078c0a6caa7cfcb89c4305d4a0e6dcb2486ba343a4a6e65177166",
+      "name": "presents.png",
+      "originalFileName": "presents.png"
+    },
+    {
+      "id": "cf3d8ea7-3f3c-40bd-9547-891b2d2fb57a",
+      "kind": "image",
+      "path": "assets/f2d8a5a32ad72ca38aad71cba6e4c03129243cd6cae6a9b3b2de36d3341389b4.png",
+      "mimeType": "image/png",
+      "sizeBytes": 12959,
+      "sha256": "f2d8a5a32ad72ca38aad71cba6e4c03129243cd6cae6a9b3b2de36d3341389b4",
+      "name": "snowman.png",
+      "originalFileName": "snowman.png"
+    },
+    {
+      "id": "666ef5ad-2cda-4ba8-bc1b-523f141e243c",
+      "kind": "image",
+      "path": "assets/15b251427ee8e9b77b01c664a2a8bdd4ab59d33dad2b2c1179c9d93d93557f33.png",
+      "mimeType": "image/png",
+      "sizeBytes": 10728,
+      "sha256": "15b251427ee8e9b77b01c664a2a8bdd4ab59d33dad2b2c1179c9d93d93557f33",
+      "name": "stocking.png",
+      "originalFileName": "stocking.png"
+    },
+    {
+      "id": "c66f15ed-5097-4d18-8747-64975e021b02",
+      "kind": "image",
+      "path": "assets/91801f321c8fb781ee2b26c14416e052797d93415451689845757fc767190126.png",
+      "mimeType": "image/png",
+      "sizeBytes": 11331,
+      "sha256": "91801f321c8fb781ee2b26c14416e052797d93415451689845757fc767190126",
+      "name": "candy-canes.png",
+      "originalFileName": "candy-canes.png"
+    },
+    {
+      "id": "91fee1e5-0f86-4250-9eb7-cfe9b20a6718",
+      "kind": "image",
+      "path": "assets/3d47d9fdcee9f39285bbbff7d43d21693f51c4e16614a94288414d873f473bfb.png",
+      "mimeType": "image/png",
+      "sizeBytes": 5469,
+      "sha256": "3d47d9fdcee9f39285bbbff7d43d21693f51c4e16614a94288414d873f473bfb",
+      "name": "fairy-lights.png",
+      "originalFileName": "fairy-lights.png"
+    },
+    {
+      "id": "96a28d97-47a3-4336-8c93-0cf5479aaeb9",
+      "kind": "image",
+      "path": "assets/fab5da7e1e8a438dfbaa9ab2050dd21dbf7a00305326f2e9bc99cd5441091513.png",
+      "mimeType": "image/png",
+      "sizeBytes": 8504,
+      "sha256": "fab5da7e1e8a438dfbaa9ab2050dd21dbf7a00305326f2e9bc99cd5441091513",
+      "name": "modal-left.png",
+      "originalFileName": "modal-left.png"
+    },
+    {
+      "id": "63851ea4-7bfe-46a3-848b-68cc0d310e96",
+      "kind": "image",
+      "path": "assets/f9a6ec91161f4acff1d1bce613a957fdc768976fcbe776dcada0563a5651963b.png",
+      "mimeType": "image/png",
+      "sizeBytes": 9576,
+      "sha256": "f9a6ec91161f4acff1d1bce613a957fdc768976fcbe776dcada0563a5651963b",
+      "name": "modal-right.png",
+      "originalFileName": "modal-right.png"
+    }
+  ],
+  "assetFolders": [],
+  "imageStateGroups": [],
+  "componentRequirements": [
+    {
+      "id": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+      "componentKey": "page-title",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    },
+    {
+      "id": "9f3acf19-ab36-43ec-a97f-1a75bd8323b9",
+      "componentKey": "event-information",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    },
+    {
+      "id": "96a8fcef-067d-4489-bbdd-da0f18976126",
+      "componentKey": "event-countdown",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    },
+    {
+      "id": "2341991d-69f5-418c-a984-b0af030ca556",
+      "componentKey": "draft-controls",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    },
+    {
+      "id": "ad28fb9b-289d-4d00-afe6-a1bdd539769c",
+      "componentKey": "film-grid",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    },
+    {
+      "id": "5ff00dd9-363c-4393-ac24-0fee1f2e613d",
+      "componentKey": "event-progress",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    },
+    {
+      "id": "538858cd-6b06-4410-8b3a-74ee9a42e152",
+      "componentKey": "points-counter",
+      "required": true,
+      "allowedProperties": [
+        "color",
+        "backgroundColor",
+        "opacity",
+        "fontSize",
+        "fontWeight",
+        "textAlign",
+        "borderRadius",
+        "padding",
+        "margin"
+      ]
+    }
+  ],
+  "masters": [],
+  "pages": [
+    {
+      "id": "b7b74d5b-d1ba-4783-9084-d307c3eb6791",
+      "name": "Event Landing",
+      "slug": "home",
+      "layers": [
+        {
+          "id": "45714ce1-ce47-47de-a321-6786c3abac57",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 120,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "A Cozy Christmas"
+          }
+        },
+        {
+          "id": "51406a82-5f3b-408e-ba6f-09a086610a54",
+          "type": "component",
+          "name": "Info",
+          "componentKey": "event-information",
+          "componentRequirementId": "9f3acf19-ab36-43ec-a97f-1a75bd8323b9",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 250,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "eventName": "{{eventName}}",
+            "dateRange": "Runs through the holidays — watch, and warm up by the tree"
+          }
+        },
+        {
+          "id": "4671a1ea-4fea-493d-992e-e4bb2fa8ceca",
+          "type": "component",
+          "name": "Countdown",
+          "componentKey": "event-countdown",
+          "componentRequirementId": "96a8fcef-067d-4489-bbdd-da0f18976126",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 380,
+            "width": 600,
+            "height": 80,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "accessibleLabel": "Time left in the Christmas event"
+          }
+        },
+        {
+          "id": "999d5898-e61d-4c96-9bfd-972f8aeb9675",
+          "type": "image",
+          "name": "Tree",
+          "assetId": "edc50936-6e6e-4be0-97b2-a19b26eea3dc",
+          "transform": {
+            "x": 120,
+            "y": 600,
+            "width": 300,
+            "height": 375,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "f6cbc10f-8441-4f5e-939a-4c31336ec6e7",
+          "type": "image",
+          "name": "Presents",
+          "assetId": "41af55cd-9f30-4daf-b37c-5627d81aeb8b",
+          "transform": {
+            "x": 420,
+            "y": 780,
+            "width": 260,
+            "height": 208,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "efeba0a0-5a15-40e2-aaa2-def3d626e964",
+          "type": "image",
+          "name": "Snowman",
+          "assetId": "cf3d8ea7-3f3c-40bd-9547-891b2d2fb57a",
+          "transform": {
+            "x": 1500,
+            "y": 640,
+            "width": 260,
+            "height": 332,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "4d67bb83-9bc0-418e-8203-d52c96c66a7c",
+          "type": "image",
+          "name": "Stocking",
+          "assetId": "666ef5ad-2cda-4ba8-bc1b-523f141e243c",
+          "transform": {
+            "x": 1720,
+            "y": 750,
+            "width": 180,
+            "height": 252,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "7e3fe80e-8da2-4b25-8095-0ca6eac5fef5",
+          "type": "image",
+          "name": "Candy Canes",
+          "assetId": "c66f15ed-5097-4d18-8747-64975e021b02",
+          "transform": {
+            "x": 40,
+            "y": 40,
+            "width": 120,
+            "height": 160,
+            "rotationDeg": -15,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "686fdbac-6ebf-4a65-91cc-8086f3e5e589",
+          "type": "image",
+          "name": "Fairy Lights",
+          "assetId": "91fee1e5-0f86-4250-9eb7-cfe9b20a6718",
+          "transform": {
+            "x": 660,
+            "y": 0,
+            "width": 600,
+            "height": 144,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        }
+      ],
+      "animations": []
+    },
+    {
+      "id": "85f4acfd-104d-4b80-bf8d-8edacb282b24",
+      "name": "Draft",
+      "slug": "draft",
+      "layers": [
+        {
+          "id": "a99f3e75-254b-461c-a807-e5f6a7521838",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 100,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "Trim Your Watchlist"
+          }
+        },
+        {
+          "id": "51cae738-4c8b-4275-b7cb-7b63b7121cf5",
+          "type": "component",
+          "name": "Films",
+          "componentKey": "film-grid",
+          "componentRequirementId": "ad28fb9b-289d-4d00-afe6-a1bdd539769c",
+          "styleOverrides": [],
+          "transform": {
+            "x": 460,
+            "y": 240,
+            "width": 1000,
+            "height": 560,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "bdadceed-5f3e-4afc-a091-2a720177ba8b",
+          "type": "component",
+          "name": "Controls",
+          "componentKey": "draft-controls",
+          "componentRequirementId": "2341991d-69f5-418c-a984-b0af030ca556",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 850,
+            "width": 600,
+            "height": 80,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "skipLabel": "Not Feeling Festive",
+            "confirmLabel": "Add To Stocking",
+            "accessibleLabel": "Confirm your Christmas film pick"
+          }
+        }
+      ],
+      "animations": []
+    },
+    {
+      "id": "d5d3978b-7b3e-42e6-8616-3e969e3fc36e",
+      "name": "Results",
+      "slug": "results",
+      "layers": [
+        {
+          "id": "7db1151a-6abf-4afe-8a64-32a9d7436e79",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 150,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "Under The Tree So Far"
+          }
+        },
+        {
+          "id": "5aadf2f4-2ccd-4949-80f4-8f843a29ff17",
+          "type": "component",
+          "name": "Progress",
+          "componentKey": "event-progress",
+          "componentRequirementId": "5ff00dd9-363c-4393-ac24-0fee1f2e613d",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 300,
+            "width": 600,
+            "height": 60,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "statusLabel": "{{progress}}% unwrapped",
+            "accessibleLabel": "Christmas event progress"
+          }
+        },
+        {
+          "id": "de8f0110-d589-47ee-b2ac-a815ffbe36ab",
+          "type": "component",
+          "name": "Points",
+          "componentKey": "points-counter",
+          "componentRequirementId": "538858cd-6b06-4410-8b3a-74ee9a42e152",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 420,
+            "width": 600,
+            "height": 80,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "unitLabel": "candy cane pts",
+            "accessibleLabel": "Your Christmas points"
+          }
+        }
+      ],
+      "animations": []
+    },
+    {
+      "id": "08e9b16d-ffe8-440b-9d37-21d79b6bce25",
+      "name": "Completion",
+      "slug": "completion",
+      "layers": [
+        {
+          "id": "ea6f4734-f464-4239-a2b5-a7e32059dc57",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 150,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "All Wrapped Up"
+          }
+        },
+        {
+          "id": "036deb0e-52b4-48b5-8f2f-7a76b91f8f63",
+          "type": "component",
+          "name": "Progress",
+          "componentKey": "event-progress",
+          "componentRequirementId": "5ff00dd9-363c-4393-ac24-0fee1f2e613d",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 300,
+            "width": 600,
+            "height": 60,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "statusLabel": "100% unwrapped — happy holidays!",
+            "accessibleLabel": "Christmas event completion"
+          }
+        },
+        {
+          "id": "47fcf6e2-e4a7-4076-8c15-aeaa46a43f97",
+          "type": "component",
+          "name": "Points",
+          "componentKey": "points-counter",
+          "componentRequirementId": "538858cd-6b06-4410-8b3a-74ee9a42e152",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 420,
+            "width": 600,
+            "height": 80,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "unitLabel": "candy cane pts",
+            "accessibleLabel": "Your final Christmas points"
+          }
+        }
+      ],
+      "animations": []
+    },
+    {
+      "id": "c738a6f1-75e8-42a1-a680-a5436eace3be",
+      "name": "About/Information",
+      "slug": "about-information",
+      "layers": [
+        {
+          "id": "5e2723fc-57f5-49f7-980c-c0cb5eaa98f5",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 150,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "About This Christmas"
+          }
+        },
+        {
+          "id": "3e02189e-555f-49de-8cd7-35a870e574ab",
+          "type": "component",
+          "name": "Info",
+          "componentKey": "event-information",
+          "componentRequirementId": "9f3acf19-ab36-43ec-a97f-1a75bd8323b9",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 280,
+            "width": 600,
+            "height": 140,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "eventName": "{{eventName}}",
+            "dateRange": "A season of cozy films — no naughty list, just good picks"
+          }
+        }
+      ],
+      "animations": []
+    },
+    {
+      "id": "af88c4d5-96b9-45a1-b9f5-5c415aed9d93",
+      "name": "Event Available",
+      "slug": "event-available",
+      "layers": [
+        {
+          "id": "dc245cc8-8715-46c3-9b2b-45bdd471af87",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 150,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "Christmas Is Coming"
+          }
+        },
+        {
+          "id": "be22e203-e433-46ad-9bf1-8c9ec69ed384",
+          "type": "component",
+          "name": "Info",
+          "componentKey": "event-information",
+          "componentRequirementId": "9f3acf19-ab36-43ec-a97f-1a75bd8323b9",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 280,
+            "width": 600,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "eventName": "{{eventName}}",
+            "dateRange": "Not open yet — hang your stocking and wait"
+          }
+        },
+        {
+          "id": "cd6af2ca-49cd-4fce-a3fd-fc11def06195",
+          "type": "component",
+          "name": "Countdown",
+          "componentKey": "event-countdown",
+          "componentRequirementId": "96a8fcef-067d-4489-bbdd-da0f18976126",
+          "styleOverrides": [],
+          "transform": {
+            "x": 660,
+            "y": 400,
+            "width": 600,
+            "height": 80,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "accessibleLabel": "Time until Christmas opens"
+          }
+        }
+      ],
+      "animations": []
+    }
+  ],
+  "popups": [
+    {
+      "id": "07fd4ad6-e3e4-4d1b-9c44-71ac34dc22f2",
+      "name": "Join",
+      "trigger": "onLoad",
+      "layers": [
+        {
+          "id": "72173187-512d-436a-83a5-b54be1baa1e8",
+          "type": "component",
+          "name": "Title",
+          "componentKey": "page-title",
+          "componentRequirementId": "81a597b5-2209-4d60-a6f8-8e22a0d10972",
+          "styleOverrides": [],
+          "transform": {
+            "x": 460,
+            "y": 300,
+            "width": 1000,
+            "height": 100,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "title": "Christmas Is Here!"
+          }
+        },
+        {
+          "id": "294e78da-02cc-4227-bb2e-f67f0994eff0",
+          "type": "component",
+          "name": "Info",
+          "componentKey": "event-information",
+          "componentRequirementId": "9f3acf19-ab36-43ec-a97f-1a75bd8323b9",
+          "styleOverrides": [],
+          "transform": {
+            "x": 460,
+            "y": 430,
+            "width": 1000,
+            "height": 140,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 1,
+          "responsive": [],
+          "interactionStates": [],
+          "copyOverrides": {
+            "eventName": "{{eventName}}",
+            "dateRange": "Opt in from your profile to start unwrapping films"
+          }
+        },
+        {
+          "id": "914c9efd-5ec4-4726-9239-0c91f913fe68",
+          "type": "image",
+          "name": "Modal Left",
+          "assetId": "96a28d97-47a3-4336-8c93-0cf5479aaeb9",
+          "transform": {
+            "x": 0,
+            "y": 480,
+            "width": 260,
+            "height": 400,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "4bca679b-2114-4d0d-960f-a1b8adf49351",
+          "type": "image",
+          "name": "Modal Right",
+          "assetId": "63851ea4-7bfe-46a3-848b-68cc0d310e96",
+          "transform": {
+            "x": 1660,
+            "y": 480,
+            "width": 260,
+            "height": 400,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 0,
+          "responsive": [],
+          "interactionStates": []
+        }
+      ],
+      "animations": []
+    }
+  ],
+  "behaviourRules": [],
+  "simulationScenarios": [
+    {
+      "id": "e8399713-bbfa-4378-8985-35470c88f409",
+      "name": "Not opted in yet",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal",
+      "optedIn": false,
+      "draftGenerated": false,
+      "eventCompleted": false,
+      "progressPercent": 0,
+      "watchedCount": 0,
+      "targetCount": 8
+    },
+    {
+      "id": "e27e693d-2749-4fed-bed5-006e2c1cb0b0",
+      "name": "Midway through",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal",
+      "optedIn": true,
+      "draftGenerated": true,
+      "eventCompleted": false,
+      "progressPercent": 50,
+      "watchedCount": 4,
+      "targetCount": 8
+    },
+    {
+      "id": "4ced6b07-32c1-4a4d-a66d-58cbe16474a8",
+      "name": "All wrapped up",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal",
+      "optedIn": true,
+      "draftGenerated": true,
+      "eventCompleted": true,
+      "progressPercent": 100,
+      "watchedCount": 8,
+      "targetCount": 8
+    },
+    {
+      "id": "a658e169-90ce-42a5-8c70-d3057d7c087c",
+      "name": "Christmas ended",
+      "eventStatus": "ended",
+      "eventActive": false,
+      "eventAvailable": false,
+      "optedIn": true,
+      "draftGenerated": true,
+      "eventCompleted": true,
+      "progressPercent": 100,
+      "watchedCount": 8,
+      "targetCount": 8,
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal"
+    }
+  ]
+}
