@@ -1,8 +1,8 @@
 {
   "formatVersion": "1.0.0",
   "metadata": {
-    "id": "f0793770-5497-4462-b17b-676235fd22f1",
-    "name": "Christmas"
+    "id": "ab9c49d2-14ff-4e7e-b5d9-f2776aac148f",
+    "name": "Halloween"
   },
   "canvas": {
     "width": 1920,
@@ -20,91 +20,119 @@
   },
   "assets": [
     {
-      "id": "50ca227a-d379-4ed0-a960-d4251a342631",
+      "id": "d8d52f40-f1d6-495e-9f82-710dc461d837",
       "kind": "image",
-      "path": "assets/363d0a129ed595dee202be229d4b91a1a86f008c65fcfd809569ece8060fd973.png",
+      "path": "assets/5bfead2fed09d119fa6cc4b5a5da43fbc0a84062f8f33d321230de0f1f91c44f.png",
       "mimeType": "image/png",
-      "sizeBytes": 9205,
-      "sha256": "363d0a129ed595dee202be229d4b91a1a86f008c65fcfd809569ece8060fd973",
-      "name": "christmas-tree.png",
-      "originalFileName": "christmas-tree.png"
+      "sizeBytes": 23763,
+      "sha256": "5bfead2fed09d119fa6cc4b5a5da43fbc0a84062f8f33d321230de0f1f91c44f",
+      "name": "candy-bowl-empty.png",
+      "originalFileName": "candy-bowl-empty.png"
     },
     {
-      "id": "bcca5c74-8e92-487e-8f6a-4eca0cf9094b",
+      "id": "9c94c37c-97d9-4c98-8f98-5ec4dee45f92",
       "kind": "image",
-      "path": "assets/5186a3f0ed4078c0a6caa7cfcb89c4305d4a0e6dcb2486ba343a4a6e65177166.png",
+      "path": "assets/b55b32d4842be6821e02ca8e7ee6ef09a0453dc067d3da40ee0a3306562faa0c.png",
       "mimeType": "image/png",
-      "sizeBytes": 10061,
-      "sha256": "5186a3f0ed4078c0a6caa7cfcb89c4305d4a0e6dcb2486ba343a4a6e65177166",
-      "name": "presents.png",
-      "originalFileName": "presents.png"
+      "sizeBytes": 25316,
+      "sha256": "b55b32d4842be6821e02ca8e7ee6ef09a0453dc067d3da40ee0a3306562faa0c",
+      "name": "candy-bowl-low.png",
+      "originalFileName": "candy-bowl-low.png"
     },
     {
-      "id": "81b52043-6bd4-44c4-844a-da32974ed46b",
+      "id": "0079cfbe-b7d8-4007-8fdc-acbde3cdfcfc",
       "kind": "image",
-      "path": "assets/f2d8a5a32ad72ca38aad71cba6e4c03129243cd6cae6a9b3b2de36d3341389b4.png",
+      "path": "assets/de07c0435e2075755654610b1b91aa9e3c4d68b6678846ee53c1fa5f67b5a0ad.png",
       "mimeType": "image/png",
-      "sizeBytes": 12959,
-      "sha256": "f2d8a5a32ad72ca38aad71cba6e4c03129243cd6cae6a9b3b2de36d3341389b4",
-      "name": "snowman.png",
-      "originalFileName": "snowman.png"
+      "sizeBytes": 31205,
+      "sha256": "de07c0435e2075755654610b1b91aa9e3c4d68b6678846ee53c1fa5f67b5a0ad",
+      "name": "candy-bowl-medium.png",
+      "originalFileName": "candy-bowl-medium.png"
     },
     {
-      "id": "a70d3257-9e8a-44b8-ab4b-f6d26cd54a3e",
+      "id": "206f185b-44a7-4f10-84ef-a5b9b6148a93",
       "kind": "image",
-      "path": "assets/15b251427ee8e9b77b01c664a2a8bdd4ab59d33dad2b2c1179c9d93d93557f33.png",
+      "path": "assets/bcc90c8b30ef4560ae5b39bd91beb33de86b56a2ef4878ac811dcd8883e42668.png",
       "mimeType": "image/png",
-      "sizeBytes": 10728,
-      "sha256": "15b251427ee8e9b77b01c664a2a8bdd4ab59d33dad2b2c1179c9d93d93557f33",
-      "name": "stocking.png",
-      "originalFileName": "stocking.png"
+      "sizeBytes": 35869,
+      "sha256": "bcc90c8b30ef4560ae5b39bd91beb33de86b56a2ef4878ac811dcd8883e42668",
+      "name": "candy-bowl-full.png",
+      "originalFileName": "candy-bowl-full.png"
     },
     {
-      "id": "b7fa8172-c8ca-44c4-82b9-6f2b25ef233b",
+      "id": "fc9a71da-1b9c-45a8-aac3-ac4c1345ce05",
       "kind": "image",
-      "path": "assets/91801f321c8fb781ee2b26c14416e052797d93415451689845757fc767190126.png",
+      "path": "assets/53394ee70670055cc5e4321978915ba98c53f92130aa389383aa28129b24610b.png",
       "mimeType": "image/png",
-      "sizeBytes": 11331,
-      "sha256": "91801f321c8fb781ee2b26c14416e052797d93415451689845757fc767190126",
-      "name": "candy-canes.png",
-      "originalFileName": "candy-canes.png"
+      "sizeBytes": 45418,
+      "sha256": "53394ee70670055cc5e4321978915ba98c53f92130aa389383aa28129b24610b",
+      "name": "pumpkin-carved.png",
+      "originalFileName": "pumpkin-carved.png"
     },
     {
-      "id": "016cf5f8-1792-43da-a7e8-75112cf270cf",
+      "id": "4b7092dc-b8e9-482f-bd2b-4fc929fd2f68",
       "kind": "image",
-      "path": "assets/3d47d9fdcee9f39285bbbff7d43d21693f51c4e16614a94288414d873f473bfb.png",
+      "path": "assets/38b2362d96c076d8f514d9f24178359748b6315d8dbd19f2d206a4ecc420ec12.png",
       "mimeType": "image/png",
-      "sizeBytes": 5469,
-      "sha256": "3d47d9fdcee9f39285bbbff7d43d21693f51c4e16614a94288414d873f473bfb",
-      "name": "fairy-lights.png",
-      "originalFileName": "fairy-lights.png"
+      "sizeBytes": 23008,
+      "sha256": "38b2362d96c076d8f514d9f24178359748b6315d8dbd19f2d206a4ecc420ec12",
+      "name": "gravestone-base.png",
+      "originalFileName": "gravestone-base.png"
     },
     {
-      "id": "9fd8ebe0-161a-4775-b365-62eb47815a11",
+      "id": "5c97f4ca-2a5d-4756-8ea5-18a20066726e",
       "kind": "image",
-      "path": "assets/fab5da7e1e8a438dfbaa9ab2050dd21dbf7a00305326f2e9bc99cd5441091513.png",
+      "path": "assets/1882ae4e7ea5f502458a9486a93d45af4a09cd70e51b531605afe37355fee55f.png",
       "mimeType": "image/png",
-      "sizeBytes": 8504,
-      "sha256": "fab5da7e1e8a438dfbaa9ab2050dd21dbf7a00305326f2e9bc99cd5441091513",
-      "name": "modal-left.png",
-      "originalFileName": "modal-left.png"
+      "sizeBytes": 27007,
+      "sha256": "1882ae4e7ea5f502458a9486a93d45af4a09cd70e51b531605afe37355fee55f",
+      "name": "gravestone-moss-overlay.png",
+      "originalFileName": "gravestone-moss-overlay.png"
     },
     {
-      "id": "b2579404-91e7-44b7-a1f4-aa379094797f",
+      "id": "92c2dee8-e1ba-4130-8f21-5b8b4e231512",
       "kind": "image",
-      "path": "assets/f9a6ec91161f4acff1d1bce613a957fdc768976fcbe776dcada0563a5651963b.png",
+      "path": "assets/d7e81bec4cda14d15538d977c2e7e941d33a1c3520876dafa283af012687ad4e.png",
       "mimeType": "image/png",
-      "sizeBytes": 9576,
-      "sha256": "f9a6ec91161f4acff1d1bce613a957fdc768976fcbe776dcada0563a5651963b",
-      "name": "modal-right.png",
-      "originalFileName": "modal-right.png"
+      "sizeBytes": 30525,
+      "sha256": "d7e81bec4cda14d15538d977c2e7e941d33a1c3520876dafa283af012687ad4e",
+      "name": "ghost.png",
+      "originalFileName": "ghost.png"
     }
   ],
   "assetFolders": [],
-  "imageStateGroups": [],
+  "imageStateGroups": [
+    {
+      "id": "545a5e53-ed34-46be-a154-4d4c24897786",
+      "name": "Candy Bowl",
+      "states": [
+        {
+          "id": "e14f1f65-d61e-44d3-8c54-b9cd052408d7",
+          "name": "Empty",
+          "assetId": "d8d52f40-f1d6-495e-9f82-710dc461d837"
+        },
+        {
+          "id": "b6aacc6e-b357-4e6c-b6c7-652bbbf76dda",
+          "name": "Low",
+          "assetId": "9c94c37c-97d9-4c98-8f98-5ec4dee45f92"
+        },
+        {
+          "id": "2ded596d-e064-452b-8db7-597226800c35",
+          "name": "Medium",
+          "assetId": "0079cfbe-b7d8-4007-8fdc-acbde3cdfcfc"
+        },
+        {
+          "id": "9017882a-f991-49f9-833f-68127c059917",
+          "name": "Full",
+          "assetId": "206f185b-44a7-4f10-84ef-a5b9b6148a93"
+        }
+      ],
+      "defaultStateId": "e14f1f65-d61e-44d3-8c54-b9cd052408d7"
+    }
+  ],
   "componentRequirements": [
     {
-      "id": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+      "id": "385a57ae-c876-4dda-a796-5546c60414f2",
       "componentKey": "page-title",
       "required": true,
       "allowedProperties": [
@@ -121,7 +149,7 @@
       "singleton": true
     },
     {
-      "id": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+      "id": "c29ed812-c57b-4f2d-a8c8-c8819c839727",
       "componentKey": "event-information",
       "required": true,
       "allowedProperties": [
@@ -137,7 +165,7 @@
       ]
     },
     {
-      "id": "904161d6-b205-424c-b819-5d4090cadbc4",
+      "id": "8edb9074-d7fc-4550-bd74-b617920c1047",
       "componentKey": "event-countdown",
       "required": true,
       "allowedProperties": [
@@ -153,7 +181,7 @@
       ]
     },
     {
-      "id": "63692dc7-db01-4749-9887-5a340dd98aa5",
+      "id": "1b272a80-5c99-43b3-b277-1b6fb27834ec",
       "componentKey": "generate-draft-action",
       "required": true,
       "allowedProperties": [
@@ -172,7 +200,7 @@
       "minHeightPx": 44
     },
     {
-      "id": "dbf62549-b860-4567-9f96-c2e5ad5b4b62",
+      "id": "f3409ec9-e8d0-401f-bdfc-c240c0f286bd",
       "componentKey": "profile-badge",
       "required": false,
       "allowedProperties": [
@@ -191,7 +219,7 @@
       ]
     },
     {
-      "id": "799bb4df-e8f2-4c65-b21f-3a19c5957109",
+      "id": "469f7d2c-de86-4bab-99d4-fd3f10e0d35d",
       "componentKey": "event-navigation",
       "required": false,
       "allowedProperties": [
@@ -210,7 +238,7 @@
       ]
     },
     {
-      "id": "f8f73fc3-5eb6-47ff-90c9-b0c327f1c669",
+      "id": "aef1fe22-2c2f-4002-bf9b-e6785a2e1d39",
       "componentKey": "film-grid",
       "required": true,
       "allowedProperties": [
@@ -226,7 +254,7 @@
       ]
     },
     {
-      "id": "a09388db-e885-48f9-8086-e0774dd8fad2",
+      "id": "772c5877-0013-4a7b-b48a-85cf9863bfda",
       "componentKey": "draft-progress",
       "required": true,
       "allowedProperties": [
@@ -242,7 +270,7 @@
       ]
     },
     {
-      "id": "985ff029-c4b4-46ce-b79d-ea95e0d150c1",
+      "id": "277ccad5-b394-4da0-8405-7b39714b8871",
       "componentKey": "draft-controls",
       "required": true,
       "allowedProperties": [
@@ -258,7 +286,7 @@
       ]
     },
     {
-      "id": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+      "id": "1e8c8169-5246-4360-b516-6613fa112248",
       "componentKey": "results-completion-content",
       "required": true,
       "allowedProperties": [
@@ -274,7 +302,7 @@
       ]
     },
     {
-      "id": "03fe8371-afa9-475e-a639-b8c427292dcb",
+      "id": "368d9cce-3043-4adc-bfe6-5fb47a90f918",
       "componentKey": "points-counter",
       "required": true,
       "allowedProperties": [
@@ -290,7 +318,7 @@
       ]
     },
     {
-      "id": "f551b837-1c32-4571-b15b-1ce90437b533",
+      "id": "262c80ae-a7e5-4b3a-9dd2-27d854d45e9a",
       "componentKey": "complete-watch-action",
       "required": true,
       "allowedProperties": [
@@ -309,7 +337,7 @@
       "minHeightPx": 44
     },
     {
-      "id": "26133256-8de3-4ce2-bdf5-39d5c0e4f761",
+      "id": "2afe7729-939a-4806-9be4-4eac951447bd",
       "componentKey": "challenge-card",
       "required": false,
       "allowedProperties": [
@@ -325,7 +353,7 @@
       ]
     },
     {
-      "id": "2050fd37-1022-40b0-876f-3416c048a468",
+      "id": "9430b479-1b62-4cf8-9aaf-5cb0839bae99",
       "componentKey": "event-points-counter",
       "required": false,
       "allowedProperties": [
@@ -344,16 +372,16 @@
   "masters": [],
   "pages": [
     {
-      "id": "c23f2d08-d74b-41a1-bf09-307fe547c874",
+      "id": "96e71ecf-e921-47a9-8f6d-30dbac76123b",
       "name": "Event Landing",
       "slug": "event-landing",
       "layers": [
         {
-          "id": "7ee3a6b4-ffd0-470c-9838-7626ee711e1f",
+          "id": "0e6f564d-b356-4d7c-bb75-4f76f264dd22",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -371,15 +399,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "A Cozy Christmas"
+            "title": "Halloween Watch Party"
           }
         },
         {
-          "id": "e4f3242a-1f3f-43d9-8b78-8041a2b14379",
+          "id": "42174632-83cd-45b5-8d58-9663640eadb6",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "c29ed812-c57b-4f2d-a8c8-c8819c839727",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -398,15 +426,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Runs through the holidays — watch, and warm up by the tree"
+            "dateRange": "All October long — the bowl fills as you watch"
           }
         },
         {
-          "id": "368f6b07-280f-4d84-b0ca-efc8297e3e46",
+          "id": "5ef899e3-4995-43fb-a391-3767036c4c5c",
           "type": "component",
           "name": "event-countdown",
           "componentKey": "event-countdown",
-          "componentRequirementId": "904161d6-b205-424c-b819-5d4090cadbc4",
+          "componentRequirementId": "8edb9074-d7fc-4550-bd74-b617920c1047",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -424,15 +452,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "accessibleLabel": "Time left in the Christmas event"
+            "accessibleLabel": "Time left to trick-or-treat this Halloween"
           }
         },
         {
-          "id": "5c823afe-cea3-4b1f-a76d-e9464f6f5096",
+          "id": "cc38427e-233e-4155-a048-49cbac111a0d",
           "type": "component",
           "name": "generate-draft-action",
           "componentKey": "generate-draft-action",
-          "componentRequirementId": "63692dc7-db01-4749-9887-5a340dd98aa5",
+          "componentRequirementId": "1b272a80-5c99-43b3-b277-1b6fb27834ec",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -450,16 +478,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "actionLabel": "Start My Watchlist",
-            "accessibleLabel": "Generate my Christmas film draft"
+            "actionLabel": "Conjure My Draft",
+            "accessibleLabel": "Generate my Halloween film draft"
           }
         },
         {
-          "id": "fe836030-e48a-459f-9171-51edc268c5be",
+          "id": "a4fdf57e-d6d1-49c6-a1f8-d06d1eb82b9b",
           "type": "component",
           "name": "profile-badge",
           "componentKey": "profile-badge",
-          "componentRequirementId": "dbf62549-b860-4567-9f96-c2e5ad5b4b62",
+          "componentRequirementId": "f3409ec9-e8d0-401f-bdfc-c240c0f286bd",
           "styleOverrides": [],
           "zoneKind": "header",
           "transform": {
@@ -478,15 +506,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "accessibleLabel": "Your Christmas profile"
+            "accessibleLabel": "Your ghoul profile"
           }
         },
         {
-          "id": "0cd0aeb5-1e97-4bfc-93bf-b14fb42ea8b3",
+          "id": "ff16a403-6b7c-49b5-ba00-1bcd3a933227",
           "type": "component",
           "name": "event-navigation",
           "componentKey": "event-navigation",
-          "componentRequirementId": "799bb4df-e8f2-4c65-b21f-3a19c5957109",
+          "componentRequirementId": "469f7d2c-de86-4bab-99d4-fd3f10e0d35d",
           "styleOverrides": [],
           "zoneKind": "footer",
           "transform": {
@@ -507,19 +535,41 @@
           "copyOverrides": {
             "previousLabel": "Back",
             "nextLabel": "Onward",
-            "accessibleLabel": "Christmas event navigation"
+            "accessibleLabel": "Halloween event navigation"
           }
         },
         {
-          "id": "ee787ee4-7fc0-4313-84aa-cca97dd0b830",
+          "id": "e9a1e1f8-a39e-4c03-8f32-dee425222eb3",
           "type": "image",
-          "name": "Tree",
-          "assetId": "50ca227a-d379-4ed0-a960-d4251a342631",
+          "name": "Candy Bowl",
+          "assetId": "206f185b-44a7-4f10-84ef-a5b9b6148a93",
+          "stateGroupId": "545a5e53-ed34-46be-a154-4d4c24897786",
           "transform": {
-            "x": 120,
-            "y": 600,
+            "x": 1380,
+            "y": 850,
+            "width": 360,
+            "height": 234,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 20,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "9488ddb3-24f6-40e6-8e07-063445b92802",
+          "type": "image",
+          "name": "Pumpkin",
+          "assetId": "fc9a71da-1b9c-45a8-aac3-ac4c1345ce05",
+          "transform": {
+            "x": 820,
+            "y": 620,
             "width": 300,
-            "height": 375,
+            "height": 270,
             "rotationDeg": 0,
             "scaleX": 1,
             "scaleY": 1
@@ -527,20 +577,20 @@
           "opacity": 1,
           "visible": true,
           "locked": false,
-          "zIndex": 0,
+          "zIndex": 20,
           "responsive": [],
           "interactionStates": []
         },
         {
-          "id": "8c8dd871-595e-4734-ab78-01dab189f74b",
+          "id": "8df86bc5-dc30-4fce-88fe-953f32e25d35",
           "type": "image",
-          "name": "Presents",
-          "assetId": "bcca5c74-8e92-487e-8f6a-4eca0cf9094b",
+          "name": "Gravestone",
+          "assetId": "4b7092dc-b8e9-482f-bd2b-4fc929fd2f68",
           "transform": {
-            "x": 420,
-            "y": 780,
-            "width": 260,
-            "height": 208,
+            "x": 260,
+            "y": 680,
+            "width": 280,
+            "height": 400,
             "rotationDeg": 0,
             "scaleX": 1,
             "scaleY": 1
@@ -548,20 +598,20 @@
           "opacity": 1,
           "visible": true,
           "locked": false,
-          "zIndex": 0,
+          "zIndex": 20,
           "responsive": [],
           "interactionStates": []
         },
         {
-          "id": "fcb08e78-ea22-4d75-81c5-4c492f5281fa",
+          "id": "65ff25e2-6288-4cf3-b61f-2a116dfd8034",
           "type": "image",
-          "name": "Snowman",
-          "assetId": "81b52043-6bd4-44c4-844a-da32974ed46b",
+          "name": "Gravestone Moss",
+          "assetId": "5c97f4ca-2a5d-4756-8ea5-18a20066726e",
           "transform": {
-            "x": 1500,
-            "y": 640,
-            "width": 260,
-            "height": 332,
+            "x": 260,
+            "y": 680,
+            "width": 280,
+            "height": 400,
             "rotationDeg": 0,
             "scaleX": 1,
             "scaleY": 1
@@ -569,70 +619,7 @@
           "opacity": 1,
           "visible": true,
           "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "6ecdc552-ee88-4c2c-8b23-75c08b641a43",
-          "type": "image",
-          "name": "Stocking",
-          "assetId": "a70d3257-9e8a-44b8-ab4b-f6d26cd54a3e",
-          "transform": {
-            "x": 1720,
-            "y": 750,
-            "width": 180,
-            "height": 252,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "78d63b03-aa6f-43da-96fe-549923947d91",
-          "type": "image",
-          "name": "Candy Canes",
-          "assetId": "b7fa8172-c8ca-44c4-82b9-6f2b25ef233b",
-          "transform": {
-            "x": 40,
-            "y": 40,
-            "width": 120,
-            "height": 160,
-            "rotationDeg": -15,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "121bd984-8992-4b45-804d-f4833758484a",
-          "type": "image",
-          "name": "Fairy Lights",
-          "assetId": "016cf5f8-1792-43da-a7e8-75112cf270cf",
-          "transform": {
-            "x": 660,
-            "y": 0,
-            "width": 600,
-            "height": 144,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
+          "zIndex": 21,
           "responsive": [],
           "interactionStates": []
         }
@@ -640,16 +627,16 @@
       "animations": []
     },
     {
-      "id": "187f71e6-eba2-47f9-8252-38a17fe329be",
+      "id": "644774c3-188d-493b-adfb-679eebca925d",
       "name": "Draft",
       "slug": "draft",
       "layers": [
         {
-          "id": "c2fc1b0c-e1cc-4416-9aaf-27b35d45f037",
+          "id": "28bc3b40-662d-4c0e-aa26-5c0a448e51ee",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -667,15 +654,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Trim Your Watchlist"
+            "title": "Your Haunted Watchlist"
           }
         },
         {
-          "id": "8ee39aac-eeae-4fa7-8958-8e2bc0622784",
+          "id": "2fa196bd-a705-4b41-88aa-d9e0366745c9",
           "type": "component",
           "name": "film-grid",
           "componentKey": "film-grid",
-          "componentRequirementId": "f8f73fc3-5eb6-47ff-90c9-b0c327f1c669",
+          "componentRequirementId": "aef1fe22-2c2f-4002-bf9b-e6785a2e1d39",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -694,11 +681,11 @@
           "interactionStates": []
         },
         {
-          "id": "d70b24f7-f663-4f9d-9063-d91b5cb595b5",
+          "id": "d8a3a08d-bee0-43b5-a9c7-6f40befba43c",
           "type": "component",
           "name": "draft-progress",
           "componentKey": "draft-progress",
-          "componentRequirementId": "a09388db-e885-48f9-8086-e0774dd8fad2",
+          "componentRequirementId": "772c5877-0013-4a7b-b48a-85cf9863bfda",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -716,15 +703,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "statusLabel": "{{picksMade}} of {{totalPicks}} picks wrapped"
+            "statusLabel": "{{picksMade}} of {{totalPicks}} frights picked"
           }
         },
         {
-          "id": "a2227b37-f42b-4813-b63b-f8b67508b1c0",
+          "id": "f4245758-96f1-4a4c-9738-35c8e881d5e0",
           "type": "component",
           "name": "draft-controls",
           "componentKey": "draft-controls",
-          "componentRequirementId": "985ff029-c4b4-46ce-b79d-ea95e0d150c1",
+          "componentRequirementId": "277ccad5-b394-4da0-8405-7b39714b8871",
           "styleOverrides": [],
           "transform": {
             "x": 560,
@@ -742,25 +729,25 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "skipLabel": "Not Feeling Festive",
-            "confirmLabel": "Add To Stocking",
-            "accessibleLabel": "Confirm your Christmas film pick"
+            "skipLabel": "Too Spooky, Skip",
+            "confirmLabel": "Lock It In",
+            "accessibleLabel": "Confirm your Halloween film pick"
           }
         }
       ],
       "animations": []
     },
     {
-      "id": "c2980193-370b-4552-9da1-7ccf31ed50f5",
+      "id": "de2b47d2-2afe-4a3f-abf2-01ca87438a70",
       "name": "Results",
       "slug": "results",
       "layers": [
         {
-          "id": "2eb18d97-6c23-4090-95a6-7aa363af71c7",
+          "id": "2548f83f-3e91-4866-be08-9fffe9a0a6fb",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -778,15 +765,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Under The Tree So Far"
+            "title": "The Bowl So Far"
           }
         },
         {
-          "id": "cff97cd6-9dcc-4430-a1a0-2e8ed1d17220",
+          "id": "acaaee66-2035-4ee2-bc7c-615767317f5a",
           "type": "component",
           "name": "results-completion-content",
           "componentKey": "results-completion-content",
-          "componentRequirementId": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+          "componentRequirementId": "1e8c8169-5246-4360-b516-6613fa112248",
           "styleOverrides": [],
           "transform": {
             "x": 260,
@@ -804,16 +791,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "headline": "Making good progress!",
-            "body": "Keep watching and the stocking keeps filling."
+            "headline": "Sweet progress!",
+            "body": "Keep watching and the candy bowl keeps filling."
           }
         },
         {
-          "id": "cfd72db2-05e4-404b-b99b-145b0530781e",
+          "id": "cc4fec11-bbe4-440c-9b50-5e92e6c299c3",
           "type": "component",
           "name": "points-counter",
           "componentKey": "points-counter",
-          "componentRequirementId": "03fe8371-afa9-475e-a639-b8c427292dcb",
+          "componentRequirementId": "368d9cce-3043-4adc-bfe6-5fb47a90f918",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -831,24 +818,24 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "unitLabel": "candy cane pts",
-            "accessibleLabel": "Your Christmas points"
+            "unitLabel": "candy pts",
+            "accessibleLabel": "Your Halloween points"
           }
         }
       ],
       "animations": []
     },
     {
-      "id": "5174bfaa-ff9d-4a66-af85-ed1e1192fc25",
+      "id": "e3008b0a-57e2-4232-a57a-d3889d5841a2",
       "name": "Completion",
       "slug": "completion",
       "layers": [
         {
-          "id": "9a085e20-ddd2-4f8c-8490-30d840db9dcd",
+          "id": "edea8420-d4f0-47fa-ba38-b1cbcd9cbb07",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -866,15 +853,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "All Wrapped Up"
+            "title": "Trick or Treat, Complete!"
           }
         },
         {
-          "id": "ec2e14ca-08ab-42dc-aebb-eaf3cf5cff83",
+          "id": "ddee0c9e-eb48-490d-9e28-88a2e70525f3",
           "type": "component",
           "name": "results-completion-content",
           "componentKey": "results-completion-content",
-          "componentRequirementId": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+          "componentRequirementId": "1e8c8169-5246-4360-b516-6613fa112248",
           "styleOverrides": [],
           "transform": {
             "x": 260,
@@ -892,16 +879,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "headline": "Happy holidays!",
-            "body": "You've watched every pick — thanks for spending {{eventName}} with us."
+            "headline": "The bowl is full!",
+            "body": "You've watched every pick — thanks for haunting {{eventName}} with us."
           }
         },
         {
-          "id": "e5357aa2-bbe5-4d7b-84b2-2c11415dc8e9",
+          "id": "16c03789-830f-4558-ac9f-e85a819b93ba",
           "type": "component",
           "name": "complete-watch-action",
           "componentKey": "complete-watch-action",
-          "componentRequirementId": "f551b837-1c32-4571-b15b-1ce90437b533",
+          "componentRequirementId": "262c80ae-a7e5-4b3a-9dd2-27d854d45e9a",
           "styleOverrides": [],
           "transform": {
             "x": 800,
@@ -920,23 +907,23 @@
           "interactionStates": [],
           "copyOverrides": {
             "actionLabel": "Mark as Watched",
-            "accessibleLabel": "Mark this Christmas film as watched"
+            "accessibleLabel": "Mark this Halloween film as watched"
           }
         }
       ],
       "animations": []
     },
     {
-      "id": "784cc665-fe94-4948-b429-d7f94655f485",
+      "id": "236b9ab8-ca88-4e97-b263-71990bb4f928",
       "name": "About/Information",
       "slug": "about",
       "layers": [
         {
-          "id": "ac3df0d3-04b9-4cdf-bbbd-6ce2f4c4ebcf",
+          "id": "95dd9c47-839d-4b0b-8d99-465f09bd0085",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -954,15 +941,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "About This Christmas"
+            "title": "About This Haunting"
           }
         },
         {
-          "id": "308ef5ed-db3e-4470-add4-e12bfa0788c9",
+          "id": "93c45a3f-1a15-43a2-8d3d-a4d8ba55d077",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "c29ed812-c57b-4f2d-a8c8-c8819c839727",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -981,23 +968,23 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "A season of cozy films — no naughty list, just good picks"
+            "dateRange": "A month of movies, one candy bowl, zero real ghosts (probably)"
           }
         }
       ],
       "animations": []
     },
     {
-      "id": "e8b04c8e-78c7-4e2d-a36a-2bb1ee7f2368",
+      "id": "c549bc56-baa2-4212-80fd-57862e7b7621",
       "name": "Event Available",
       "slug": "event-available",
       "layers": [
         {
-          "id": "a5b1e486-f091-40ac-a1ee-3ce4f22f7f49",
+          "id": "322dccf3-749c-4112-9464-e6dfe24b1549",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1015,15 +1002,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Is Coming"
+            "title": "The Bowl Awaits"
           }
         },
         {
-          "id": "a399f109-9f0e-4dcb-9f99-3b358233fdeb",
+          "id": "8445c37f-37e9-4831-9d8d-958ea08a7548",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "c29ed812-c57b-4f2d-a8c8-c8819c839727",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1042,15 +1029,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Not open yet — hang your stocking and wait"
+            "dateRange": "Opens soon — sharpen your carving knife"
           }
         },
         {
-          "id": "15fda7ce-c453-4b09-9695-1d6f8fd82e21",
+          "id": "f5cda8a3-a6f0-4388-9359-be89369b5db7",
           "type": "component",
           "name": "event-countdown",
           "componentKey": "event-countdown",
-          "componentRequirementId": "904161d6-b205-424c-b819-5d4090cadbc4",
+          "componentRequirementId": "8edb9074-d7fc-4550-bd74-b617920c1047",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1068,15 +1055,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "accessibleLabel": "Time until Christmas opens"
+            "accessibleLabel": "Time until Halloween opens"
           }
         },
         {
-          "id": "f6efc7fa-9668-431c-b29e-b77506c5afba",
+          "id": "5963fb31-eded-46bf-b0c6-e87d71cf04a7",
           "type": "component",
           "name": "challenge-card",
           "componentKey": "challenge-card",
-          "componentRequirementId": "26133256-8de3-4ce2-bdf5-39d5c0e4f761",
+          "componentRequirementId": "2afe7729-939a-4806-9be4-4eac951447bd",
           "styleOverrides": [],
           "transform": {
             "x": 1240,
@@ -1094,24 +1081,24 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Cocoa & a Classic",
-            "description": "Watch 3 festive picks this weekend for a bonus handful of candy canes."
+            "title": "Midnight Marathon",
+            "description": "Watch 3 spooky picks this weekend for a bonus handful of candy."
           }
         }
       ],
       "animations": []
     },
     {
-      "id": "f1fdb856-e688-464b-a3f0-c3fd4604e4f2",
+      "id": "f4a9ddea-4456-4490-bbf2-4c6f2502ff68",
       "name": "Join",
       "slug": "join",
       "layers": [
         {
-          "id": "30d288f2-ce4e-490a-ab06-b50da777b814",
+          "id": "778465b0-a81c-4fae-ad48-ccb0e76dbf33",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1129,15 +1116,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Is Here!"
+            "title": "Dare To Join?"
           }
         },
         {
-          "id": "03425816-2379-476a-873e-1d15d9179766",
+          "id": "b0a91813-032f-4a18-9271-e6aab95294d9",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "c29ed812-c57b-4f2d-a8c8-c8819c839727",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1156,15 +1143,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Opt in from your profile to start unwrapping films"
+            "dateRange": "One click and the bowl starts filling"
           }
         },
         {
-          "id": "6a566ec5-e5f8-46e5-9e79-3072714d2e71",
+          "id": "aef96904-d9c0-40a0-8f9e-90f701c77895",
           "type": "component",
           "name": "generate-draft-action",
           "componentKey": "generate-draft-action",
-          "componentRequirementId": "63692dc7-db01-4749-9887-5a340dd98aa5",
+          "componentRequirementId": "1b272a80-5c99-43b3-b277-1b6fb27834ec",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1182,24 +1169,24 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "actionLabel": "Add To Stocking",
-            "accessibleLabel": "Join the Christmas event"
+            "actionLabel": "Join the Haunting",
+            "accessibleLabel": "Join the Halloween event"
           }
         }
       ],
       "animations": []
     },
     {
-      "id": "5c26e1cd-40b5-4c6c-b20c-fa551a8f015f",
+      "id": "985e16c4-25cc-4206-a7b5-b534ba3a939b",
       "name": "Event Complete",
       "slug": "event-complete",
       "layers": [
         {
-          "id": "e17830d8-3156-4e88-b77d-8e45a639c4ab",
+          "id": "602bd410-59ad-4b14-83d1-e5a32eed8687",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1217,15 +1204,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Has Ended"
+            "title": "Halloween Has Ended"
           }
         },
         {
-          "id": "525ad48f-ef82-417b-aa9e-79e532624b11",
+          "id": "822cf107-05a1-438c-a1cd-de5abf75ed57",
           "type": "component",
           "name": "results-completion-content",
           "componentKey": "results-completion-content",
-          "componentRequirementId": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+          "componentRequirementId": "1e8c8169-5246-4360-b516-6613fa112248",
           "styleOverrides": [],
           "transform": {
             "x": 260,
@@ -1243,16 +1230,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "headline": "That's a wrap.",
-            "body": "The stockings are empty and the tree's coming down — see you next Christmas."
+            "headline": "That's a wrap, ghouls.",
+            "body": "The bowl's empty and the pumpkins are rotting — see you next October."
           }
         },
         {
-          "id": "6455a49f-23d6-4103-8f05-eca7ea0f449f",
+          "id": "6a8730ff-1df2-4856-8960-a72593de6327",
           "type": "component",
           "name": "points-counter",
           "componentKey": "points-counter",
-          "componentRequirementId": "03fe8371-afa9-475e-a639-b8c427292dcb",
+          "componentRequirementId": "368d9cce-3043-4adc-bfe6-5fb47a90f918",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1270,16 +1257,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "unitLabel": "candy cane pts",
-            "accessibleLabel": "Your final Christmas points"
+            "unitLabel": "candy pts",
+            "accessibleLabel": "Your final Halloween points"
           }
         },
         {
-          "id": "2edf47d1-2894-488b-9232-f5eca78e0e74",
+          "id": "08e38e62-08f7-4052-8772-6398d1ccabf0",
           "type": "component",
           "name": "event-points-counter",
           "componentKey": "event-points-counter",
-          "componentRequirementId": "2050fd37-1022-40b0-876f-3416c048a468",
+          "componentRequirementId": "9430b479-1b62-4cf8-9aaf-5cb0839bae99",
           "styleOverrides": [],
           "transform": {
             "x": 400,
@@ -1297,8 +1284,8 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "unitLabel": "candy cane pts",
-            "accessibleLabel": "Your points for this Christmas event"
+            "unitLabel": "event pts",
+            "accessibleLabel": "Your points for this Halloween event"
           }
         }
       ],
@@ -1307,16 +1294,16 @@
   ],
   "popups": [
     {
-      "id": "77153aa7-0781-49fa-98f7-d4632da31adc",
+      "id": "a82af3b2-0619-4e13-a412-21bf81d4e7ab",
       "name": "Event Available",
       "trigger": "onLoad",
       "layers": [
         {
-          "id": "0ca31bf2-1a11-47d2-8bd3-10324dd75220",
+          "id": "2484ddf8-88f0-40bc-a7a8-0ab210d86e76",
           "type": "component",
           "name": "Popup Title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "385a57ae-c876-4dda-a796-5546c60414f2",
           "styleOverrides": [],
           "transform": {
             "x": 460,
@@ -1334,15 +1321,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Is Open!"
+            "title": "Halloween Is Open!"
           }
         },
         {
-          "id": "acc23d21-7b07-44bb-84d7-e7c51549a5e4",
+          "id": "9a929235-fb6e-4de9-a71c-693149438404",
           "type": "component",
           "name": "Popup Info",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "c29ed812-c57b-4f2d-a8c8-c8819c839727",
           "styleOverrides": [],
           "transform": {
             "x": 460,
@@ -1361,15 +1348,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Opt in now — the tree is lit and waiting"
+            "dateRange": "Opt in now — the candy bowl is waiting"
           }
         },
         {
-          "id": "485347ee-abcc-4450-a686-9fdf73e38ae2",
+          "id": "d727e56a-d9f1-4637-a81d-b81dd9c9c800",
           "type": "component",
           "name": "Popup Join Action",
           "componentKey": "generate-draft-action",
-          "componentRequirementId": "63692dc7-db01-4749-9887-5a340dd98aa5",
+          "componentRequirementId": "1b272a80-5c99-43b3-b277-1b6fb27834ec",
           "styleOverrides": [],
           "transform": {
             "x": 810,
@@ -1388,19 +1375,19 @@
           "interactionStates": [],
           "copyOverrides": {
             "actionLabel": "Let's Go",
-            "accessibleLabel": "Join the Christmas event now"
+            "accessibleLabel": "Join the Halloween event now"
           }
         },
         {
-          "id": "6f56bc20-a667-4430-942d-4f1ce633105b",
+          "id": "7987d84a-df85-43f8-a269-e6891f25e3f0",
           "type": "image",
-          "name": "Modal Left",
-          "assetId": "9fd8ebe0-161a-4775-b365-62eb47815a11",
+          "name": "Ghost",
+          "assetId": "92c2dee8-e1ba-4130-8f21-5b8b4e231512",
           "transform": {
-            "x": 0,
-            "y": 480,
-            "width": 260,
-            "height": 400,
+            "x": 1500,
+            "y": 620,
+            "width": 240,
+            "height": 285,
             "rotationDeg": 0,
             "scaleX": 1,
             "scaleY": 1
@@ -1408,28 +1395,7 @@
           "opacity": 1,
           "visible": true,
           "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "cb66b151-87ae-412b-a581-cb18474b6477",
-          "type": "image",
-          "name": "Modal Right",
-          "assetId": "b2579404-91e7-44b7-a1f4-aa379094797f",
-          "transform": {
-            "x": 1660,
-            "y": 480,
-            "width": 260,
-            "height": 400,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
+          "zIndex": 2,
           "responsive": [],
           "interactionStates": []
         }
@@ -1437,27 +1403,120 @@
       "animations": []
     }
   ],
-  "behaviourRules": [],
+  "behaviourRules": [
+    {
+      "id": "77f8f7bc-4a3a-4695-8414-5c15285b96e1",
+      "name": "Candy bowl fills as progress increases",
+      "enabled": true,
+      "priority": 0,
+      "trigger": {
+        "type": "whileTrue"
+      },
+      "condition": {
+        "type": "always"
+      },
+      "actions": [
+        {
+          "type": "setImageState",
+          "stateGroupId": "545a5e53-ed34-46be-a154-4d4c24897786",
+          "stateId": "e14f1f65-d61e-44d3-8c54-b9cd052408d7"
+        }
+      ]
+    },
+    {
+      "id": "0019d777-5705-43c2-b01d-9db52e4c375d",
+      "name": "Candy bowl: low",
+      "enabled": true,
+      "priority": 1,
+      "trigger": {
+        "type": "whileTrue"
+      },
+      "condition": {
+        "type": "inRange",
+        "variable": {
+          "kind": "progressPercent"
+        },
+        "min": 25,
+        "max": 49
+      },
+      "actions": [
+        {
+          "type": "setImageState",
+          "stateGroupId": "545a5e53-ed34-46be-a154-4d4c24897786",
+          "stateId": "b6aacc6e-b357-4e6c-b6c7-652bbbf76dda"
+        }
+      ]
+    },
+    {
+      "id": "bd8a0661-7348-47c6-be01-994906deda7d",
+      "name": "Candy bowl: medium",
+      "enabled": true,
+      "priority": 1,
+      "trigger": {
+        "type": "whileTrue"
+      },
+      "condition": {
+        "type": "inRange",
+        "variable": {
+          "kind": "progressPercent"
+        },
+        "min": 50,
+        "max": 74
+      },
+      "actions": [
+        {
+          "type": "setImageState",
+          "stateGroupId": "545a5e53-ed34-46be-a154-4d4c24897786",
+          "stateId": "2ded596d-e064-452b-8db7-597226800c35"
+        }
+      ]
+    },
+    {
+      "id": "c0bb0f4a-adac-49cf-aaf1-62b90df98b40",
+      "name": "Candy bowl: full",
+      "enabled": true,
+      "priority": 1,
+      "trigger": {
+        "type": "whileTrue"
+      },
+      "condition": {
+        "type": "inRange",
+        "variable": {
+          "kind": "progressPercent"
+        },
+        "min": 75,
+        "max": 100
+      },
+      "actions": [
+        {
+          "type": "setImageState",
+          "stateGroupId": "545a5e53-ed34-46be-a154-4d4c24897786",
+          "stateId": "9017882a-f991-49f9-833f-68127c059917"
+        }
+      ]
+    }
+  ],
   "simulationScenarios": [
     {
-      "id": "2d22b6ba-71d5-46bc-bbe2-607da38cff2a",
-      "name": "Not opted in yet",
+      "id": "a82fa835-3108-43d3-96a6-844646423df3",
+      "name": "Candy bowl: just opened",
       "eventStatus": "active",
       "eventActive": true,
       "eventAvailable": true,
       "performanceTier": "high",
       "reducedMotion": false,
       "dataProfile": "normal",
-      "optedIn": false,
+      "optedIn": true,
       "draftGenerated": false,
       "eventCompleted": false,
       "progressPercent": 0,
       "watchedCount": 0,
-      "targetCount": 8
+      "targetCount": 10,
+      "description": "Bowl should read Empty."
     },
     {
-      "id": "3bc072c2-2959-484a-ab95-9c2493540d7a",
-      "name": "Midway through",
+      "id": "816b6c3a-38fa-4e54-a022-77845910afed",
+      "name": "Candy bowl: quarter full",
       "eventStatus": "active",
       "eventActive": true,
       "eventAvailable": true,
@@ -1467,13 +1526,31 @@
       "optedIn": true,
       "draftGenerated": true,
       "eventCompleted": false,
-      "progressPercent": 50,
-      "watchedCount": 4,
-      "targetCount": 8
+      "progressPercent": 30,
+      "watchedCount": 3,
+      "targetCount": 10,
+      "description": "Bowl should read Low."
     },
     {
-      "id": "49448c5e-ba93-4f22-8f5d-c1b35e98e6e7",
-      "name": "All wrapped up",
+      "id": "b469a3de-e572-408c-b5ee-d6f67469f018",
+      "name": "Candy bowl: half full",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal",
+      "optedIn": true,
+      "draftGenerated": true,
+      "eventCompleted": false,
+      "progressPercent": 60,
+      "watchedCount": 6,
+      "targetCount": 10,
+      "description": "Bowl should read Medium."
+    },
+    {
+      "id": "624ef624-a2c5-44e8-b243-c26ae167de9d",
+      "name": "Candy bowl: full",
       "eventStatus": "active",
       "eventActive": true,
       "eventAvailable": true,
@@ -1484,12 +1561,13 @@
       "draftGenerated": true,
       "eventCompleted": true,
       "progressPercent": 100,
-      "watchedCount": 8,
-      "targetCount": 8
+      "watchedCount": 10,
+      "targetCount": 10,
+      "description": "Bowl should read Full."
     },
     {
-      "id": "3477b296-9cff-4624-908e-ba7963406944",
-      "name": "Christmas ended",
+      "id": "b2e03a38-e358-4f10-971a-8a131a8c8546",
+      "name": "Halloween ended",
       "eventStatus": "ended",
       "eventActive": false,
       "eventAvailable": false,
@@ -1497,11 +1575,12 @@
       "draftGenerated": true,
       "eventCompleted": true,
       "progressPercent": 100,
-      "watchedCount": 8,
-      "targetCount": 8,
+      "watchedCount": 10,
+      "targetCount": 10,
       "performanceTier": "high",
       "reducedMotion": false,
-      "dataProfile": "normal"
+      "dataProfile": "normal",
+      "description": "Event Complete page state."
     }
   ]
 }

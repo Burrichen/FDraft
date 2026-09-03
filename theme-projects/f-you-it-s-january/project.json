@@ -1,15 +1,26 @@
 {
   "formatVersion": "1.0.0",
   "metadata": {
-    "id": "f0793770-5497-4462-b17b-676235fd22f1",
-    "name": "Christmas"
+    "id": "4bd81882-616d-4eb5-b09b-8247d72ec49b",
+    "name": "F* You, It's January!"
   },
   "canvas": {
     "width": 1920,
     "height": 1080
   },
   "tokens": {
-    "colors": [],
+    "colors": [
+      {
+        "id": "898421ea-568e-4f96-9164-f5b99290265f",
+        "name": "January Sky Grey",
+        "value": "#3f3f46"
+      },
+      {
+        "id": "138d5790-090f-44d9-9a06-adf8bffa2396",
+        "name": "Rubbish Placeholder Grey",
+        "value": "#6b6b73"
+      }
+    ],
     "gradients": [],
     "shadows": [],
     "borders": [],
@@ -18,93 +29,12 @@
     "fonts": [],
     "breakpoints": []
   },
-  "assets": [
-    {
-      "id": "50ca227a-d379-4ed0-a960-d4251a342631",
-      "kind": "image",
-      "path": "assets/363d0a129ed595dee202be229d4b91a1a86f008c65fcfd809569ece8060fd973.png",
-      "mimeType": "image/png",
-      "sizeBytes": 9205,
-      "sha256": "363d0a129ed595dee202be229d4b91a1a86f008c65fcfd809569ece8060fd973",
-      "name": "christmas-tree.png",
-      "originalFileName": "christmas-tree.png"
-    },
-    {
-      "id": "bcca5c74-8e92-487e-8f6a-4eca0cf9094b",
-      "kind": "image",
-      "path": "assets/5186a3f0ed4078c0a6caa7cfcb89c4305d4a0e6dcb2486ba343a4a6e65177166.png",
-      "mimeType": "image/png",
-      "sizeBytes": 10061,
-      "sha256": "5186a3f0ed4078c0a6caa7cfcb89c4305d4a0e6dcb2486ba343a4a6e65177166",
-      "name": "presents.png",
-      "originalFileName": "presents.png"
-    },
-    {
-      "id": "81b52043-6bd4-44c4-844a-da32974ed46b",
-      "kind": "image",
-      "path": "assets/f2d8a5a32ad72ca38aad71cba6e4c03129243cd6cae6a9b3b2de36d3341389b4.png",
-      "mimeType": "image/png",
-      "sizeBytes": 12959,
-      "sha256": "f2d8a5a32ad72ca38aad71cba6e4c03129243cd6cae6a9b3b2de36d3341389b4",
-      "name": "snowman.png",
-      "originalFileName": "snowman.png"
-    },
-    {
-      "id": "a70d3257-9e8a-44b8-ab4b-f6d26cd54a3e",
-      "kind": "image",
-      "path": "assets/15b251427ee8e9b77b01c664a2a8bdd4ab59d33dad2b2c1179c9d93d93557f33.png",
-      "mimeType": "image/png",
-      "sizeBytes": 10728,
-      "sha256": "15b251427ee8e9b77b01c664a2a8bdd4ab59d33dad2b2c1179c9d93d93557f33",
-      "name": "stocking.png",
-      "originalFileName": "stocking.png"
-    },
-    {
-      "id": "b7fa8172-c8ca-44c4-82b9-6f2b25ef233b",
-      "kind": "image",
-      "path": "assets/91801f321c8fb781ee2b26c14416e052797d93415451689845757fc767190126.png",
-      "mimeType": "image/png",
-      "sizeBytes": 11331,
-      "sha256": "91801f321c8fb781ee2b26c14416e052797d93415451689845757fc767190126",
-      "name": "candy-canes.png",
-      "originalFileName": "candy-canes.png"
-    },
-    {
-      "id": "016cf5f8-1792-43da-a7e8-75112cf270cf",
-      "kind": "image",
-      "path": "assets/3d47d9fdcee9f39285bbbff7d43d21693f51c4e16614a94288414d873f473bfb.png",
-      "mimeType": "image/png",
-      "sizeBytes": 5469,
-      "sha256": "3d47d9fdcee9f39285bbbff7d43d21693f51c4e16614a94288414d873f473bfb",
-      "name": "fairy-lights.png",
-      "originalFileName": "fairy-lights.png"
-    },
-    {
-      "id": "9fd8ebe0-161a-4775-b365-62eb47815a11",
-      "kind": "image",
-      "path": "assets/fab5da7e1e8a438dfbaa9ab2050dd21dbf7a00305326f2e9bc99cd5441091513.png",
-      "mimeType": "image/png",
-      "sizeBytes": 8504,
-      "sha256": "fab5da7e1e8a438dfbaa9ab2050dd21dbf7a00305326f2e9bc99cd5441091513",
-      "name": "modal-left.png",
-      "originalFileName": "modal-left.png"
-    },
-    {
-      "id": "b2579404-91e7-44b7-a1f4-aa379094797f",
-      "kind": "image",
-      "path": "assets/f9a6ec91161f4acff1d1bce613a957fdc768976fcbe776dcada0563a5651963b.png",
-      "mimeType": "image/png",
-      "sizeBytes": 9576,
-      "sha256": "f9a6ec91161f4acff1d1bce613a957fdc768976fcbe776dcada0563a5651963b",
-      "name": "modal-right.png",
-      "originalFileName": "modal-right.png"
-    }
-  ],
+  "assets": [],
   "assetFolders": [],
   "imageStateGroups": [],
   "componentRequirements": [
     {
-      "id": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+      "id": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
       "componentKey": "page-title",
       "required": true,
       "allowedProperties": [
@@ -121,7 +51,7 @@
       "singleton": true
     },
     {
-      "id": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+      "id": "4890af5d-7f8a-4a69-94da-8fa44db704c3",
       "componentKey": "event-information",
       "required": true,
       "allowedProperties": [
@@ -137,7 +67,7 @@
       ]
     },
     {
-      "id": "904161d6-b205-424c-b819-5d4090cadbc4",
+      "id": "61a7370b-d410-45ee-9d6f-7021643e306a",
       "componentKey": "event-countdown",
       "required": true,
       "allowedProperties": [
@@ -153,7 +83,7 @@
       ]
     },
     {
-      "id": "63692dc7-db01-4749-9887-5a340dd98aa5",
+      "id": "ecef3e0e-0352-435e-bd33-ac2a263991dc",
       "componentKey": "generate-draft-action",
       "required": true,
       "allowedProperties": [
@@ -172,7 +102,7 @@
       "minHeightPx": 44
     },
     {
-      "id": "dbf62549-b860-4567-9f96-c2e5ad5b4b62",
+      "id": "867d4275-a801-49a0-bacc-25ec98b32641",
       "componentKey": "profile-badge",
       "required": false,
       "allowedProperties": [
@@ -191,7 +121,7 @@
       ]
     },
     {
-      "id": "799bb4df-e8f2-4c65-b21f-3a19c5957109",
+      "id": "bdd43b5b-6c7a-47df-85a4-a4788470abfb",
       "componentKey": "event-navigation",
       "required": false,
       "allowedProperties": [
@@ -210,7 +140,7 @@
       ]
     },
     {
-      "id": "f8f73fc3-5eb6-47ff-90c9-b0c327f1c669",
+      "id": "8890f596-b1bc-40b1-b1bb-e5060a0a4189",
       "componentKey": "film-grid",
       "required": true,
       "allowedProperties": [
@@ -226,7 +156,7 @@
       ]
     },
     {
-      "id": "a09388db-e885-48f9-8086-e0774dd8fad2",
+      "id": "e981b2e6-2280-4991-b2ab-30a90c15f664",
       "componentKey": "draft-progress",
       "required": true,
       "allowedProperties": [
@@ -242,7 +172,7 @@
       ]
     },
     {
-      "id": "985ff029-c4b4-46ce-b79d-ea95e0d150c1",
+      "id": "b9cc3cb5-9ab9-48be-8334-34a41defbc41",
       "componentKey": "draft-controls",
       "required": true,
       "allowedProperties": [
@@ -258,7 +188,7 @@
       ]
     },
     {
-      "id": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+      "id": "dde4abcd-79db-4814-95b6-24b38b19fd12",
       "componentKey": "results-completion-content",
       "required": true,
       "allowedProperties": [
@@ -274,7 +204,7 @@
       ]
     },
     {
-      "id": "03fe8371-afa9-475e-a639-b8c427292dcb",
+      "id": "c4ac7b9c-bbfe-474d-b613-b39424e5f3e4",
       "componentKey": "points-counter",
       "required": true,
       "allowedProperties": [
@@ -290,7 +220,7 @@
       ]
     },
     {
-      "id": "f551b837-1c32-4571-b15b-1ce90437b533",
+      "id": "2a3ad28b-8aae-4132-872f-4860afcb229d",
       "componentKey": "complete-watch-action",
       "required": true,
       "allowedProperties": [
@@ -309,7 +239,7 @@
       "minHeightPx": 44
     },
     {
-      "id": "26133256-8de3-4ce2-bdf5-39d5c0e4f761",
+      "id": "1cf2d0e1-02c9-466b-bc5b-cb52272fa241",
       "componentKey": "challenge-card",
       "required": false,
       "allowedProperties": [
@@ -325,7 +255,7 @@
       ]
     },
     {
-      "id": "2050fd37-1022-40b0-876f-3416c048a468",
+      "id": "538a6b13-90b8-424b-98b4-0ebe10ddf11f",
       "componentKey": "event-points-counter",
       "required": false,
       "allowedProperties": [
@@ -344,16 +274,16 @@
   "masters": [],
   "pages": [
     {
-      "id": "c23f2d08-d74b-41a1-bf09-307fe547c874",
+      "id": "44b2a85f-c22b-4587-8bdb-e0f6b3b2de0e",
       "name": "Event Landing",
       "slug": "event-landing",
       "layers": [
         {
-          "id": "7ee3a6b4-ffd0-470c-9838-7626ee711e1f",
+          "id": "b570f7df-1b4c-4289-b6c2-a2a963742a4b",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -371,15 +301,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "A Cozy Christmas"
+            "title": "F* You, It's January"
           }
         },
         {
-          "id": "e4f3242a-1f3f-43d9-8b78-8041a2b14379",
+          "id": "325148dc-7685-447a-97ca-d5fc4170ce27",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "4890af5d-7f8a-4a69-94da-8fa44db704c3",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -398,15 +328,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Runs through the holidays — watch, and warm up by the tree"
+            "dateRange": "One miserable week. Might as well watch something."
           }
         },
         {
-          "id": "368f6b07-280f-4d84-b0ca-efc8297e3e46",
+          "id": "dac02d11-5f1e-4362-a81d-942272772113",
           "type": "component",
           "name": "event-countdown",
           "componentKey": "event-countdown",
-          "componentRequirementId": "904161d6-b205-424c-b819-5d4090cadbc4",
+          "componentRequirementId": "61a7370b-d410-45ee-9d6f-7021643e306a",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -424,15 +354,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "accessibleLabel": "Time left in the Christmas event"
+            "accessibleLabel": "Time left in this miserable January event"
           }
         },
         {
-          "id": "5c823afe-cea3-4b1f-a76d-e9464f6f5096",
+          "id": "1abf0800-f8c3-41c1-97e3-4c9231b392ec",
           "type": "component",
           "name": "generate-draft-action",
           "componentKey": "generate-draft-action",
-          "componentRequirementId": "63692dc7-db01-4749-9887-5a340dd98aa5",
+          "componentRequirementId": "ecef3e0e-0352-435e-bd33-ac2a263991dc",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -450,16 +380,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "actionLabel": "Start My Watchlist",
-            "accessibleLabel": "Generate my Christmas film draft"
+            "actionLabel": "Fine. Let's Do This.",
+            "accessibleLabel": "Generate my January film draft"
           }
         },
         {
-          "id": "fe836030-e48a-459f-9171-51edc268c5be",
+          "id": "e6fc40c1-7d2e-409a-9dd4-b87cc511197d",
           "type": "component",
           "name": "profile-badge",
           "componentKey": "profile-badge",
-          "componentRequirementId": "dbf62549-b860-4567-9f96-c2e5ad5b4b62",
+          "componentRequirementId": "867d4275-a801-49a0-bacc-25ec98b32641",
           "styleOverrides": [],
           "zoneKind": "header",
           "transform": {
@@ -478,15 +408,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "accessibleLabel": "Your Christmas profile"
+            "accessibleLabel": "Your January profile"
           }
         },
         {
-          "id": "0cd0aeb5-1e97-4bfc-93bf-b14fb42ea8b3",
+          "id": "055f943b-0569-4129-a71e-736c020abe55",
           "type": "component",
           "name": "event-navigation",
           "componentKey": "event-navigation",
-          "componentRequirementId": "799bb4df-e8f2-4c65-b21f-3a19c5957109",
+          "componentRequirementId": "bdd43b5b-6c7a-47df-85a4-a4788470abfb",
           "styleOverrides": [],
           "zoneKind": "footer",
           "transform": {
@@ -506,125 +436,21 @@
           "interactionStates": [],
           "copyOverrides": {
             "previousLabel": "Back",
-            "nextLabel": "Onward",
-            "accessibleLabel": "Christmas event navigation"
+            "nextLabel": "Fine, Next",
+            "accessibleLabel": "January event navigation"
           }
         },
         {
-          "id": "ee787ee4-7fc0-4313-84aa-cca97dd0b830",
-          "type": "image",
-          "name": "Tree",
-          "assetId": "50ca227a-d379-4ed0-a960-d4251a342631",
+          "id": "b6708542-631c-42d7-9141-849c7b43a74c",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
           "transform": {
-            "x": 120,
-            "y": 600,
-            "width": 300,
-            "height": 375,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "8c8dd871-595e-4734-ab78-01dab189f74b",
-          "type": "image",
-          "name": "Presents",
-          "assetId": "bcca5c74-8e92-487e-8f6a-4eca0cf9094b",
-          "transform": {
-            "x": 420,
-            "y": 780,
-            "width": 260,
-            "height": 208,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "fcb08e78-ea22-4d75-81c5-4c492f5281fa",
-          "type": "image",
-          "name": "Snowman",
-          "assetId": "81b52043-6bd4-44c4-844a-da32974ed46b",
-          "transform": {
-            "x": 1500,
-            "y": 640,
-            "width": 260,
-            "height": 332,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "6ecdc552-ee88-4c2c-8b23-75c08b641a43",
-          "type": "image",
-          "name": "Stocking",
-          "assetId": "a70d3257-9e8a-44b8-ab4b-f6d26cd54a3e",
-          "transform": {
-            "x": 1720,
-            "y": 750,
-            "width": 180,
-            "height": 252,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "78d63b03-aa6f-43da-96fe-549923947d91",
-          "type": "image",
-          "name": "Candy Canes",
-          "assetId": "b7fa8172-c8ca-44c4-82b9-6f2b25ef233b",
-          "transform": {
-            "x": 40,
-            "y": 40,
-            "width": 120,
-            "height": 160,
-            "rotationDeg": -15,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "121bd984-8992-4b45-804d-f4833758484a",
-          "type": "image",
-          "name": "Fairy Lights",
-          "assetId": "016cf5f8-1792-43da-a7e8-75112cf270cf",
-          "transform": {
-            "x": 660,
+            "x": 0,
             "y": 0,
-            "width": 600,
-            "height": 144,
+            "width": 1920,
+            "height": 1080,
             "rotationDeg": 0,
             "scaleX": 1,
             "scaleY": 1
@@ -632,7 +458,116 @@
           "opacity": 1,
           "visible": true,
           "locked": false,
-          "zIndex": 0,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "81824095-3be1-4f71-a835-e74bd2f474b4",
+          "type": "effect",
+          "name": "Dark Clouds",
+          "effect": {
+            "id": "9be4a673-05db-4e93-bddd-7fa8c263dbc3",
+            "name": "Clouds",
+            "kind": "clouds",
+            "intensity": 0.5,
+            "speed": 1,
+            "opacity": 1,
+            "seed": 0
+          },
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -2,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "4c319242-39dc-4302-a71d-aeba93042668",
+          "type": "effect",
+          "name": "Miserable Rain",
+          "effect": {
+            "id": "60ec9b7d-f4bd-4024-b622-de14318cf9da",
+            "name": "Rain",
+            "kind": "rain",
+            "intensity": 0.5,
+            "speed": 1,
+            "opacity": 1,
+            "seed": 0
+          },
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -3,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "5e52ce4f-8887-4df3-8157-ce9916a05b8a",
+          "type": "effect",
+          "name": "Grey Fog",
+          "effect": {
+            "id": "22175b8e-5aeb-4c57-8320-46c3bfa20d0a",
+            "name": "Fog",
+            "kind": "fog",
+            "intensity": 0.5,
+            "speed": 1,
+            "opacity": 1,
+            "seed": 0
+          },
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -4,
+          "responsive": [],
+          "interactionStates": []
+        },
+        {
+          "id": "2dbf7d56-6f0b-4077-8e7e-430bfb326e49",
+          "type": "shape",
+          "name": "MISSING ART — Scattered rubbish (needs illustration)",
+          "shape": "rect",
+          "fillColorTokenId": "138d5790-090f-44d9-9a06-adf8bffa2396",
+          "transform": {
+            "x": 700,
+            "y": 900,
+            "width": 520,
+            "height": 120,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": 5,
           "responsive": [],
           "interactionStates": []
         }
@@ -640,16 +575,16 @@
       "animations": []
     },
     {
-      "id": "187f71e6-eba2-47f9-8252-38a17fe329be",
+      "id": "218c1c1f-1240-421f-b9c5-359a525d2fa7",
       "name": "Draft",
       "slug": "draft",
       "layers": [
         {
-          "id": "c2fc1b0c-e1cc-4416-9aaf-27b35d45f037",
+          "id": "2d4bfb53-4acd-4724-be9e-86a1c98bc896",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -667,15 +602,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Trim Your Watchlist"
+            "title": "Pick Something. Anything."
           }
         },
         {
-          "id": "8ee39aac-eeae-4fa7-8958-8e2bc0622784",
+          "id": "cd84f364-bcae-4600-91fa-13119f4cd73b",
           "type": "component",
           "name": "film-grid",
           "componentKey": "film-grid",
-          "componentRequirementId": "f8f73fc3-5eb6-47ff-90c9-b0c327f1c669",
+          "componentRequirementId": "8890f596-b1bc-40b1-b1bb-e5060a0a4189",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -694,11 +629,11 @@
           "interactionStates": []
         },
         {
-          "id": "d70b24f7-f663-4f9d-9063-d91b5cb595b5",
+          "id": "5abb6a1a-a894-4b2a-bf82-972e314c3558",
           "type": "component",
           "name": "draft-progress",
           "componentKey": "draft-progress",
-          "componentRequirementId": "a09388db-e885-48f9-8086-e0774dd8fad2",
+          "componentRequirementId": "e981b2e6-2280-4991-b2ab-30a90c15f664",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -716,15 +651,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "statusLabel": "{{picksMade}} of {{totalPicks}} picks wrapped"
+            "statusLabel": "{{picksMade}} of {{totalPicks}} endured"
           }
         },
         {
-          "id": "a2227b37-f42b-4813-b63b-f8b67508b1c0",
+          "id": "de7c76cf-ad56-453a-bdf3-9501e1852d33",
           "type": "component",
           "name": "draft-controls",
           "componentKey": "draft-controls",
-          "componentRequirementId": "985ff029-c4b4-46ce-b79d-ea95e0d150c1",
+          "componentRequirementId": "b9cc3cb5-9ab9-48be-8334-34a41defbc41",
           "styleOverrides": [],
           "transform": {
             "x": 560,
@@ -742,25 +677,47 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "skipLabel": "Not Feeling Festive",
-            "confirmLabel": "Add To Stocking",
-            "accessibleLabel": "Confirm your Christmas film pick"
+            "skipLabel": "Can't Even",
+            "confirmLabel": "Fine, This One",
+            "accessibleLabel": "Confirm your January film pick"
           }
+        },
+        {
+          "id": "c5788b56-43f3-444c-9111-77271231c282",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
     },
     {
-      "id": "c2980193-370b-4552-9da1-7ccf31ed50f5",
+      "id": "6586a777-fa0a-441c-8225-1653c5a2138e",
       "name": "Results",
       "slug": "results",
       "layers": [
         {
-          "id": "2eb18d97-6c23-4090-95a6-7aa363af71c7",
+          "id": "6634c1b3-5274-4702-8a15-733e3623af85",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -778,15 +735,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Under The Tree So Far"
+            "title": "Misery, Quantified"
           }
         },
         {
-          "id": "cff97cd6-9dcc-4430-a1a0-2e8ed1d17220",
+          "id": "b1183580-9729-41c7-8846-559858de103c",
           "type": "component",
           "name": "results-completion-content",
           "componentKey": "results-completion-content",
-          "componentRequirementId": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+          "componentRequirementId": "dde4abcd-79db-4814-95b6-24b38b19fd12",
           "styleOverrides": [],
           "transform": {
             "x": 260,
@@ -804,16 +761,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "headline": "Making good progress!",
-            "body": "Keep watching and the stocking keeps filling."
+            "headline": "Still going.",
+            "body": "The grey continues. So do you."
           }
         },
         {
-          "id": "cfd72db2-05e4-404b-b99b-145b0530781e",
+          "id": "bec93d59-d838-4ac5-a40a-9f5d9a0baf35",
           "type": "component",
           "name": "points-counter",
           "componentKey": "points-counter",
-          "componentRequirementId": "03fe8371-afa9-475e-a639-b8c427292dcb",
+          "componentRequirementId": "c4ac7b9c-bbfe-474d-b613-b39424e5f3e4",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -831,24 +788,46 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "unitLabel": "candy cane pts",
-            "accessibleLabel": "Your Christmas points"
+            "unitLabel": "misery pts",
+            "accessibleLabel": "Your misery points"
           }
+        },
+        {
+          "id": "435aef6e-bc49-4e21-8da9-5bd2aee1f625",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
     },
     {
-      "id": "5174bfaa-ff9d-4a66-af85-ed1e1192fc25",
+      "id": "ab062312-6e18-43f9-bb60-2d93927772ca",
       "name": "Completion",
       "slug": "completion",
       "layers": [
         {
-          "id": "9a085e20-ddd2-4f8c-8490-30d840db9dcd",
+          "id": "a48a784c-e281-4465-80a2-1ae55f770dfe",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -866,15 +845,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "All Wrapped Up"
+            "title": "You Survived"
           }
         },
         {
-          "id": "ec2e14ca-08ab-42dc-aebb-eaf3cf5cff83",
+          "id": "2268ca12-8270-4156-9f69-ae175eaef87a",
           "type": "component",
           "name": "results-completion-content",
           "componentKey": "results-completion-content",
-          "componentRequirementId": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+          "componentRequirementId": "dde4abcd-79db-4814-95b6-24b38b19fd12",
           "styleOverrides": [],
           "transform": {
             "x": 260,
@@ -892,16 +871,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "headline": "Happy holidays!",
-            "body": "You've watched every pick — thanks for spending {{eventName}} with us."
+            "headline": "It's over.",
+            "body": "Every miserable pick, watched. Go outside, maybe."
           }
         },
         {
-          "id": "e5357aa2-bbe5-4d7b-84b2-2c11415dc8e9",
+          "id": "c2f1f617-309d-4276-9042-162686bad719",
           "type": "component",
           "name": "complete-watch-action",
           "componentKey": "complete-watch-action",
-          "componentRequirementId": "f551b837-1c32-4571-b15b-1ce90437b533",
+          "componentRequirementId": "2a3ad28b-8aae-4132-872f-4860afcb229d",
           "styleOverrides": [],
           "transform": {
             "x": 800,
@@ -920,23 +899,45 @@
           "interactionStates": [],
           "copyOverrides": {
             "actionLabel": "Mark as Watched",
-            "accessibleLabel": "Mark this Christmas film as watched"
+            "accessibleLabel": "Mark this January film as watched"
           }
+        },
+        {
+          "id": "3fee10de-2ba9-4f5f-b9f8-0a7c940e1778",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
     },
     {
-      "id": "784cc665-fe94-4948-b429-d7f94655f485",
+      "id": "7e6f86e6-cd00-4a97-bde6-bc157b796c62",
       "name": "About/Information",
       "slug": "about",
       "layers": [
         {
-          "id": "ac3df0d3-04b9-4cdf-bbbd-6ce2f4c4ebcf",
+          "id": "fd21fa7a-8174-4f12-a860-7f94b4b7ac58",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -954,15 +955,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "About This Christmas"
+            "title": "What Even Is This"
           }
         },
         {
-          "id": "308ef5ed-db3e-4470-add4-e12bfa0788c9",
+          "id": "d0e5fe93-1925-4d0e-8869-39f90b9f8b97",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "4890af5d-7f8a-4a69-94da-8fa44db704c3",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -981,23 +982,45 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "A season of cozy films — no naughty list, just good picks"
+            "dateRange": "A short, grey, curated watch — because January deserves nothing more."
           }
+        },
+        {
+          "id": "c333b590-3ab0-46f6-b390-bb7b886127ee",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
     },
     {
-      "id": "e8b04c8e-78c7-4e2d-a36a-2bb1ee7f2368",
+      "id": "a6301d7d-228b-4584-89cf-b40adefcde77",
       "name": "Event Available",
       "slug": "event-available",
       "layers": [
         {
-          "id": "a5b1e486-f091-40ac-a1ee-3ce4f22f7f49",
+          "id": "35d2dcf3-6e66-4c78-a50c-d634bddfc295",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1015,15 +1038,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Is Coming"
+            "title": "Not Yet. Obviously."
           }
         },
         {
-          "id": "a399f109-9f0e-4dcb-9f99-3b358233fdeb",
+          "id": "62f9852d-410c-478b-ad58-3fb7bba62086",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "4890af5d-7f8a-4a69-94da-8fa44db704c3",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1042,15 +1065,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Not open yet — hang your stocking and wait"
+            "dateRange": "Come back when it's actually miserable enough."
           }
         },
         {
-          "id": "15fda7ce-c453-4b09-9695-1d6f8fd82e21",
+          "id": "925fa2a6-3ff1-45cc-91a1-1386b93a3c01",
           "type": "component",
           "name": "event-countdown",
           "componentKey": "event-countdown",
-          "componentRequirementId": "904161d6-b205-424c-b819-5d4090cadbc4",
+          "componentRequirementId": "61a7370b-d410-45ee-9d6f-7021643e306a",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1068,15 +1091,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "accessibleLabel": "Time until Christmas opens"
+            "accessibleLabel": "Time until the January event opens"
           }
         },
         {
-          "id": "f6efc7fa-9668-431c-b29e-b77506c5afba",
+          "id": "cbe6d3a8-4000-4293-af28-93d16394a26f",
           "type": "component",
           "name": "challenge-card",
           "componentKey": "challenge-card",
-          "componentRequirementId": "26133256-8de3-4ce2-bdf5-39d5c0e4f761",
+          "componentRequirementId": "1cf2d0e1-02c9-466b-bc5b-cb52272fa241",
           "styleOverrides": [],
           "transform": {
             "x": 1240,
@@ -1094,24 +1117,46 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Cocoa & a Classic",
-            "description": "Watch 3 festive picks this weekend for a bonus handful of candy canes."
+            "title": "Endure 3 in a Row",
+            "description": "Watch 3 picks back to back. No reward. That's the point."
           }
+        },
+        {
+          "id": "30ca1be6-43a3-4c6c-b40b-fbcfa9e4467e",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
     },
     {
-      "id": "f1fdb856-e688-464b-a3f0-c3fd4604e4f2",
+      "id": "96b36151-e963-435b-90d3-c9833d69bc1c",
       "name": "Join",
       "slug": "join",
       "layers": [
         {
-          "id": "30d288f2-ce4e-490a-ab06-b50da777b814",
+          "id": "1db7aaa5-372d-48a4-a93a-14c9bdf07893",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1129,15 +1174,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Is Here!"
+            "title": "It's Happening."
           }
         },
         {
-          "id": "03425816-2379-476a-873e-1d15d9179766",
+          "id": "2c67363c-cbd0-42d5-9f51-17700175156d",
           "type": "component",
           "name": "event-information",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "4890af5d-7f8a-4a69-94da-8fa44db704c3",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1156,15 +1201,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Opt in from your profile to start unwrapping films"
+            "dateRange": "Opt in from your profile. We won't judge. Much."
           }
         },
         {
-          "id": "6a566ec5-e5f8-46e5-9e79-3072714d2e71",
+          "id": "8ddf024f-425e-4c92-9271-db246471dd79",
           "type": "component",
           "name": "generate-draft-action",
           "componentKey": "generate-draft-action",
-          "componentRequirementId": "63692dc7-db01-4749-9887-5a340dd98aa5",
+          "componentRequirementId": "ecef3e0e-0352-435e-bd33-ac2a263991dc",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1182,24 +1227,46 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "actionLabel": "Add To Stocking",
-            "accessibleLabel": "Join the Christmas event"
+            "actionLabel": "Fine, Sign Me Up",
+            "accessibleLabel": "Join the January event"
           }
+        },
+        {
+          "id": "e32e739c-98d0-4eb2-a318-605de4bae470",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
     },
     {
-      "id": "5c26e1cd-40b5-4c6c-b20c-fa551a8f015f",
+      "id": "a69ed370-0beb-4c5b-9f6b-eab3a13aa8a7",
       "name": "Event Complete",
       "slug": "event-complete",
       "layers": [
         {
-          "id": "e17830d8-3156-4e88-b77d-8e45a639c4ab",
+          "id": "3747d0a9-f0c5-4c51-88a4-7cd48fe0d726",
           "type": "component",
           "name": "page-title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1217,15 +1284,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Has Ended"
+            "title": "January Is Over"
           }
         },
         {
-          "id": "525ad48f-ef82-417b-aa9e-79e532624b11",
+          "id": "e88f03da-a95e-4881-85c6-c1d1925a1105",
           "type": "component",
           "name": "results-completion-content",
           "componentKey": "results-completion-content",
-          "componentRequirementId": "ace3c745-4d8d-4098-8a3d-2ce66b84afd2",
+          "componentRequirementId": "dde4abcd-79db-4814-95b6-24b38b19fd12",
           "styleOverrides": [],
           "transform": {
             "x": 260,
@@ -1243,16 +1310,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "headline": "That's a wrap.",
-            "body": "The stockings are empty and the tree's coming down — see you next Christmas."
+            "headline": "It's February now.",
+            "body": "You made it through {{eventName}}. Small mercies."
           }
         },
         {
-          "id": "6455a49f-23d6-4103-8f05-eca7ea0f449f",
+          "id": "af55b690-cc0e-45e1-83ad-2251f16aac03",
           "type": "component",
           "name": "points-counter",
           "componentKey": "points-counter",
-          "componentRequirementId": "03fe8371-afa9-475e-a639-b8c427292dcb",
+          "componentRequirementId": "c4ac7b9c-bbfe-474d-b613-b39424e5f3e4",
           "styleOverrides": [],
           "transform": {
             "x": 80,
@@ -1270,16 +1337,16 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "unitLabel": "candy cane pts",
-            "accessibleLabel": "Your final Christmas points"
+            "unitLabel": "misery pts",
+            "accessibleLabel": "Your final misery points"
           }
         },
         {
-          "id": "2edf47d1-2894-488b-9232-f5eca78e0e74",
+          "id": "c2bcc718-9ae4-4d1d-b630-e74b3f442be5",
           "type": "component",
           "name": "event-points-counter",
           "componentKey": "event-points-counter",
-          "componentRequirementId": "2050fd37-1022-40b0-876f-3416c048a468",
+          "componentRequirementId": "538a6b13-90b8-424b-98b4-0ebe10ddf11f",
           "styleOverrides": [],
           "transform": {
             "x": 400,
@@ -1297,9 +1364,31 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "unitLabel": "candy cane pts",
-            "accessibleLabel": "Your points for this Christmas event"
+            "unitLabel": "misery pts",
+            "accessibleLabel": "Your points for this January event"
           }
+        },
+        {
+          "id": "e6981e40-a70a-4ff8-9c1c-9b423af6a8e4",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "zIndex": -1,
+          "responsive": [],
+          "interactionStates": []
         }
       ],
       "animations": []
@@ -1307,16 +1396,16 @@
   ],
   "popups": [
     {
-      "id": "77153aa7-0781-49fa-98f7-d4632da31adc",
+      "id": "f448c0eb-e05d-4554-be2a-592374119bb8",
       "name": "Event Available",
       "trigger": "onLoad",
       "layers": [
         {
-          "id": "0ca31bf2-1a11-47d2-8bd3-10324dd75220",
+          "id": "730592eb-bb34-4677-8c4c-ea482f0879f0",
           "type": "component",
           "name": "Popup Title",
           "componentKey": "page-title",
-          "componentRequirementId": "4e7e2306-5f38-4481-b6fb-ebea87235f50",
+          "componentRequirementId": "4e84152b-b3e7-4f5d-9305-0bd4575a0004",
           "styleOverrides": [],
           "transform": {
             "x": 460,
@@ -1334,15 +1423,15 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "title": "Christmas Is Open!"
+            "title": "It's January. Again."
           }
         },
         {
-          "id": "acc23d21-7b07-44bb-84d7-e7c51549a5e4",
+          "id": "a775c9be-a5dc-4fce-b080-7f0da1799bd9",
           "type": "component",
           "name": "Popup Info",
           "componentKey": "event-information",
-          "componentRequirementId": "f59904b1-e7ad-49b3-8aa5-74405093fc57",
+          "componentRequirementId": "4890af5d-7f8a-4a69-94da-8fa44db704c3",
           "styleOverrides": [],
           "transform": {
             "x": 460,
@@ -1361,15 +1450,15 @@
           "interactionStates": [],
           "copyOverrides": {
             "eventName": "{{eventName}}",
-            "dateRange": "Opt in now — the tree is lit and waiting"
+            "dateRange": "Opt in now. Or don't. It's January either way."
           }
         },
         {
-          "id": "485347ee-abcc-4450-a686-9fdf73e38ae2",
+          "id": "afc053b0-9f6a-49f8-804c-59ad910777b9",
           "type": "component",
           "name": "Popup Join Action",
           "componentKey": "generate-draft-action",
-          "componentRequirementId": "63692dc7-db01-4749-9887-5a340dd98aa5",
+          "componentRequirementId": "ecef3e0e-0352-435e-bd33-ac2a263991dc",
           "styleOverrides": [],
           "transform": {
             "x": 810,
@@ -1387,20 +1476,21 @@
           "responsive": [],
           "interactionStates": [],
           "copyOverrides": {
-            "actionLabel": "Let's Go",
-            "accessibleLabel": "Join the Christmas event now"
+            "actionLabel": "Let's Get This Over With",
+            "accessibleLabel": "Join the January event now"
           }
         },
         {
-          "id": "6f56bc20-a667-4430-942d-4f1ce633105b",
-          "type": "image",
-          "name": "Modal Left",
-          "assetId": "9fd8ebe0-161a-4775-b365-62eb47815a11",
+          "id": "c7d00258-6999-4381-8446-4a2dde277a36",
+          "type": "shape",
+          "name": "Background",
+          "shape": "rect",
+          "fillColorTokenId": "898421ea-568e-4f96-9164-f5b99290265f",
           "transform": {
             "x": 0,
-            "y": 480,
-            "width": 260,
-            "height": 400,
+            "y": 0,
+            "width": 1920,
+            "height": 1080,
             "rotationDeg": 0,
             "scaleX": 1,
             "scaleY": 1
@@ -1408,28 +1498,7 @@
           "opacity": 1,
           "visible": true,
           "locked": false,
-          "zIndex": 0,
-          "responsive": [],
-          "interactionStates": []
-        },
-        {
-          "id": "cb66b151-87ae-412b-a581-cb18474b6477",
-          "type": "image",
-          "name": "Modal Right",
-          "assetId": "b2579404-91e7-44b7-a1f4-aa379094797f",
-          "transform": {
-            "x": 1660,
-            "y": 480,
-            "width": 260,
-            "height": 400,
-            "rotationDeg": 0,
-            "scaleX": 1,
-            "scaleY": 1
-          },
-          "opacity": 1,
-          "visible": true,
-          "locked": false,
-          "zIndex": 0,
+          "zIndex": -1,
           "responsive": [],
           "interactionStates": []
         }
@@ -1440,56 +1509,75 @@
   "behaviourRules": [],
   "simulationScenarios": [
     {
-      "id": "2d22b6ba-71d5-46bc-bbe2-607da38cff2a",
-      "name": "Not opted in yet",
-      "eventStatus": "active",
-      "eventActive": true,
-      "eventAvailable": true,
+      "id": "09a39857-8b40-4081-93c6-6bc816437fad",
+      "name": "Available",
       "performanceTier": "high",
       "reducedMotion": false,
       "dataProfile": "normal",
+      "eventStatus": "available",
+      "eventActive": false,
+      "eventAvailable": true,
       "optedIn": false,
       "draftGenerated": false,
       "eventCompleted": false,
       "progressPercent": 0,
       "watchedCount": 0,
-      "targetCount": 8
+      "targetCount": 5
     },
     {
-      "id": "3bc072c2-2959-484a-ab95-9c2493540d7a",
-      "name": "Midway through",
-      "eventStatus": "active",
-      "eventActive": true,
-      "eventAvailable": true,
+      "id": "4c459953-7937-4cfd-b91b-f72a9a5d4262",
+      "name": "Joined",
       "performanceTier": "high",
       "reducedMotion": false,
       "dataProfile": "normal",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
+      "optedIn": true,
+      "draftGenerated": false,
+      "eventCompleted": false,
+      "progressPercent": 0,
+      "watchedCount": 0,
+      "targetCount": 5
+    },
+    {
+      "id": "c659bcf4-975f-4e9c-afdb-34f902dae70f",
+      "name": "Partial progress",
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
       "optedIn": true,
       "draftGenerated": true,
       "eventCompleted": false,
-      "progressPercent": 50,
-      "watchedCount": 4,
-      "targetCount": 8
+      "progressPercent": 40,
+      "watchedCount": 2,
+      "targetCount": 5
     },
     {
-      "id": "49448c5e-ba93-4f22-8f5d-c1b35e98e6e7",
-      "name": "All wrapped up",
-      "eventStatus": "active",
-      "eventActive": true,
-      "eventAvailable": true,
+      "id": "e23b9d0d-1b61-4a9e-a059-351403883da0",
+      "name": "Completed",
       "performanceTier": "high",
       "reducedMotion": false,
       "dataProfile": "normal",
+      "eventStatus": "active",
+      "eventActive": true,
+      "eventAvailable": true,
       "optedIn": true,
       "draftGenerated": true,
       "eventCompleted": true,
       "progressPercent": 100,
-      "watchedCount": 8,
-      "targetCount": 8
+      "watchedCount": 5,
+      "targetCount": 5
     },
     {
-      "id": "3477b296-9cff-4624-908e-ba7963406944",
-      "name": "Christmas ended",
+      "id": "52ca1ada-d332-43ac-97de-0e49764f6b1f",
+      "name": "Ended",
+      "performanceTier": "high",
+      "reducedMotion": false,
+      "dataProfile": "normal",
       "eventStatus": "ended",
       "eventActive": false,
       "eventAvailable": false,
@@ -1497,11 +1585,8 @@
       "draftGenerated": true,
       "eventCompleted": true,
       "progressPercent": 100,
-      "watchedCount": 8,
-      "targetCount": 8,
-      "performanceTier": "high",
-      "reducedMotion": false,
-      "dataProfile": "normal"
+      "watchedCount": 5,
+      "targetCount": 5
     }
   ]
 }
