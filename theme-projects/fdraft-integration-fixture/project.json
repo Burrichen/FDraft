@@ -1,0 +1,104 @@
+{
+  "formatVersion": "1.0.0",
+  "metadata": {
+    "id": "8d8de542-1a4b-4849-9479-9705983f4979",
+    "name": "FDraft Integration Fixture",
+    "description": "Proves the FDraft theme runtime integration end to end (Prompt 10)."
+  },
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "tokens": {
+    "colors": [],
+    "gradients": [],
+    "shadows": [],
+    "borders": [],
+    "spacing": [],
+    "radii": [],
+    "fonts": [],
+    "breakpoints": []
+  },
+  "assets": [],
+  "assetFolders": [],
+  "imageStateGroups": [],
+  "componentRequirements": [
+    {
+      "id": "0527bb56-92c7-443d-b41d-4cb0f6c16c68",
+      "componentKey": "page-title",
+      "required": true,
+      "allowedProperties": []
+    },
+    {
+      "id": "3fa163b0-9084-4d11-9316-87d2da7c5243",
+      "componentKey": "points-counter",
+      "required": true,
+      "allowedProperties": []
+    }
+  ],
+  "masters": [],
+  "pages": [
+    {
+      "id": "a90b2b59-3f7a-4a3a-a8df-9658832e504a",
+      "name": "Home",
+      "slug": "home",
+      "animations": [],
+      "layers": [
+        {
+          "visible": true,
+          "locked": false,
+          "opacity": 1,
+          "styleOverrides": [],
+          "copyVariants": {},
+          "responsive": [],
+          "interactionStates": [],
+          "id": "4c1ade92-22f6-45dc-b00c-aa30d4abb24a",
+          "type": "component",
+          "name": "Title",
+          "transform": {
+            "x": 40,
+            "y": 40,
+            "width": 1600,
+            "height": 280,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "zIndex": 0,
+          "componentKey": "page-title",
+          "componentRequirementId": "0527bb56-92c7-443d-b41d-4cb0f6c16c68",
+          "copyOverrides": {
+            "title": "Welcome to the Fixture Event"
+          }
+        },
+        {
+          "visible": true,
+          "locked": false,
+          "opacity": 1,
+          "styleOverrides": [],
+          "copyVariants": {},
+          "responsive": [],
+          "interactionStates": [],
+          "id": "c23e9812-5210-4c4b-a84d-d36ebd2f25c0",
+          "type": "component",
+          "name": "Points",
+          "transform": {
+            "x": 40,
+            "y": 400,
+            "width": 260,
+            "height": 140,
+            "rotationDeg": 0,
+            "scaleX": 1,
+            "scaleY": 1
+          },
+          "zIndex": 1,
+          "componentKey": "points-counter",
+          "componentRequirementId": "3fa163b0-9084-4d11-9316-87d2da7c5243",
+          "copyOverrides": {}
+        }
+      ]
+    }
+  ],
+  "popups": [],
+  "behaviourRules": []
+}

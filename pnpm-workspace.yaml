@@ -2,3 +2,29 @@ allowBuilds:
   esbuild: true
   sharp: false
   unrs-resolver: false
+
+# @fdraft/theme-renderer's packed package.json pins its own
+# "@fdraft/theme-sdk" dependency as a bare semver ("0.1.0"), which pnpm
+# resolves against the public npm registry by default even though this
+# workspace already declares @fdraft/theme-sdk as a pinned release-tarball
+# URL at the top level — see docs/fdraft-theme-runtime/INTEGRATION.md and
+# FDraft-Studio's docs/architecture/COMPATIBILITY_AND_RELEASES.md ("pnpm
+# consumer requirement"). Keep this pointed at the exact same tarball URL
+# as package.json's own "@fdraft/theme-sdk" entry.
+overrides:
+  "@fdraft/theme-sdk": "https://github.com/Burrichen/FDraft-Studio/releases/download/theme-runtime-v0.1.0/fdraft-theme-sdk-0.1.0.tgz"
+
+# SECURITY-RELEVANT, DELIBERATE: pnpm's default `blockExoticSubdeps: true`
+# refuses to resolve a tarball-URL dependency as a transitive dependency —
+# it does not recognise that the override above resolves to the exact
+# same URL @fdraft/theme-sdk is ALSO pinned to directly, two lines above
+# in this same file, as a genuine top-level dependency. There is no
+# per-package allowlist for this pnpm setting (checked pnpm's own
+# settings docs), only this global toggle. Disabling it is the tradeoff
+# FDraft-Studio's own release docs anticipated ("pnpm consumer
+# requirement") for this exact case — both tarball URLs are still
+# checksum-verified against the immutable GitHub Release before being
+# pinned here (see docs/fdraft-theme-runtime/INTEGRATION.md), so this
+# does not remove that verification, only pnpm's own generic transitive-
+# exotic-source refusal.
+blockExoticSubdeps: false
