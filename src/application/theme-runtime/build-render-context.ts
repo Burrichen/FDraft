@@ -1,7 +1,8 @@
 import { calculateDraftFilmProgress } from "@/domain/drafts/progress";
 import { getNextOccurrenceStart } from "@/domain/events/event-availability";
 import { getEventDefinition } from "@/domain/events/event-registry";
-import { getEffectiveEventDate } from "@/application/events/event-clock";
+import { GENERIC_POINT_CURRENCY } from "@/domain/events/point-currency";
+import { getEventDiscovery } from "@/application/events/event-discovery";
 import type { DraftFilmCardView } from "@/components/drafts/draft-film-card";
 import type { FDraftThemeRenderContextValue } from "@/infrastructure/theme-runtime/render-context";
 import type { Repositories } from "@/repositories";
@@ -36,10 +37,17 @@ export async function buildFDraftThemeRenderContext(params: {
   const { repositories, profileId, timezone, eventId, films } = params;
   const event = getEventDefinition(eventId);
 
-  const now = await getEffectiveEventDate(
-    { settings: repositories.settings, profiles: repositories.profiles },
+  // One shared discovery read gives both `now` (Admin-Mode-aware, same
+  // clock every other themed field below uses) and this event's real
+  // recorded participation/availability — the exact same function every
+  // other real consumer (nav, the intro modal, an event's own page) reads
+  // from, never a second, independently-timed lookup that could disagree.
+  const discovery = await getEventDiscovery(repositories, {
     profileId,
-  );
+    timezone,
+  });
+  const now = discovery.now;
+  const status = discovery.statuses.find((s) => s.event.id === eventId);
 
   const countdownTargetAtMs = event?.availability
     ? (getNextOccurrenceStart(event.availability, now, timezone)?.getTime() ??
@@ -49,19 +57,46 @@ export async function buildFDraftThemeRenderContext(params: {
   const pointsBalance = event?.pointType
     ? await repositories.points.getBalance(profileId, event.pointType)
     : null;
+  const lifetimePointsBalance = await repositories.points.getBalance(
+    profileId,
+    GENERIC_POINT_CURRENCY,
+  );
 
   const progress = calculateDraftFilmProgress(
     films.filter((film) => film.isCompleted).length,
     films.length,
   );
+  const draftGenerated = films.length > 0;
+  const eventCompleted =
+    progress.watchedCount > 0 && progress.watchedCount >= progress.totalCount;
+
+  const eventAvailable = status?.available ?? false;
+  const optedIn = status?.participation === "joined";
+  const eventActive = eventAvailable || (status?.manuallyEnabled ?? false);
+  const eventPhase: FDraftThemeRenderContextValue["eventPhase"] = !status
+    ? undefined
+    : eventActive
+      ? optedIn
+        ? "active"
+        : "available"
+      : optedIn
+        ? "ended"
+        : undefined;
 
   return {
     eventId,
     films,
     pointsBalance,
+    lifetimePointsBalance,
     progressPercent: progress.percentWatched,
     watchedCount: progress.watchedCount,
     targetCount: progress.totalCount,
     countdownTargetAtMs,
+    eventAvailable,
+    eventActive,
+    optedIn,
+    draftGenerated,
+    eventCompleted,
+    eventPhase,
   };
 }

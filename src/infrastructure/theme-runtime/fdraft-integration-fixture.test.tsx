@@ -100,10 +100,17 @@ describe("fdraft-integration-fixture end-to-end render", () => {
                 eventId: "f-you-its-january",
                 films: [],
                 pointsBalance: 7,
+                lifetimePointsBalance: 12,
                 progressPercent: 0,
                 watchedCount: 0,
                 targetCount: 0,
                 countdownTargetAtMs: null,
+                eventAvailable: false,
+                eventActive: false,
+                optedIn: false,
+                draftGenerated: false,
+                eventCompleted: false,
+                eventPhase: undefined,
               }}
             >
               <ThemeRenderer
@@ -122,6 +129,8 @@ describe("fdraft-integration-fixture end-to-end render", () => {
     expect(
       screen.getByText("Welcome to the Fixture Event"),
     ).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
+    // points-counter reads the overall/Lifetime balance, not the
+    // event-scoped one — see `lifetimePointsBalance`'s own doc comment.
+    expect(screen.getByText("12")).toBeInTheDocument();
   });
 });

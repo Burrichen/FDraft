@@ -28,6 +28,14 @@ export const FDRAFT_SUPPORTED_COMPONENT_KEYS = [
   "film-grid",
   "event-progress",
   "points-counter",
+  "generate-draft-action",
+  "profile-badge",
+  "event-navigation",
+  "draft-progress",
+  "complete-watch-action",
+  "challenge-card",
+  "results-completion-content",
+  "event-points-counter",
 ] as const;
 
 export type FDraftSupportedComponentKey =
@@ -38,14 +46,27 @@ export type FDraftSupportedComponentKey =
  * responsive/animations/masters/popups/effects/behaviour) FDraft's own
  * `ThemeRenderer` host wiring actually exercises. All six are structurally
  * supported by the renderer package itself; this list is FDraft's own
- * declared support surface for THIS phase — see
- * `docs/fdraft-theme-runtime/INTEGRATION.md` for what's genuinely
- * exercised by a test versus merely passed through.
+ * declared support surface for THIS phase.
+ *
+ * `behaviour` and `effects` were added after, not before, real end-to-end
+ * proof: `default-template-support.test.tsx` renders a real
+ * `BehaviourRule` (hide/show, priority-broken conflict) and a real `rain`
+ * effect layer through this file's own real adapters/render context at
+ * every performance tier, and `theme-preview-client.tsx` now genuinely
+ * passes a real `hostSettings`/`renderState` (previously it passed
+ * neither, so even a declared-supported theme would have silently no-op'd
+ * every Behaviour condition). `animations` stays undeclared — not
+ * exercised by this phase, so not claimed. See FDraft-Studio's
+ * `docs/IMPLEMENTATION_STATUS.md` row 14 for why the shared SDK/renderer
+ * needed no changes for either capability, and
+ * `docs/fdraft-theme-runtime/INTEGRATION.md` for the full adapter list.
  */
 export const FDRAFT_SUPPORTED_CAPABILITIES = [
   "responsive",
   "masters",
   "popups",
+  "behaviour",
+  "effects",
 ] as const;
 
 /**

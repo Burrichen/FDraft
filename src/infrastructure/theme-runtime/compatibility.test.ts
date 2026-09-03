@@ -67,30 +67,48 @@ describe("checkThemeCompatibility", () => {
   it("rejects a theme requiring an unsupported component key", () => {
     const result = checkThemeCompatibility({
       minRendererVersion: "0.1.0",
-      requiredComponentKeys: ["profile-badge"],
+      requiredComponentKeys: ["film-card"],
       capabilities: [],
     });
     expect(result.compatible).toBe(false);
-    expect(result.reasons.some((r) => r.includes("profile-badge"))).toBe(true);
+    expect(result.reasons.some((r) => r.includes("film-card"))).toBe(true);
   });
 
   it("rejects a theme requiring an unsupported capability", () => {
     const result = checkThemeCompatibility({
       minRendererVersion: "0.1.0",
       requiredComponentKeys: [],
-      capabilities: ["behaviour"],
+      capabilities: ["animations"],
     });
     expect(result.compatible).toBe(false);
-    expect(result.reasons.some((r) => r.includes("behaviour"))).toBe(true);
+    expect(result.reasons.some((r) => r.includes("animations"))).toBe(true);
   });
 
   it("reports every incompatibility reason at once, not just the first", () => {
     const result = checkThemeCompatibility({
       minRendererVersion: "99.0.0",
-      requiredComponentKeys: ["profile-badge"],
-      capabilities: ["behaviour"],
+      requiredComponentKeys: ["film-card"],
+      capabilities: ["animations"],
     });
     expect(result.compatible).toBe(false);
     expect(result.reasons).toHaveLength(3);
+  });
+
+  it("accepts a theme requiring the newly-supported behaviour/effects capabilities and their component keys", () => {
+    const result = checkThemeCompatibility({
+      minRendererVersion: "0.1.0",
+      requiredComponentKeys: [
+        "generate-draft-action",
+        "profile-badge",
+        "event-navigation",
+        "draft-progress",
+        "complete-watch-action",
+        "challenge-card",
+        "results-completion-content",
+        "event-points-counter",
+      ],
+      capabilities: ["behaviour", "effects"],
+    });
+    expect(result).toEqual({ compatible: true, reasons: [] });
   });
 });
