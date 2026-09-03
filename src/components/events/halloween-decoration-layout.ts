@@ -2,115 +2,101 @@ import type { EventDecorationLayout } from "@/domain/events/event-decoration-slo
 import type { EventDecorationSlotPositions } from "./event-decoration-layer";
 
 /**
- * Halloween's real Designed Slot configuration (see docs/updates, "EVENT
- * ART SYSTEM — DESIGNED SLOTS + WEIGHTED VARIANTS" §7) — replaces the
- * previous versions of `halloween-decorative-layer.tsx` and
- * `halloween-dialog-decoration.tsx`, which always rendered the exact same
- * fixed set of pieces at fixed positions every time. Every asset id
- * referenced below must exist in `HALLOWEEN_DECORATION_REGISTRY`
- * (`halloween-decoration-registry.tsx`) — this file only says WHERE and
- * HOW OFTEN, never WHAT something looks like.
+ * Halloween Event page's decoration layout (see docs/updates, "HALLOWEEN
+ * EVENT ART REWORK + WIDER DESKTOP LAYOUT") — replaces the previous
+ * randomized cluster of small inline-SVG accents (bunting, cobwebs, bats,
+ * skulls, leaves, ...) with exactly five real, supplied-art pieces, each
+ * with one designed job:
  *
- * A few of the task's own example picks don't correspond to real,
- * already-existing artwork and were substituted for genuine pieces
- * instead of inventing new illustrations this phase was never asked to
- * draw:
- *  - "cat-2" (no cat artwork exists anywhere in this project) → the
- *    existing `tiny-pumpkin`/`ghost-2` pieces fill that variety instead.
- *  - "gravestone" as an ambient decoration option was deliberately left
- *    out — this app already has exactly ONE interactive gravestone
- *    easter egg (`HalloweenGravestone`) placed on the page; letting a
- *    slot ALSO randomly place a second, non-interactive gravestone
- *    look-alike would read as a duplicate/broken easter egg, not a
- *    decoration. `leaf`/`skull` fill that slot's variety instead.
+ *  - `header-right` (top-right): `full-moon`, always — no longer a
+ *    weighted pick against "nothing"/"moon-and-bats"; the brief calls for
+ *    ONLY the moon here.
+ *  - `edge-peek-left` (mid-left, far edge): a 25% chance of `ghost-01`
+ *    peeking in from off-screen, 75% nothing — genuinely ambient, shown
+ *    regardless of whether the profile is currently joined (see
+ *    `HalloweenDecorativeLayer`, unconditional at the top of the page).
+ *  - `edge-peek-right` (far bottom-right): `cyndaquil`, always, flipped to
+ *    face into the page (the registry entry itself applies the flip —
+ *    see `halloween-decoration-registry.tsx`).
  *
- * Weights are plain relative numbers, not required to sum to 100 (see
- * `pickDecorationVariant`) — written as round numbers here purely for
- * human readability when skimming this file.
+ * The interactive bottom-right slot (75% Candy Bowl / 25% `ghost-02`) is
+ * deliberately a SEPARATE layout, `HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT`
+ * — the Candy Bowl is a real interactive easter egg, not ambient theming,
+ * and this app's existing convention (see the previous version of this
+ * page) only ever showed its interactive pieces (pumpkin, gravestone,
+ * candy bowl) once a profile is actively joined to the current occurrence.
+ * Splitting it out lets `HalloweenPageClient` mount it only behind that
+ * same `isActiveForProfile` gate, while the three purely-ambient slots
+ * above keep rendering unconditionally, exactly as the old moon/bats/
+ * cobwebs did.
+ *
+ * The centre-bottom interactive pumpkin isn't a slot here at all — it's a
+ * single, always-the-same, persisted-state easter egg
+ * (`HalloweenPumpkin`), rendered directly by `HalloweenPageClient`, same
+ * as before this rework.
+ *
+ * Every asset id referenced below must exist in
+ * `HALLOWEEN_DECORATION_REGISTRY` (`halloween-decoration-registry.tsx`) —
+ * this file only says WHERE and HOW OFTEN, never WHAT something looks
+ * like. Weights are plain relative numbers, not required to sum to 100
+ * (see `pickDecorationVariant`).
  */
 export const HALLOWEEN_PAGE_DECORATION_LAYOUT: EventDecorationLayout = {
   "header-right": {
     slot: "header-right",
     visibleFrom: "sm",
-    variants: [
-      { assetId: "moon", weight: 45 },
-      { assetId: "moon-and-bats", weight: 35 },
-      { assetId: null, weight: 20 },
-    ],
-  },
-  "top-edge": {
-    slot: "top-edge",
-    visibleFrom: "lg",
-    variants: [
-      { assetId: "bunting", weight: 60, layer: "mid" },
-      { assetId: null, weight: 40 },
-    ],
-  },
-  "mid-left": {
-    slot: "mid-left",
-    visibleFrom: "xl",
-    variants: [
-      { assetId: "candle", weight: 50 },
-      { assetId: "skull", weight: 30, opacity: 0.7 },
-      { assetId: null, weight: 20 },
-    ],
-  },
-  "mid-right": {
-    slot: "mid-right",
-    visibleFrom: "lg",
-    variants: [
-      { assetId: "ghost-1", weight: 30, opacity: 0.9 },
-      { assetId: "ghost-2", weight: 25, opacity: 0.85 },
-      { assetId: "tiny-pumpkin", weight: 20 },
-      { assetId: null, weight: 25 },
-    ],
-  },
-  "lower-left": {
-    slot: "lower-left",
-    visibleFrom: "lg",
-    variants: [
-      { assetId: "leaf", weight: 50, opacity: 0.7 },
-      { assetId: "skull", weight: 20, opacity: 0.6 },
-      { assetId: null, weight: 30 },
-    ],
-  },
-  "lower-right": {
-    slot: "lower-right",
-    visibleFrom: "lg",
-    variants: [
-      { assetId: "candy-scatter", weight: 40, layer: "foreground" },
-      { assetId: "pumpkin-cluster", weight: 35 },
-      { assetId: "ghost-2", weight: 25 },
-    ],
+    variants: [{ assetId: "full-moon", weight: 1 }],
   },
   "edge-peek-left": {
     slot: "edge-peek-left",
-    visibleFrom: "base",
-    variants: [{ assetId: "cobweb", weight: 1, opacity: 0.6 }],
+    visibleFrom: "lg",
+    variants: [
+      { assetId: "ghost-01", weight: 25 },
+      { assetId: null, weight: 75 },
+    ],
   },
   "edge-peek-right": {
     slot: "edge-peek-right",
     visibleFrom: "base",
-    variants: [{ assetId: "cobweb-mirrored", weight: 1, opacity: 0.6 }],
+    variants: [{ assetId: "cyndaquil", weight: 1 }],
   },
 };
 
 /**
- * Coordinates for the Event page's own decorative layer — deliberately
- * right/lower-margin heavy past the two corner webs (see the previous
- * version's own doc comment, preserved in spirit): the page's real
- * content column is left-aligned, so genuine empty space sits to the
- * right of and below it at wide viewports.
+ * The Halloween page's one INTERACTIVE decoration slot — bottom-right,
+ * 75% Candy Bowl / 25% `ghost-02` — kept behind the same
+ * `isActiveForProfile` gate the Candy Bowl always required (see this
+ * file's own top comment). Uses the SAME session-stable weighted-pick
+ * mechanism as every other Designed Slot (`resolveDecorationLayout`), so
+ * "stable for the session, a fresh app launch may choose again" comes for
+ * free rather than being hand-rolled again for this one slot.
+ */
+export const HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT: EventDecorationLayout = {
+  "lower-right": {
+    slot: "lower-right",
+    visibleFrom: "base",
+    variants: [
+      { assetId: "candy-bowl", weight: 75 },
+      { assetId: "ghost-02", weight: 25 },
+    ],
+  },
+};
+
+/**
+ * Coordinates for the Event page's own decorative layer, shared by both
+ * layouts above (a slot name is only ever positioned once regardless of
+ * which layout object it's declared in). Deliberately composed so the
+ * bottom-right cluster reads as ONE arrangement rather than two things
+ * randomly stacked: `lower-right` (Candy Bowl/ghost-02) sits inward/up
+ * from `edge-peek-right` (Cyndaquil, tucked into the very corner) — see
+ * docs/updates, "CYNDAQUIL + BOWL SLOT COEXISTENCE".
  */
 export const HALLOWEEN_PAGE_SLOT_POSITIONS: EventDecorationSlotPositions = {
-  "header-right": "absolute top-4 right-16",
-  "top-edge": "absolute top-2 right-6",
-  "mid-left": "absolute top-[58%] left-6",
-  "mid-right": "absolute top-1/2 right-10",
-  "lower-left": "absolute bottom-8 left-10",
-  "lower-right": "absolute right-12 bottom-16",
-  "edge-peek-left": "absolute top-0 left-0",
-  "edge-peek-right": "absolute top-0 right-0 -scale-x-100",
+  "header-right": "absolute top-0 right-2 sm:right-4 lg:top-2 lg:right-10",
+  "edge-peek-left": "absolute top-1/2 -left-6 -translate-y-1/2 sm:-left-8",
+  "edge-peek-right": "absolute -right-1 bottom-0 sm:right-2 sm:bottom-1",
+  "lower-right":
+    "absolute right-24 bottom-6 sm:right-28 sm:bottom-8 lg:right-36",
 };
 
 export const HALLOWEEN_MODAL_DECORATION_LAYOUT: EventDecorationLayout = {

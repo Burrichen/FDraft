@@ -67,7 +67,7 @@ export function ActiveDraftFilms({
       </div>
 
       {toWatch.length > 0 ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
           {toWatch.map((film) => (
             <li key={film.itemId}>
               <DraftFilmCard
@@ -94,7 +94,7 @@ export function ActiveDraftFilms({
           <summary className="text-muted-foreground hover:text-foreground focus-visible:outline-ring w-fit cursor-pointer text-sm font-medium select-none focus-visible:outline-2 focus-visible:outline-offset-2">
             Completed ({completed.length})
           </summary>
-          <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
             {completed.map((film) => (
               <li key={film.itemId}>
                 <DraftFilmCard

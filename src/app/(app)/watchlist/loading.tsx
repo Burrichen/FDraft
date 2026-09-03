@@ -7,7 +7,7 @@ export default function WatchlistLoading() {
         <Skeleton className="h-6 w-32" />
         <Skeleton className="h-4 w-20" />
       </div>
-      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
         {Array.from({ length: 10 }, (_, index) => (
           <li key={index}>
             <Skeleton className="aspect-2/3 w-full rounded-lg" />

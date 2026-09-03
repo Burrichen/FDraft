@@ -139,7 +139,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       {halloweenAmbientVisible ? <HalloweenAmbientDecorations /> : null}
       <div className="flex min-h-full flex-col">
         <Header activeProfile={activeProfile} profiles={profiles} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <main className="app-shell-width flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>

@@ -9,6 +9,7 @@ import {
 } from "./halloween-ambient-decoration-layout";
 import { HALLOWEEN_DECORATION_REGISTRY } from "./halloween-decoration-registry";
 import {
+  HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_SLOT_POSITIONS,
   HALLOWEEN_PAGE_DECORATION_LAYOUT,
@@ -44,7 +45,16 @@ registerEventArt({
   decorationRegistry: HALLOWEEN_DECORATION_REGISTRY,
   surfaces: {
     page: {
-      layout: HALLOWEEN_PAGE_DECORATION_LAYOUT,
+      // Combines the always-on ambient layout with the interactive Candy
+      // Bowl/ghost-02 slot purely so the dev-only preview
+      // (`EventArtSystemPreviewSection`) shows every real slot at once —
+      // `HalloweenPageClient` itself still renders them as two separate
+      // layers so it can gate the interactive one behind
+      // `isActiveForProfile` (see `halloween-decorative-layer.tsx`).
+      layout: {
+        ...HALLOWEEN_PAGE_DECORATION_LAYOUT,
+        ...HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
+      },
       positions: HALLOWEEN_PAGE_SLOT_POSITIONS,
     },
     modal: {

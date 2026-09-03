@@ -114,7 +114,7 @@ export function DiyFilmBrowser({
       ) : (
         <ul
           aria-label="Eligible films"
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
         >
           {/* `min-w-0` on each grid item overrides its automatic minimum
               size — without it, a long `truncate`d title's full,

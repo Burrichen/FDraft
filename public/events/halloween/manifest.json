@@ -4,7 +4,11 @@
   "icons": {},
   "decorations": {},
   "modal": {
-    "ghost": "modal/ghost.png"
+    "ghost": "modal/ghost_01.png",
+    "ghost-01": "modal/ghost_01.png",
+    "ghost-02": "modal/ghost_02.png",
+    "full-moon": "modal/moon.png",
+    "cyndaquil": "modal/cyndaquil_halloween.png"
   },
   "interactives": {
     "pumpkin-uncarved": "interactives/pumpkin-uncarved.png",

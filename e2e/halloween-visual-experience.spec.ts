@@ -5,9 +5,11 @@ import { expect, test } from "@playwright/test";
  * EASTER EGGS" — the one end-to-end walkthrough covering the whole
  * Halloween presentation: Admin Mode's Event Testing simulated date,
  * joining, the Kitsch Halloween theme, the nav tab's own active accent,
- * all three approved easter eggs, and the "Haunted" jumpscare's full
- * lifecycle (armed warning → skull overlay → clean return, no navigation,
- * no persisted state).
+ * the pumpkin/Candy Bowl easter eggs still on this page (the gravestone
+ * easter egg moved off this page in "HALLOWEEN EVENT ART REWORK" — it's
+ * covered separately wherever the Event Studio theme system places it),
+ * and the "Haunted" jumpscare's full lifecycle (armed warning → skull
+ * overlay → clean return, no navigation, no persisted state).
  */
 test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async ({
   page,
@@ -58,23 +60,6 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
 
-  // Gravestone: stays non-spoiler for the first two clicks, reveals the
-  // profile's display name on the third.
-  const gravestone = page.getByRole("button", { name: "Old gravestone" });
-  await expect(gravestone).toBeVisible();
-  await gravestone.click();
-  await expect(
-    page.getByRole("button", { name: "Old gravestone" }),
-  ).toBeVisible();
-  await gravestone.click();
-  await expect(
-    page.getByRole("button", { name: "Old gravestone" }),
-  ).toBeVisible();
-  await gravestone.click();
-  await expect(
-    page.getByRole("button", { name: "Alexandria the Great" }),
-  ).toBeVisible();
-
   // Pumpkin: advances one state per click, persists across a reload.
   const pumpkinButton = page.getByRole("button", {
     name: /pumpkin: uncarved/i,
@@ -89,16 +74,24 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
     page.getByRole("button", { name: /pumpkin: carved/i }),
   ).toBeVisible();
 
-  // Candy bowl: decrements per click, never persists (a fresh mount is
-  // full again — verified separately at the unit level).
+  // Bottom-right Designed Slot: the Candy Bowl 75% of sessions, `ghost_02`
+  // the other 25% (see docs/updates, "HALLOWEEN EVENT ART REWORK" — the
+  // pick is stable for this session but genuinely random ACROSS sessions,
+  // so this assertion only exercises the Candy Bowl's own click-to-eat
+  // interaction when that's what this particular session landed on,
+  // rather than assuming a fixed outcome and flaking ~25% of the time).
   const candyButtons = page.getByRole("button", {
     name: "Take a piece of candy",
   });
   const candyCountBefore = await candyButtons.count();
-  await candyButtons.first().click();
-  await expect(
-    page.getByRole("button", { name: "Take a piece of candy" }),
-  ).toHaveCount(candyCountBefore - 1);
+  if (candyCountBefore > 0) {
+    // Candy bowl: decrements per click, never persists (a fresh mount is
+    // full again — verified separately at the unit level).
+    await candyButtons.first().click();
+    await expect(
+      page.getByRole("button", { name: "Take a piece of candy" }),
+    ).toHaveCount(candyCountBefore - 1);
+  }
 
   // Haunted: armed warning, then the full-screen skull jumpscare, then a
   // clean return to exactly the same Settings page — no navigation, no

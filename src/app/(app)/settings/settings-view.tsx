@@ -84,7 +84,7 @@ export function SettingsView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8">
+    <div className="mx-auto w-full max-w-[87.5rem] space-y-8">
       <div>
         <h1 className="page-heading">Settings</h1>
         <p className="page-subtitle">

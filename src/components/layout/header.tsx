@@ -21,7 +21,7 @@ interface HeaderProps {
 export function Header({ activeProfile, profiles }: HeaderProps) {
   return (
     <header className="border-border bg-card/95 supports-backdrop-filter:bg-card/85 sticky top-0 z-40 border-b shadow-sm shadow-black/10 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+      <div className="app-shell-width flex h-16 items-center gap-4 px-4 sm:px-6 lg:px-8">
         <MobileNav />
         <Link
           href="/watchlist"

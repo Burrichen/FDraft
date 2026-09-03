@@ -4,12 +4,13 @@ import { formatInTimeZone } from "date-fns-tz";
 import { toast } from "sonner";
 import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
-import { HalloweenCandyBowl } from "@/components/events/halloween-candy-bowl";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
-import { HalloweenDecorativeLayer } from "@/components/events/halloween-decorative-layer";
+import {
+  HalloweenActivePageDecorations,
+  HalloweenDecorativeLayer,
+} from "@/components/events/halloween-decorative-layer";
 import { HalloweenDraftCreationView } from "@/components/events/halloween-draft-creation-view";
 import { describeFixedEventDeadline } from "@/components/events/fixed-event-deadline-copy";
-import { HalloweenGravestone } from "@/components/events/halloween-gravestone";
 import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { resolveEventTheme } from "@/components/events/event-visual-themes";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
@@ -54,8 +55,9 @@ import { useAsyncData } from "@/hooks/use-async-data";
  *
  * No `max-w-2xl` wrapper (see docs/updates, "HALLOWEEN PAGE REBUILD" §13)
  * — the normal Drafts page (`/drafts`) has no width constraint of its own
- * beyond the app shell's shared `max-w-6xl`, so a narrower cap here read
- * as a "secondary utility page" rather than a genuine themed counterpart.
+ * beyond the app shell's shared `.app-shell-width` (see `globals.css`), so
+ * a narrower cap here read as a "secondary utility page" rather than a
+ * genuine themed counterpart.
  */
 export function HalloweenPageClient() {
   const { activeProfile, repositories } = useProfileContext();
@@ -178,17 +180,35 @@ export function HalloweenPageClient() {
               </p>
             ) : null}
 
+            {/* The interactive pumpkin — the ONLY normal pumpkin decoration
+                on this page (see docs/updates, "HALLOWEEN EVENT ART
+                REWORK"), centred bottom rather than sharing a row with the
+                gravestone/candy bowl: the gravestone easter egg no longer
+                appears on this page (it's still reachable through the
+                Event Studio theme system, see `theme-interaction-
+                registry.tsx`), and the Candy Bowl moved into the
+                bottom-right Designed Slot below
+                (`HalloweenActivePageDecorations`). */}
             <div
               key={activeProfile.id}
-              className="border-halloween-purple/20 flex flex-wrap items-end justify-center gap-6 border-t pt-6"
+              className="border-halloween-purple/20 flex justify-center border-t pt-6"
             >
-              <HalloweenGravestone />
               <HalloweenPumpkin />
-              <HalloweenCandyBowl />
             </div>
           </>
         ) : null}
       </div>
+      {/* Rendered AFTER (not alongside `HalloweenDecorativeLayer` above)
+          deliberately: this is the one Designed Slot that's genuinely
+          interactive (the Candy Bowl), and every earlier sibling here —
+          including the whole content column above, itself `position:
+          relative` — paints over an `auto`-`z-index` positioned sibling
+          that comes BEFORE it in tree order. Being last guarantees this
+          slot's real buttons stay clickable/on top rather than getting
+          silently swallowed by the content column's own (invisible,
+          full-size) box — see docs/updates, "HALLOWEEN EVENT ART REWORK",
+          "CANDY BOWL CLICK-THROUGH FIX". */}
+      {isActiveForProfile ? <HalloweenActivePageDecorations /> : null}
     </div>
   );
 }

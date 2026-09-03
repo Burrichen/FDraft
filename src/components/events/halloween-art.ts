@@ -32,6 +32,10 @@ const HALLOWEEN_ART_PACK = parseEventArtPack(halloweenManifest);
 
 export const HALLOWEEN_ART = {
   ghost: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "ghost"),
+  ghostOne: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "ghost-01"),
+  ghostTwo: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "ghost-02"),
+  fullMoon: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "full-moon"),
+  cyndaquil: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "cyndaquil"),
   pumpkinUncarved: resolveEventArtPath(
     HALLOWEEN_ART_PACK,
     "interactives",

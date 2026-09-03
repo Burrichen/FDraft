@@ -22,6 +22,20 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.10",
+    nickname: "Trick or Treat (Beta 10)",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          "FDraft now uses much more of the screen on large desktop displays — a wider content area, more film-grid columns, and longer progress bars on big monitors — without changing how it looks on laptops, tablets, or phones.",
+          "The Halloween Event page's decorations now use the final artwork: a full moon top-right, a ghost peeking in from the left edge, and a Cyndaquil companion tucked into the bottom-right corner alongside the pumpkin and candy bowl.",
+          "The Halloween page's gravestone easter egg has moved off the Event page to make room for the new artwork (it's still findable elsewhere).",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.9",
     nickname: "Trick or Treat (Beta 9)",
     sections: [

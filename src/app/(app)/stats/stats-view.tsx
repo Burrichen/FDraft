@@ -206,7 +206,7 @@ export function StatsView() {
             />
           </section>
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             <DistributionCard title="Decades" stat={stats.decadeDistribution} />
             <DistributionCard title="Genres" stat={stats.genreDistribution} />
             <DistributionCard title="Ratings" stat={stats.ratingDistribution} />
