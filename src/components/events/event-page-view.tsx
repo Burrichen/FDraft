@@ -104,7 +104,14 @@ export function EventPageView({
   );
 
   return (
-    <div className="max-w-2xl space-y-6">
+    // No outer width cap (see docs/updates, "HALLOWEEN VISUAL/LAYOUT
+    // REPAIR" §10) — `DraftLifecycleView` below needs the full shared
+    // shell width for its own film grid/progress bar, exactly like the
+    // normal Drafts page and Halloween's own dedicated page get; only the
+    // intro prose/bullets above it are deliberately narrower (a `max-w-xl`
+    // card, not the whole page) since a paragraph and a bullet list read
+    // worse stretched edge to edge than a normal Draft's content does.
+    <div className="space-y-6">
       <div>
         <h1 className="page-heading flex flex-wrap items-center gap-2">
           {theme ? <theme.icon aria-hidden="true" className="size-6" /> : null}
@@ -113,7 +120,7 @@ export function EventPageView({
         <p className="page-subtitle">{event.intro.description}</p>
       </div>
 
-      <Card>
+      <Card className="max-w-xl">
         <CardContent>
           <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">
             {event.intro.bullets.map((bullet) => (
@@ -127,7 +134,7 @@ export function EventPageView({
       balance !== null &&
       balance !== undefined &&
       event.pointType ? (
-        <Card>
+        <Card className="max-w-xl">
           <CardContent>
             <p className="text-sm">
               Your balance: <strong className="tabular-nums">{balance}</strong>{" "}

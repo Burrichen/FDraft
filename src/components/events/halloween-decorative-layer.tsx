@@ -9,6 +9,7 @@ import {
 import { HALLOWEEN_DECORATION_REGISTRY } from "./halloween-decoration-registry";
 import {
   HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
+  HALLOWEEN_HEADER_DECORATION_LAYOUT,
   HALLOWEEN_PAGE_DECORATION_LAYOUT,
   HALLOWEEN_PAGE_SLOT_POSITIONS,
 } from "./halloween-decoration-layout";
@@ -38,6 +39,33 @@ export function HalloweenDecorativeLayer() {
   return (
     <EventDecorationLayer
       layout={HALLOWEEN_PAGE_DECORATION_LAYOUT}
+      positions={HALLOWEEN_PAGE_SLOT_POSITIONS}
+      registry={HALLOWEEN_DECORATION_REGISTRY}
+      seedInputs={{
+        eventId: HALLOWEEN_EVENT_ID,
+        layoutKey: "halloween-page",
+        profileId: activeProfile?.id ?? null,
+      }}
+      className="-z-10"
+    />
+  );
+}
+
+/**
+ * The mid-left `ghost-01` peek — scoped to whatever small, near-constant-
+ * height element it's mounted inside (see `HALLOWEEN_HEADER_DECORATION_
+ * LAYOUT`'s own comment for why this can't share `HalloweenDecorativeLayer`'s
+ * whole-page-height container), so `HalloweenPageClient` wraps just its own
+ * header block (heading + deadline text) in a `relative` div and mounts
+ * this there — `top-1/2` then centres the ghost against the TITLE, not
+ * against a Draft's own variable-length film grid further down the page.
+ */
+export function HalloweenGhostPeekLayer() {
+  const { activeProfile } = useProfileContext();
+
+  return (
+    <EventDecorationLayer
+      layout={HALLOWEEN_HEADER_DECORATION_LAYOUT}
       positions={HALLOWEEN_PAGE_SLOT_POSITIONS}
       registry={HALLOWEEN_DECORATION_REGISTRY}
       seedInputs={{

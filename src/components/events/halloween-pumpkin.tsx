@@ -81,7 +81,7 @@ export function HalloweenPumpkin() {
     >
       <EventArtImage
         src={STATE_ART[state]}
-        className="size-full transition-transform motion-safe:group-active:scale-95"
+        className="size-full object-contain transition-transform motion-safe:group-active:scale-95"
       />
     </button>
   );

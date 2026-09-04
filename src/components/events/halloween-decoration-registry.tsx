@@ -62,11 +62,23 @@ export const HALLOWEEN_DECORATION_REGISTRY: DecorationAssetRegistry = {
    * (`halloween-decoration-layout.ts`). Width-only sizing (`h-auto`) keeps
    * each PNG's real aspect ratio intact rather than force-squaring it.
    */
+  /**
+   * Deliberately small (only visible from `lg` regardless — see
+   * `HALLOWEEN_HEADER_DECORATION_LAYOUT`) — this renders inside the page
+   * header's own small, near-constant-height `relative` box (see
+   * `HalloweenGhostPeekLayer`'s doc comment), which also clips via
+   * `overflow-hidden` (the shared `EventDecorationLayer` root); much
+   * bigger than this and it would visibly crop top/bottom against that
+   * box rather than reading as a deliberate "peeking from the edge" size.
+   * A fixed (not breakpoint-scaled) size, paired with a fixed left offset
+   * on its own position (`HALLOWEEN_PAGE_SLOT_POSITIONS["edge-peek-left"]`)
+   * that only reveals a small sliver — the heading's own icon/text and the
+   * "Event ends..." subtitle both start flush against this same
+   * container's left edge, so anything wider showing through reads as
+   * covering the title rather than peeking beside it.
+   */
   "ghost-01": () => (
-    <EventArtImage
-      src={HALLOWEEN_ART.ghostOne}
-      className="h-auto w-20 sm:w-24 lg:w-28"
-    />
+    <EventArtImage src={HALLOWEEN_ART.ghostOne} className="h-auto w-16" />
   ),
   "ghost-02": () => (
     <EventArtImage
@@ -74,10 +86,15 @@ export const HALLOWEEN_DECORATION_REGISTRY: DecorationAssetRegistry = {
       className="h-auto w-20 sm:w-24"
     />
   ),
+  // `xl`/`2xl` steps added during the release-hardening pass (see
+  // docs/product-spec.md, "Desktop Layout Width") — previously capped at
+  // `lg:w-24` (96px) with nothing beyond it, so the moon stayed exactly
+  // that same fixed pixel size all the way up to 2560px+ displays, where
+  // it read as noticeably tiny relative to the rest of the page.
   "full-moon": () => (
     <EventArtImage
       src={HALLOWEEN_ART.fullMoon}
-      className="h-auto w-16 sm:w-20 lg:w-24"
+      className="h-auto w-16 sm:w-20 lg:w-24 xl:w-28 2xl:w-32"
     />
   ),
   /** Flipped via `-scale-x-100` (see docs/updates, "CYNDAQUIL FLIPPING") so it faces INTO the page rather than off it — the project's established flip convention (see `cobweb-mirrored` below), never a second mirrored image file. */

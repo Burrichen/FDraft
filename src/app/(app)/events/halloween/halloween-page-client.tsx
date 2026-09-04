@@ -8,10 +8,10 @@ import { useEventDiscovery } from "@/components/events/event-discovery-provider"
 import {
   HalloweenActivePageDecorations,
   HalloweenDecorativeLayer,
+  HalloweenGhostPeekLayer,
 } from "@/components/events/halloween-decorative-layer";
 import { HalloweenDraftCreationView } from "@/components/events/halloween-draft-creation-view";
 import { describeFixedEventDeadline } from "@/components/events/fixed-event-deadline-copy";
-import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { resolveEventTheme } from "@/components/events/event-visual-themes";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
 import { useProfileContext } from "@/components/profiles/profile-provider";
@@ -116,7 +116,8 @@ export function HalloweenPageClient() {
     <div className="theme-halloween relative">
       <HalloweenDecorativeLayer />
       <div className="relative space-y-6">
-        <div>
+        <div className="relative">
+          <HalloweenGhostPeekLayer />
           <h1 className="page-heading flex flex-wrap items-center gap-2">
             {theme ? (
               <theme.icon aria-hidden="true" className="size-6" />
@@ -171,31 +172,23 @@ export function HalloweenPageClient() {
           }
         />
 
-        {isActiveForProfile ? (
-          <>
-            {hauntedPoints !== null && hauntedPoints !== undefined ? (
-              <p className="text-muted-foreground text-sm">
-                Haunted Points:{" "}
-                <strong className="tabular-nums">{hauntedPoints}</strong>
-              </p>
-            ) : null}
-
-            {/* The interactive pumpkin — the ONLY normal pumpkin decoration
-                on this page (see docs/updates, "HALLOWEEN EVENT ART
-                REWORK"), centred bottom rather than sharing a row with the
-                gravestone/candy bowl: the gravestone easter egg no longer
-                appears on this page (it's still reachable through the
-                Event Studio theme system, see `theme-interaction-
-                registry.tsx`), and the Candy Bowl moved into the
-                bottom-right Designed Slot below
-                (`HalloweenActivePageDecorations`). */}
-            <div
-              key={activeProfile.id}
-              className="border-halloween-purple/20 flex justify-center border-t pt-6"
-            >
-              <HalloweenPumpkin />
-            </div>
-          </>
+        {/* No interactive easter egg row here any more (see docs/updates,
+            "HALLOWEEN VISUAL/LAYOUT REPAIR") — the gravestone left this
+            page first (still reachable via the Event Studio theme system,
+            see `theme-interaction-registry.tsx`), and the pumpkin has now
+            moved to the History page (`HalloweenPumpkin`, in
+            `drafts/history/page.tsx`), shown there instead whenever
+            Halloween is joined/active with visuals on. The Candy Bowl
+            stays on this page via the bottom-right Designed Slot below
+            (`HalloweenActivePageDecorations`) — it was always a page
+            decoration, never a History concern. */}
+        {isActiveForProfile &&
+        hauntedPoints !== null &&
+        hauntedPoints !== undefined ? (
+          <p className="text-muted-foreground text-sm">
+            Haunted Points:{" "}
+            <strong className="tabular-nums">{hauntedPoints}</strong>
+          </p>
         ) : null}
       </div>
       {/* Rendered AFTER (not alongside `HalloweenDecorativeLayer` above)

@@ -288,7 +288,36 @@ export function DraftLifecycleView({
     eventVisualsEnabled,
     effectiveEventNow,
   } = data;
-  const deadlineLabel = new Date(draft.deadlineAt).toLocaleString(undefined, {
+
+  // For a "fixed event deadline" draft (Halloween), the displayed deadline
+  // must always be the CURRENT Event occurrence's own end — never
+  // `draft.deadlineAt` read verbatim (see docs/updates, "HALLOWEEN
+  // COUNTDOWN BUG"): that stored value is only ever CORRECT because
+  // `createHalloweenLocalDraft` happened to compute it the same way at
+  // creation time, so a draft carrying a stale value from an earlier,
+  // buggier Beta (or any future drift between the two calculations) would
+  // silently show the wrong deadline forever. Deriving it fresh here,
+  // exactly like `eventWindow` below already does for the progress bar's
+  // own `startedAt`, is a read-only display fix — it never rewrites
+  // `draft.deadlineAt` itself, which `expireLocalDraftIfDue`/
+  // `finalizeExpiredEventDraftIfNeeded` still intentionally trust as-is
+  // (see that file's own doc comment) for deciding when to actually expire
+  // the draft, and a completed/expired draft's historical timestamps are
+  // never touched.
+  const event = draft.sourceEventId
+    ? getEventDefinition(draft.sourceEventId)
+    : null;
+  const eventWindow =
+    event?.fixedEventDeadline && effectiveEventNow
+      ? getCurrentOccurrenceBounds(
+          event.availability,
+          effectiveEventNow,
+          draft.timezone,
+        )
+      : null;
+  const deadlineLabel = new Date(
+    eventWindow ? eventWindow.end : draft.deadlineAt,
+  ).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -481,28 +510,17 @@ export function DraftLifecycleView({
   const unresolvedChallengeCount =
     draft.challengeFilmCount - challengeItemCount;
 
-  // A "fixed event deadline" draft's progress bar shows how far through
+  // `event`/`eventWindow` were already derived above (for `deadlineLabel`)
+  // — a "fixed event deadline" draft's progress bar shows how far through
   // the EVENT's own natural window the profile is (see docs/updates,
-  // "PROMPT B2.2", "EVENT TIME PROGRESS") — anchored to the event's own
-  // start/end instants and the Admin-aware effective date, not this
-  // draft's own creation timestamp and the real wall clock. Falls back to
-  // the normal per-draft window for every other draft, unchanged.
-  const event = draft.sourceEventId
-    ? getEventDefinition(draft.sourceEventId)
-    : null;
-  const eventWindow =
-    event?.fixedEventDeadline && effectiveEventNow
-      ? getCurrentOccurrenceBounds(
-          event.availability,
-          effectiveEventNow,
-          draft.timezone,
-        )
-      : null;
+  // "PROMPT B2.2", "EVENT TIME PROGRESS"), reusing that SAME window rather
+  // than recomputing it, so the progress bar and the deadline text next to
+  // it can never disagree with each other.
   const timeProgress = calculateDraftTimeProgress({
     mode: eventWindow ? "timer" : draft.timeMode,
     now: eventWindow && effectiveEventNow ? effectiveEventNow : new Date(),
     startedAt: eventWindow ? eventWindow.start : new Date(draft.startedAt),
-    deadlineAt: new Date(draft.deadlineAt),
+    deadlineAt: eventWindow ? eventWindow.end : new Date(draft.deadlineAt),
     timezone: draft.timezone,
   });
 

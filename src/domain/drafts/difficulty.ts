@@ -57,6 +57,13 @@ export const DIFFICULTIES: Record<DraftDifficulty, DifficultyDefinition> = {
     filmCount: null,
     description: `Generate films in batches of ${FREEFORM_BATCH_SIZE} as you go. Your rank is determined by how many you finish.`,
   },
+  "one-at-a-time": {
+    id: "one-at-a-time",
+    label: "One At A Time",
+    filmCount: null,
+    description:
+      "Pick films one at a time — Random, Choose My Own, or a Challenge — and stop whenever the list feels big enough.",
+  },
 };
 
 export const DIFFICULTY_ORDER: DraftDifficulty[] = [
@@ -66,6 +73,7 @@ export const DIFFICULTY_ORDER: DraftDifficulty[] = [
   "hard",
   "hardcore",
   "freeform",
+  "one-at-a-time",
 ];
 
 /** Type guard for an untrusted value (e.g. a URL search param) — never trust a raw string as a `DraftDifficulty` without going through this first. */
@@ -83,12 +91,17 @@ export function isFreeform(id: DraftDifficulty): boolean {
   return id === "freeform";
 }
 
-/** Fixed film count for a non-freeform difficulty. Throws for freeform, which has no fixed count. */
+/** See `DraftDifficulty`'s own doc comment — a distinct creation mode, never a numeric size. */
+export function isOneAtATime(id: DraftDifficulty): boolean {
+  return id === "one-at-a-time";
+}
+
+/** Fixed film count for a non-freeform, non-one-at-a-time difficulty. Throws for either of those, which have no fixed count. */
 export function getFilmCount(id: DraftDifficulty): number {
   const definition = DIFFICULTIES[id];
   if (definition.filmCount === null) {
     throw new Error(
-      `getFilmCount: '${id}' has no fixed film count — freeform grows in batches, use FREEFORM_BATCH_SIZE`,
+      `getFilmCount: '${id}' has no fixed film count — freeform grows in batches (use FREEFORM_BATCH_SIZE), and one-at-a-time's count is whatever was actually staged`,
     );
   }
   return definition.filmCount;

@@ -1,11 +1,15 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getEventArtRegistration } from "./event-art-registry";
-import { HalloweenDecorativeLayer } from "./halloween-decorative-layer";
+import {
+  HalloweenDecorativeLayer,
+  HalloweenGhostPeekLayer,
+} from "./halloween-decorative-layer";
 import { HalloweenDialogDecoration } from "./halloween-dialog-decoration";
 import { HALLOWEEN_DECORATION_REGISTRY } from "./halloween-decoration-registry";
 import {
   HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
+  HALLOWEEN_HEADER_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_DECORATION_LAYOUT,
   HALLOWEEN_PAGE_DECORATION_LAYOUT,
 } from "./halloween-decoration-layout";
@@ -53,8 +57,21 @@ describe("Halloween Designed Slot configuration", () => {
     }
   });
 
+  it("every asset id the header (ghost-01 peek) layout references is actually registered", () => {
+    for (const assetId of declaredAssetIds(
+      HALLOWEEN_HEADER_DECORATION_LAYOUT,
+    )) {
+      expect(HALLOWEEN_DECORATION_REGISTRY).toHaveProperty(assetId);
+    }
+  });
+
   it("HalloweenDecorativeLayer (the Event page's layer) renders without crashing", () => {
     const { container } = render(<HalloweenDecorativeLayer />);
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it("HalloweenGhostPeekLayer (the header-scoped ghost-01 peek) renders without crashing", () => {
+    const { container } = render(<HalloweenGhostPeekLayer />);
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
   });
 

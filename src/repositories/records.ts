@@ -13,8 +13,25 @@
  * the interface.
  */
 
+/**
+ * `"one-at-a-time"` (see docs/updates, "ONE AT A TIME DRAFTING — CORE
+ * SYSTEM") is a distinct creation MODE, not a numeric size — its final
+ * `DraftRecord.totalFilms` is whatever the user actually staged before
+ * pressing Done (1, 3, 17, ...), never a fixed count from `DIFFICULTIES`
+ * (see `getFilmCount`, which deliberately throws for it exactly like it
+ * already does for `"freeform"`). Distinguishing it as its own difficulty
+ * value — rather than e.g. modelling it as "freeform with a count of one"
+ * — is what lets History/Stats keep showing "One At A Time" as the mode a
+ * draft was built with, independent of how many films ended up in it.
+ */
 export type DraftDifficulty =
-  "baby" | "easy" | "medium" | "hard" | "hardcore" | "freeform";
+  | "baby"
+  | "easy"
+  | "medium"
+  | "hard"
+  | "hardcore"
+  | "freeform"
+  | "one-at-a-time";
 export type DraftTimeMode = "calendar" | "timer";
 /**
  * `"discarded"`: the profile let go of this draft without completing it —

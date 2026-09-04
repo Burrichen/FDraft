@@ -218,6 +218,27 @@ the typography side, page subtitles are capped at a `60ch` measure so a
 short one-or-two-sentence subtitle never stretches into an unreadably
 long line on a wide desktop viewport.
 
+### Desktop Layout Width
+
+On an ordinary large-desktop viewport (roughly 1440px and wider), a
+page's primary content should occupy **at least ~75% of the available
+window width**, unless a specific screen has a genuine usability reason
+not to (e.g. a single short confirmation dialog). This app is not a
+narrow content-column reading app — a nested 600–800px `max-width`
+wrapper stranding the real interface on the left side of a 1920px+
+window is a bug, not an acceptable default, on every primary page
+(Watchlist, Drafts, Start a Draft, Active Draft, Challenge pickers,
+History, Stats, Settings, Event pages).
+
+Meeting this is about the actual rendered UI using the space, not just
+an outer wrapper's measured width — a grid should gain columns, a
+challenge/film list should use multi-column layout, and a progress bar
+should scale with the container, rather than a wide outer `<div>`
+containing an inner element still clamped to a narrow fixed width. At
+the same time, don't force width for its own sake: a body-text line
+should stay comfortably readable (see Typography's `60ch` subtitle cap
+above) rather than stretching edge-to-edge just to hit a percentage.
+
 #### Offline Font Requirement
 
 `next/font/google` downloads the font files at BUILD time and serves them
@@ -909,6 +930,8 @@ Hardcore — 20 films
 
 Freeform — special behaviour described below
 
+One At A Time — special behaviour described below
+
 Represent difficulty programmatically, not with duplicated magic numbers throughout the codebase.
 
 ---
@@ -935,6 +958,72 @@ Use these thresholds:
 Show the final achieved rank in the results.
 
 Do not count generated-but-unwatched films as completed.
+
+---
+
+## ONE AT A TIME MODE
+
+A third creation mode alongside a fixed-count difficulty and Freeform —
+distinguished as its own difficulty (`filmCount: null`, like Freeform),
+not as "a difficulty with count 1." Its final film count is decided by
+the user at "Done" time, not chosen upfront and not derived from any
+watched/completion threshold the way Freeform's after-the-fact rank is.
+
+### Builder flow
+
+Selecting "One At A Time" on Start a Draft skips the normal film-count/
+random-vs-challenge-split configuration entirely — only the Deadline
+(Calendar/Timer Mode) choice remains — and "Continue" hands off to a
+dedicated builder screen. The builder is a session-local wizard: nothing
+is persisted as an official Draft until "Done" is pressed; leaving it any
+other way (Cancel, back button, closing the tab) discards all in-progress
+staged films, the same "an unsubmitted draft never becomes a draft"
+convention every other creation flow already follows.
+
+The builder repeats one step for every film added — "Choose your next
+film," offering exactly three sources, each reusing an existing FDraft
+system rather than a parallel implementation:
+
+- **Random** — picks one eligible film (the same canonical eligibility
+  every random roll uses) and shows a candidate review screen (poster,
+  title, year, runtime, rating) with **Reroll** and **Okay** actions. A
+  film is never added just because Random was pressed — only "Okay"
+  stages it. Reroll excludes the currently-shown candidate (in addition
+  to every already-staged film) where the pool allows it; when nothing
+  else is left to reroll to, the current candidate stays on screen with
+  an explanatory message rather than erroring out or looping.
+- **Choose My Own** — opens the app's existing large manual/DIY film
+  picker (poster grid, search, sort/filter, metadata, eligibility,
+  release protections, sequel handling) with already-staged films
+  excluded from its list. Confirm stages the pick and advances; Cancel
+  returns to source selection with nothing added.
+- **Challenge** — opens the existing Challenge picker configured for
+  exactly ONE slot, never the multi-slot "X of Y challenges chosen" +
+  empty-slot chrome a numeric-difficulty draft shows (that presentation
+  assumes a known target slot count, which One At A Time never has).
+  Resolution goes through the same challenge engine, eligibility
+  messaging, and bounded-retry behaviour every other Challenge draft
+  uses; already-staged films are excluded from the attempt's candidate
+  pool so a Challenge can never hand back a duplicate.
+
+Each confirmed film lands on "Your Draft So Far" — every staged film
+shown with its own source badge ("Random," "Chosen," or "Challenge:
+<name>") — before offering **Next Film** (returns to source selection;
+different sources may be mixed freely in any order and any combination)
+or **Done**.
+
+### Arbitrary final size
+
+**Done** finalizes the draft with whatever film count is currently
+staged — there is no preset target, no "3 of 12" style progress display
+(always "N films selected"), and no minimum beyond at least one film.
+Done is disabled at zero staged films and enabled the moment the first
+one is confirmed. Official Draft creation reuses the exact same
+persistence pipeline, deadline rules, and "one active normal Draft at a
+time" gating every other Draft mode goes through — a finalized One At A
+Time Draft behaves identically to any other Draft afterward (progress,
+watched/undo, completion, History, Stats, sorting), it is simply not
+batch-generated up front.
 
 ---
 
@@ -2167,6 +2256,15 @@ never 0% just because the Draft itself was created partway through the
 season, and never affected by whatever the Admin override happens to be
 simulating for anything else.
 
+The deadline SHOWN on an active Halloween Draft is always recomputed
+live from the current occurrence's own bounds on every render — never
+read verbatim from the Draft's own stored `deadlineAt`, which exists
+only to drive actual expiry and is otherwise treated as a snapshot that
+can go stale (e.g. a Draft created under an earlier, buggier calculation,
+or under a different simulated Admin date). Every one of 30 Sep 19:00,
+15 Oct, 30 Oct, and 31 Oct 23:59 must display the same real end instant —
+1 November at 00:00 — with no case frozen on an old value.
+
 ### Editing the Horror and Kitsch lists
 
 Both lists live in one small, hand-edited, versioned JSON file —
@@ -2220,10 +2318,15 @@ interactive details for profiles to discover on their own; per the
 project's own convention, this document intentionally does not enumerate
 their exact mechanics here. At a high level: one is purely session-only
 (nothing about it is ever saved), one persists a small piece of
-per-profile state the same way any other profile setting does, and one is
-a rare, deliberately one-time visual moment reachable only from Settings
-while Halloween is active. None of them can affect drafts, watched state,
-or any other real data.
+per-profile state the same way any other profile setting does — its
+interactive surface lives on the History page rather than the Halloween
+Event page itself, so it stays reachable via a page every profile already
+visits regularly — and one is a rare, deliberately one-time visual moment
+reachable only from Settings while Halloween is active. None of them can
+affect drafts, watched state, or any other real data. Outside Halloween's
+window, and on every ordinary (non-Event) page while Halloween IS active,
+app-wide ambient decoration is limited to a single small approved motif —
+no stray/leftover shapes from earlier art passes.
 
 ---
 
@@ -6588,3 +6691,87 @@ was hidden.
   pre-existing test fixed for inadvertently relying on the bug itself),
   lint, strict typecheck, production build, and the existing Halloween
   e2e suite.
+
+### Phase 25 — Halloween art/layout rework, One At A Time Drafting, and release-hardening (v1.2.0-beta.11)
+
+Four passes shipped together as one Beta: a Halloween art/layout rework
+and its own follow-up visual repair, a brand-new "One At A Time" Draft
+mode (core state machine, then its full user-facing UX), and a final
+release-hardening QA pass across all of it plus every pre-existing Draft
+mode. Documented as one Phase since none of the intermediate states were
+released independently.
+
+- **Halloween Event Art Rework + Wider Desktop Layout**: reworked
+  Halloween's ambient decorations to the canonical supplied art pack
+  (pumpkin, candy bowl, ghosts, moon, a flipped Cyndaquil) in a fixed
+  layout, and made a first pass at widening the shared app shell for
+  desktop.
+- **Halloween Visual/Layout Repair**: app-wide Halloween decoration
+  reduced to a single ghost motif; the interactive pumpkin easter egg
+  moved from the Halloween Event page to the History page (state persists
+  per-profile, independent of every other profile); pumpkin distortion
+  fixed (`object-contain`); a genuine countdown bug fixed —
+  `draft-lifecycle-view.tsx`'s displayed Halloween deadline now always
+  derives from the CURRENT Event occurrence's real bounds
+  (`getCurrentOccurrenceBounds`) rather than trusting a Draft's own
+  possibly-stale `deadlineAt` verbatim; the shared shell widened further.
+- **One At A Time Drafting**: a third Draft creation mode alongside a
+  fixed difficulty and Freeform (`DIFFICULTIES["one-at-a-time"]`,
+  `filmCount: null`) — see docs/product-spec.md, "One At A Time Mode,"
+  for the full spec. Core domain/state (`domain/drafts/one-at-a-time.ts`,
+  `application/drafts/one-at-a-time-service.ts`) landed first, then the
+  complete polished UX: a wide 3-card source-selection screen
+  (Random/Choose My Own/Challenge, reusing the app's existing card
+  language); a Random review screen with Reroll/Okay (never auto-adds);
+  the app's REAL existing large DIY film picker for "Choose My Own"
+  (no duplicate picker); a new `variant?: "multi" | "single"` prop added
+  to the existing shared `ChallengeBrowser` (default `"multi"` fully
+  unchanged) so a single-challenge pick never shows "X of Y chosen" /
+  "Empty slot" chrome meant for a known slot count; a responsive "Your
+  Draft So Far" poster grid with a source badge per film (Random /
+  Chosen / Challenge: name); Next Film / Done, with Done enabled at any
+  count ≥ 1 and no hardcoded target size anywhere in the finalize path.
+- **Release-hardening QA pass**: re-audited desktop space usage at
+  1366×768/1440×900/1920×1080/2560×1440 across every primary page.
+  Root cause of most remaining under-use: `.app-shell-width`
+  (`globals.css`) capped at `100rem` (1600px) — comfortably ≥75% of a
+  1920px viewport but only ~60% of a 2560px one — raised to `128rem`
+  (2048px), clearing the ≥75% bar (see docs/product-spec.md, "Desktop
+  Layout Width," added this same pass) at every tested size with no
+  effect below it. Independent per-page fixes found by the same pass:
+  Start a Draft's own `max-w-5xl` cap widened to the full shell width
+  (with its three small binary/ternary toggles — source, challenge mode,
+  time mode — individually kept at a narrow `max-w-xl` so they don't
+  balloon into empty-feeling giant buttons); Settings' own narrower
+  `max-w-[87.5rem]` cap removed for the same reason; the One At A Time
+  Random/Challenge-result single-card review steps widened and centred
+  (`max-w-2xl` → `mx-auto max-w-4xl`, `OneAtATimeCandidateCard`'s poster
+  and title growing at `lg`/`xl`) rather than left stranded in a mostly
+  empty page; `ChallengeBrowser`'s challenge list gained `xl`/`2xl`
+  column steps (was frozen at 2 columns at every width); the One At A
+  Time staged-film grid's column breakpoints aligned with
+  `WatchlistGrid`'s (was one step behind at `xl:grid-cols-5`, now
+  matches through `2xl:grid-cols-7`); the Halloween moon decoration
+  gained `xl`/`2xl` size steps (was a fixed 96px past `lg`, unchanged all
+  the way to 2560px+).
+- **Verification**: four parallel live-browser QA passes (desktop
+  layout/width, Halloween visuals + countdown across all four required
+  EventClock test moments, an adversarial One At A Time flow audit, and
+  a regression audit of every pre-existing Draft mode against the two
+  shared components this work touched) found zero genuine product bugs
+  outside the layout items above — every One At A Time flow (mixed
+  5-source ordering, Random reroll/exhaustion, Manual picker parity,
+  Challenge eligibility/interactive-exclusion/duplicate-prevention, Done
+  at 1/2/5/15+ films, dual-draft coexistence) and every pre-existing mode
+  (Baby/Easy/Medium/Hard/Hardcore/Freeform/Build My Own, mixed
+  random+challenge, watched/undo/points/History) passed clean with zero
+  console errors. One pre-existing, unrelated flaky subprocess test
+  (`theme-apply-script.test.ts`, confirmed to pass in isolation) and five
+  pre-existing, unrelated e2e failures (`application-refresh.spec.ts`,
+  `historical-draft-sort.spec.ts`, `metadata-reconnection.spec.ts`,
+  `offline-postmortem.spec.ts`, `watchlist-sort-filter.spec.ts`,
+  confirmed via `git stash` to fail identically with every change in this
+  Phase removed) were left untouched as out of scope. Full pass: format,
+  lint, strict typecheck, the full unit/integration suite (2,027 tests),
+  the full e2e suite, production build, and the Tauri Beta desktop build
+  (`v1.2.0-beta.11`).

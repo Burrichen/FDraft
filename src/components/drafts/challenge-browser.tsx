@@ -26,6 +26,17 @@ interface ChallengeBrowserProps {
   slotsNeeded: number;
   selectedChallengeIds: string[];
   onChange: (ids: string[]) => void;
+  /**
+   * `"multi"` (default, unchanged) shows the "X of Y challenges chosen"
+   * summary plus a dashed "Empty slot" placeholder per remaining slot —
+   * exactly right when filling several slots for a normal Draft's bulk
+   * generation. `"single"` (see docs/updates, "ONE AT A TIME DRAFTING —
+   * COMPLETE UX" §5) drops both: with exactly one slot, "0 of 1 challenge
+   * chosen" and a lone "Empty slot" badge read as leftover multi-slot
+   * chrome rather than a genuine status, so this mode shows nothing until
+   * a challenge is actually picked, then just its removable chip.
+   */
+  variant?: "multi" | "single";
   manualGenre: string;
   onManualGenreChange: (genre: string) => void;
   /** The same canonical eligible pool the DIY Draft screen uses — see `application/drafts/local-diy-candidates.ts` (v1.1.1, "DIY Challenge Film"). */
@@ -69,6 +80,7 @@ export function ChallengeBrowser({
   slotsNeeded,
   selectedChallengeIds,
   onChange,
+  variant = "multi",
   manualGenre,
   onManualGenreChange,
   diyEligibleFilms,
@@ -136,46 +148,52 @@ export function ChallengeBrowser({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <p className="text-foreground text-sm font-medium">
-          {filledSlotCount} of {slotsNeeded} challenge
-          {slotsNeeded === 1 ? "" : "s"} chosen
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {selectedChallengeIds.map((id, index) => {
-            const challenge = challenges.find((c) => c.id === id);
-            return (
-              <Badge
-                key={`${id}-${index}`}
-                variant="secondary"
-                className="gap-1 py-1 pr-1 pl-2"
-              >
-                {challenge?.name ?? id}
-                <button
-                  type="button"
-                  onClick={() => removeSlot(index)}
-                  aria-label={`Remove ${challenge?.name ?? id}`}
-                  className="hover:bg-muted-foreground/20 focus-visible:outline-ring rounded-full p-0.5 focus-visible:outline-2"
+      {variant === "multi" || filledSlotCount > 0 ? (
+        <div className="space-y-2">
+          {variant === "multi" ? (
+            <p className="text-foreground text-sm font-medium">
+              {filledSlotCount} of {slotsNeeded} challenge
+              {slotsNeeded === 1 ? "" : "s"} chosen
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {selectedChallengeIds.map((id, index) => {
+              const challenge = challenges.find((c) => c.id === id);
+              return (
+                <Badge
+                  key={`${id}-${index}`}
+                  variant="secondary"
+                  className="gap-1 py-1 pr-1 pl-2"
                 >
-                  <X aria-hidden="true" className="size-3" />
-                </button>
-              </Badge>
-            );
-          })}
-          {Array.from(
-            { length: Math.max(0, slotsNeeded - filledSlotCount) },
-            (_, i) => (
-              <Badge
-                key={`empty-${i}`}
-                variant="outline"
-                className="text-muted-foreground border-dashed"
-              >
-                Empty slot
-              </Badge>
-            ),
-          )}
+                  {challenge?.name ?? id}
+                  <button
+                    type="button"
+                    onClick={() => removeSlot(index)}
+                    aria-label={`Remove ${challenge?.name ?? id}`}
+                    className="hover:bg-muted-foreground/20 focus-visible:outline-ring rounded-full p-0.5 focus-visible:outline-2"
+                  >
+                    <X aria-hidden="true" className="size-3" />
+                  </button>
+                </Badge>
+              );
+            })}
+            {variant === "multi"
+              ? Array.from(
+                  { length: Math.max(0, slotsNeeded - filledSlotCount) },
+                  (_, i) => (
+                    <Badge
+                      key={`empty-${i}`}
+                      variant="outline"
+                      className="text-muted-foreground border-dashed"
+                    >
+                      Empty slot
+                    </Badge>
+                  ),
+                )
+              : null}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {hasGenreRoulette ? (
         <div className="space-y-1.5">
@@ -315,7 +333,12 @@ export function ChallengeBrowser({
         />
       </div>
 
-      <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
+      {/* `lg:grid-cols-2` alone stayed frozen at 2 columns even at very
+          wide viewports (2560px+) — see docs/product-spec.md, "Desktop
+          Layout Width" — leaving each challenge card ~3x wider than its
+          one-line label needs while most of a large-desktop window sat
+          unused. `xl`/`2xl` steps let it keep gaining columns instead. */}
+      <ul className="grid max-h-96 grid-cols-1 gap-2 overflow-y-auto pr-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filtered.map((challenge) => {
           const disabled = !challenge.eligible || !hasEmptySlot;
           return (

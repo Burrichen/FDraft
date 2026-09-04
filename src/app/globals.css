@@ -195,28 +195,29 @@
 @layer utilities {
   /*
    * The shared desktop-width strategy for the app shell's header and main
-   * content region (see docs/updates, "WIDER DESKTOP LAYOUT") — one place
-   * both `Header` and `AppShell`'s `<main>` read from, so the nav bar and
-   * the page content it sits above always agree on where the centred
-   * column starts/ends. Previously a flat `max-w-6xl` (72rem/1152px) on
-   * both, which already wasted 40% of a 1920px display (1152/1920 ≈ 60%
-   * used) and over HALF of a 2560px one (1152/2560 ≈ 45% used), while
-   * giving even an ordinary 1440px laptop no extra room at all — 1152 is
-   * narrower than 1440, so the shell was already short of the viewport
-   * there too. 100rem (1600px) sits comfortably inside every existing
-   * card/grid's own intrinsic sizing (the widest thing on any page is the
-   * film grid, which just gains more columns rather than wider cards — see
-   * `watchlist-grid.tsx`) while still leaving a deliberate, centred margin
-   * once a display actually exceeds it (auto side-margins from `mx-auto`
-   * grow with the viewport past this point, rather than the shell ever
-   * stretching edge-to-edge). Below 100rem — i.e. every laptop/tablet size
-   * this app already targets — `w-full` simply fills the viewport (minus
-   * the padding below), unchanged from before.
+   * content region (see docs/updates, "WIDER DESKTOP LAYOUT" and the
+   * "FINAL QA FOR LAYOUT + HALLOWEEN + ONE AT A TIME" release-hardening
+   * pass) — one place both `Header` and `AppShell`'s `<main>` read from,
+   * so the nav bar and the page content it sits above always agree on
+   * where the centred column starts/ends. A prior pass raised this from a
+   * flat `max-w-6xl` (72rem/1152px) to 100rem (1600px), which fixed
+   * 1920×1080 (≈80% of viewport used, after the `px-8` content padding
+   * below) but was re-measured during the release-hardening pass as still
+   * only ≈60% of a 2560×1440 display — short of this app's own ≥75%
+   * desktop-width bar (see docs/product-spec.md, "Desktop Layout Width").
+   * 128rem (2048px) clears that bar with real margin at 2560 (≈77.5% of
+   * viewport after padding) while still comfortably exceeding every
+   * width tested up to and including 1920×1080 (the cap no longer binds
+   * there at all, so those viewports simply fill the viewport minus
+   * padding, same as every laptop/tablet size below the cap always has).
+   * A display wider than ~2048px logical pixels still gets a deliberate,
+   * centred margin (auto side-margins from `mx-auto` grow past this
+   * point) rather than the shell ever stretching fully edge-to-edge.
    */
   .app-shell-width {
     margin-inline: auto;
     width: 100%;
-    max-width: 100rem;
+    max-width: 128rem;
   }
 
   /*

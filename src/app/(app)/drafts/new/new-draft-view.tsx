@@ -40,7 +40,18 @@ export function NewDraftView() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    // Widened from `max-w-2xl`, then from a `max-w-5xl` cap that itself
+    // fell short of this app's own ≥75%-of-viewport desktop-width bar from
+    // 1440px up (see docs/product-spec.md, "Desktop Layout Width," and the
+    // "FINAL QA FOR LAYOUT + HALLOWEEN + ONE AT A TIME" release-hardening
+    // pass that measured it). Now uses the full shared shell width, same
+    // as most other primary pages — the difficulty picker (7 options) and
+    // the Challenge Browser's card grid both genuinely benefit from it.
+    // The few small binary/ternary toggles in `NewDraftForm` (source,
+    // challenge mode, time mode) would look absurd stretched this wide
+    // themselves, so THEY carry their own narrow `max-w-xl` wrapper
+    // locally instead of capping this whole page for their sake.
+    <div className="space-y-6">
       <div>
         <h1 className="page-heading">Start a draft</h1>
         <p className="page-subtitle">

@@ -228,3 +228,29 @@ describe("ChallengeBrowser — DIY Challenge Film", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("ChallengeBrowser — variant='single' (One At A Time)", () => {
+  it("never shows the multi-slot 'X of Y chosen' summary or Empty slot placeholders", () => {
+    renderBrowser({ variant: "single", slotsNeeded: 1 });
+    expect(screen.queryByText(/chosen$/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Empty slot")).not.toBeInTheDocument();
+  });
+
+  it("still shows the chosen challenge as a removable chip once one is picked", () => {
+    renderBrowser({
+      variant: "single",
+      slotsNeeded: 1,
+      selectedChallengeIds: ["the-number-7"],
+    });
+    expect(screen.queryByText(/chosen$/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove The Number 7" }),
+    ).toBeInTheDocument();
+  });
+
+  it("the default 'multi' variant is unchanged — still shows the summary and empty slots", () => {
+    renderBrowser({ slotsNeeded: 2 });
+    expect(screen.getByText("0 of 2 challenges chosen")).toBeInTheDocument();
+    expect(screen.getAllByText("Empty slot")).toHaveLength(2);
+  });
+});

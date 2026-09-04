@@ -101,6 +101,7 @@ export const draftDifficultySchema = z.enum([
   "hard",
   "hardcore",
   "freeform",
+  "one-at-a-time",
 ]);
 export const draftTimeModeSchema = z.enum(["calendar", "timer"]);
 export const draftStatusSchema = z.enum([

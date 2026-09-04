@@ -3,37 +3,35 @@ import type { EventDecorationSlotPositions } from "./event-decoration-layer";
 
 /**
  * Halloween Event page's decoration layout (see docs/updates, "HALLOWEEN
- * EVENT ART REWORK + WIDER DESKTOP LAYOUT") — replaces the previous
- * randomized cluster of small inline-SVG accents (bunting, cobwebs, bats,
- * skulls, leaves, ...) with exactly five real, supplied-art pieces, each
- * with one designed job:
+ * EVENT ART REWORK" and "HALLOWEEN VISUAL/LAYOUT REPAIR") — exactly four
+ * real, supplied-art pieces, each with one designed job:
  *
  *  - `header-right` (top-right): `full-moon`, always — no longer a
  *    weighted pick against "nothing"/"moon-and-bats"; the brief calls for
  *    ONLY the moon here.
  *  - `edge-peek-left` (mid-left, far edge): a 25% chance of `ghost-01`
- *    peeking in from off-screen, 75% nothing — genuinely ambient, shown
- *    regardless of whether the profile is currently joined (see
- *    `HalloweenDecorativeLayer`, unconditional at the top of the page).
+ *    peeking in from off-screen, 75% nothing — see
+ *    `HALLOWEEN_HEADER_DECORATION_LAYOUT`'s own comment for why this is a
+ *    separate layout from the two below.
  *  - `edge-peek-right` (far bottom-right): `cyndaquil`, always, flipped to
  *    face into the page (the registry entry itself applies the flip —
  *    see `halloween-decoration-registry.tsx`).
  *
+ * All three render unconditionally (regardless of whether the profile is
+ * currently joined) via `HalloweenDecorativeLayer`/`HalloweenGhostPeekLayer`.
  * The interactive bottom-right slot (75% Candy Bowl / 25% `ghost-02`) is
  * deliberately a SEPARATE layout, `HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT`
  * — the Candy Bowl is a real interactive easter egg, not ambient theming,
- * and this app's existing convention (see the previous version of this
- * page) only ever showed its interactive pieces (pumpkin, gravestone,
- * candy bowl) once a profile is actively joined to the current occurrence.
+ * and this app's existing convention only ever showed its interactive
+ * pieces once a profile is actively joined to the current occurrence.
  * Splitting it out lets `HalloweenPageClient` mount it only behind that
- * same `isActiveForProfile` gate, while the three purely-ambient slots
- * above keep rendering unconditionally, exactly as the old moon/bats/
- * cobwebs did.
+ * same `isActiveForProfile` gate.
  *
- * The centre-bottom interactive pumpkin isn't a slot here at all — it's a
- * single, always-the-same, persisted-state easter egg
- * (`HalloweenPumpkin`), rendered directly by `HalloweenPageClient`, same
- * as before this rework.
+ * The interactive pumpkin isn't a slot here at all, and isn't on this page
+ * any more either (see docs/updates, "HALLOWEEN VISUAL/LAYOUT REPAIR" §3)
+ * — it moved to the History page (`HalloweenPumpkin`, in
+ * `drafts/history/page.tsx`), still a single, always-the-same, persisted-
+ * state easter egg, just relocated.
  *
  * Every asset id referenced below must exist in
  * `HALLOWEEN_DECORATION_REGISTRY` (`halloween-decoration-registry.tsx`) —
@@ -47,6 +45,31 @@ export const HALLOWEEN_PAGE_DECORATION_LAYOUT: EventDecorationLayout = {
     visibleFrom: "sm",
     variants: [{ assetId: "full-moon", weight: 1 }],
   },
+  "edge-peek-right": {
+    slot: "edge-peek-right",
+    visibleFrom: "base",
+    variants: [{ assetId: "cyndaquil", weight: 1 }],
+  },
+};
+
+/**
+ * `edge-peek-left` (the 25%-chance `ghost-01` mid-left peek) is
+ * deliberately a SEPARATE layout from the other two ambient slots above —
+ * see docs/updates, "HALLOWEEN VISUAL/LAYOUT REPAIR" §14: positioning it
+ * with `top-1/2` against the FULL page (as `HALLOWEEN_PAGE_DECORATION_
+ * LAYOUT`'s own whole-page container does for `header-right`/
+ * `edge-peek-right`) centres it against however tall the page's content
+ * happens to be that render — a short "no Draft yet" page and a tall
+ * "active Draft with a full film grid" page have wildly different
+ * heights, so a page-relative 50% routinely landed the ghost on top of the
+ * countdown progress bar or the Draft card instead of beside empty space.
+ * `HalloweenPageClient` mounts this layout's own `EventDecorationLayer`
+ * scoped to just the page's header block (heading + deadline text) —a
+ * small, near-constant-height region regardless of Draft state — so
+ * `top-1/2` there reliably centres the ghost against the TITLE, never
+ * against whatever variable-length content sits below it.
+ */
+export const HALLOWEEN_HEADER_DECORATION_LAYOUT: EventDecorationLayout = {
   "edge-peek-left": {
     slot: "edge-peek-left",
     visibleFrom: "lg",
@@ -54,11 +77,6 @@ export const HALLOWEEN_PAGE_DECORATION_LAYOUT: EventDecorationLayout = {
       { assetId: "ghost-01", weight: 25 },
       { assetId: null, weight: 75 },
     ],
-  },
-  "edge-peek-right": {
-    slot: "edge-peek-right",
-    visibleFrom: "base",
-    variants: [{ assetId: "cyndaquil", weight: 1 }],
   },
 };
 
@@ -93,7 +111,12 @@ export const HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT: EventDecorationLayout = {
  */
 export const HALLOWEEN_PAGE_SLOT_POSITIONS: EventDecorationSlotPositions = {
   "header-right": "absolute top-0 right-2 sm:right-4 lg:top-2 lg:right-10",
-  "edge-peek-left": "absolute top-1/2 -left-6 -translate-y-1/2 sm:-left-8",
+  // Only a ~16px sliver of the 64px-wide `ghost-01` shows (see that
+  // registry entry's own comment) — the heading's icon/text and the
+  // "Event ends..." subtitle both start flush against this container's
+  // left edge (x=0), so anything more would read as covering the title
+  // rather than peeking in beside it.
+  "edge-peek-left": "absolute top-1/2 -left-12 -translate-y-1/2",
   "edge-peek-right": "absolute -right-1 bottom-0 sm:right-2 sm:bottom-1",
   "lower-right":
     "absolute right-24 bottom-6 sm:right-28 sm:bottom-8 lg:right-36",

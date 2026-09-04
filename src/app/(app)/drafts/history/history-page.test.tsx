@@ -1,6 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { setEventDateOverride } from "@/application/events/event-date-override-store";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
@@ -13,7 +15,9 @@ const PROFILE_ID = "alex";
 function Harness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <DraftHistoryPage />
+      <EventDiscoveryProvider>
+        <DraftHistoryPage />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
@@ -157,5 +161,175 @@ describe("Draft History — normal and Halloween Drafts stay distinguishable", (
 
     expect(screen.getAllByText(/october baby draft/i)).toHaveLength(2);
     expect(screen.getByText("Halloween")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Covers docs/updates, "ONE AT A TIME DRAFTING — CORE SYSTEM" §18/§19: an
+ * archived One At A Time draft must be exactly as compatible with History
+ * as any other draft — its generated name, its real (never "Event
+ * deadline") time-mode label, and each item's own source all render
+ * through the same existing, unmodified History logic, with zero
+ * special-casing added for the new difficulty value.
+ */
+describe("Draft History — One At A Time draft", () => {
+  afterEach(cleanup);
+
+  it("shows the generated name, the real time-mode label, and each item's own source", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.films.create({
+      id: "film-1",
+      title: "Randomly Drafted",
+      releaseYear: 2020,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await repos.films.create({
+      id: "film-2",
+      title: "Hand Picked",
+      releaseYear: 2021,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "oaat-draft-1",
+        difficulty: "one-at-a-time",
+        totalFilms: 2,
+        randomFilmCount: 1,
+        challengeFilmCount: 0,
+      }),
+    );
+    await repos.drafts.createItems([
+      {
+        id: "item-1",
+        draftId: "oaat-draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+      {
+        id: "item-2",
+        draftId: "oaat-draft-1",
+        filmId: "film-2",
+        watchlistEntryId: "entry-2",
+        source: "manual",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 1,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+    ]);
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+
+    const summary = screen.getByText(/october one at a time draft/i);
+    expect(summary).toBeInTheDocument();
+    await userEvent.setup().click(summary);
+
+    expect(screen.getByText(/timer mode/i)).toBeInTheDocument();
+    expect(screen.getByText("Randomly Drafted")).toBeInTheDocument();
+    expect(screen.getByText("Hand Picked")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Covers docs/updates, "HALLOWEEN VISUAL/LAYOUT REPAIR" §3: the
+ * interactive pumpkin moved off the Halloween Event page onto History,
+ * shown under the exact same condition the app-wide ambient decorations
+ * already use (`useHalloweenAmbientVisible`) — joined AND currently
+ * active AND Event Visuals on — never unconditionally.
+ */
+describe("Draft History — Halloween pumpkin (moved here from the Event page)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("shows the pumpkin when Halloween is joined/active with visuals on", async () => {
+    const databaseName = crypto.randomUUID();
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.profiles.create({
+      id: PROFILE_ID,
+      displayName: "Alex",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastOpenedAt: "2026-01-01T00:00:00.000Z",
+      timezone: "UTC",
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist",
+        franchiseChronologicalOrder: false,
+        adminMode: true,
+        halloweenPumpkinState: "uncarved",
+      },
+      dataVersion: 1,
+    });
+    await repos.settings.set(PROFILE_ID, "events.settings", {
+      eventsEnabled: true,
+      eventVisualsEnabled: true,
+      activeEvent: null,
+      manuallyEnabledEvents: [],
+    });
+    await repos.settings.set(PROFILE_ID, "events.participations", {
+      [`${HALLOWEEN_EVENT_ID}:2026`]: "joined",
+    });
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T12:00:00.000Z",
+    });
+    await db.close();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /pumpkin: uncarved/i }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("hides the pumpkin when Halloween hasn't been joined", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: /pumpkin/i }),
+    ).not.toBeInTheDocument();
   });
 });

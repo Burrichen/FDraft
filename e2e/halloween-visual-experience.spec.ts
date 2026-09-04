@@ -5,11 +5,12 @@ import { expect, test } from "@playwright/test";
  * EASTER EGGS" — the one end-to-end walkthrough covering the whole
  * Halloween presentation: Admin Mode's Event Testing simulated date,
  * joining, the Kitsch Halloween theme, the nav tab's own active accent,
- * the pumpkin/Candy Bowl easter eggs still on this page (the gravestone
- * easter egg moved off this page in "HALLOWEEN EVENT ART REWORK" — it's
- * covered separately wherever the Event Studio theme system places it),
- * and the "Haunted" jumpscare's full lifecycle (armed warning → skull
- * overlay → clean return, no navigation, no persisted state).
+ * the Candy Bowl easter egg still on this page (the gravestone easter egg
+ * moved off this page in "HALLOWEEN EVENT ART REWORK", and the pumpkin
+ * moved to the History page in "HALLOWEEN VISUAL/LAYOUT REPAIR" §3 — both
+ * covered separately), and the "Haunted" jumpscare's full lifecycle (armed
+ * warning → skull overlay → clean return, no navigation, no persisted
+ * state).
  */
 test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async ({
   page,
@@ -60,7 +61,11 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
 
-  // Pumpkin: advances one state per click, persists across a reload.
+  // Pumpkin: lives on History now (see docs/updates, "HALLOWEEN VISUAL/
+  // LAYOUT REPAIR" §3), shown there because Halloween is joined/active
+  // with visuals on — advances one state per click, persists across a
+  // reload.
+  await page.goto("/drafts/history");
   const pumpkinButton = page.getByRole("button", {
     name: /pumpkin: uncarved/i,
   });
@@ -73,6 +78,8 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
   await expect(
     page.getByRole("button", { name: /pumpkin: carved/i }),
   ).toBeVisible();
+
+  await page.goto("/events/halloween");
 
   // Bottom-right Designed Slot: the Candy Bowl 75% of sessions, `ghost_02`
   // the other 25% (see docs/updates, "HALLOWEEN EVENT ART REWORK" — the

@@ -10,6 +10,7 @@ import {
 import { HALLOWEEN_DECORATION_REGISTRY } from "./halloween-decoration-registry";
 import {
   HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
+  HALLOWEEN_HEADER_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_SLOT_POSITIONS,
   HALLOWEEN_PAGE_DECORATION_LAYOUT,
@@ -53,6 +54,7 @@ registerEventArt({
       // `isActiveForProfile` (see `halloween-decorative-layer.tsx`).
       layout: {
         ...HALLOWEEN_PAGE_DECORATION_LAYOUT,
+        ...HALLOWEEN_HEADER_DECORATION_LAYOUT,
         ...HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
       },
       positions: HALLOWEEN_PAGE_SLOT_POSITIONS,

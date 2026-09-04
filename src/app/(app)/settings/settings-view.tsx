@@ -84,7 +84,14 @@ export function SettingsView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[87.5rem] space-y-8">
+    // Previously its own `max-w-[87.5rem]` (1400px) cap, narrower than the
+    // shared app shell (`app-shell-width`, 2048px) it sits inside — see
+    // docs/product-spec.md, "Desktop Layout Width," and the release-
+    // hardening pass that measured this page falling to ~73%/~55% of a
+    // 1920/2560 viewport respectively, worse than every other primary
+    // page. Now simply inherits the shell's own width like the rest of
+    // the app, rather than re-narrowing it a second time.
+    <div className="space-y-8">
       <div>
         <h1 className="page-heading">Settings</h1>
         <p className="page-subtitle">

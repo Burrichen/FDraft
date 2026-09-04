@@ -23,6 +23,7 @@ import {
   FREEFORM_BATCH_SIZE,
   getFilmCount,
   isFreeform,
+  isOneAtATime,
 } from "@/domain/drafts/difficulty";
 import type {
   DraftChallengeMode,
@@ -88,6 +89,7 @@ export function NewDraftForm({
   }, [state.draftId, state.challengeWarning, router]);
 
   const freeform = difficulty !== null && isFreeform(difficulty);
+  const oneAtATime = difficulty !== null && isOneAtATime(difficulty);
   const challengeCount = split?.challengeCount ?? 0;
   const diySlotsChosen = chosenChallengeIds.filter((id) => id === "diy").length;
   // "diyChallengeFilmEntryIds" serves two different caps depending on
@@ -111,7 +113,11 @@ export function NewDraftForm({
 
   function handleSelectDifficulty(id: DraftDifficulty) {
     setDifficulty(id);
-    setSplit(isFreeform(id) ? null : createDefaultSplit(getFilmCount(id)));
+    setSplit(
+      isFreeform(id) || isOneAtATime(id)
+        ? null
+        : createDefaultSplit(getFilmCount(id)),
+    );
     setChosenChallengeIds([]);
     setDiyChallengeFilmEntryIds([]);
   }
@@ -127,6 +133,7 @@ export function NewDraftForm({
     !!activeProfile &&
     !!difficulty &&
     (source === "diy" ||
+      oneAtATime ||
       freeform ||
       challengeCount === 0 ||
       challengeMode === "decide" ||
@@ -137,6 +144,18 @@ export function NewDraftForm({
     if (!difficulty) return;
     router.push(
       `/drafts/new/diy?difficulty=${encodeURIComponent(difficulty)}&timeMode=${encodeURIComponent(timeMode)}`,
+    );
+  }
+
+  // One At A Time (see docs/updates, "ONE AT A TIME DRAFTING — CORE
+  // SYSTEM" §3/§15) has no random/manual/challenge SOURCE toggle of its
+  // own here at all — every film's source is chosen individually, inside
+  // the builder, one film at a time — so this only ever needs the
+  // deadline choice carried over, exactly like the DIY hand-off already
+  // carries `timeMode` through the URL rather than re-asking for it.
+  function handleContinueToOneAtATime() {
+    router.push(
+      `/drafts/new/one-at-a-time?timeMode=${encodeURIComponent(timeMode)}`,
     );
   }
 
@@ -153,16 +172,26 @@ export function NewDraftForm({
         />
       </section>
 
-      {difficulty ? (
+      {difficulty && !oneAtATime ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">
             How do you want to build this draft?
           </h2>
-          <DraftSourceToggle value={source} onChange={setSource} />
+          {/* Narrow on purpose — see `NewDraftView`'s own comment: this is
+              a 2-option radiogroup, not a grid of cards, and would just
+              become two absurdly wide, mostly-empty buttons at the page's
+              full shared-shell width. */}
+          <div className="max-w-xl">
+            <DraftSourceToggle value={source} onChange={setSource} />
+          </div>
         </section>
       ) : null}
 
-      {difficulty && source === "random" && !freeform && split ? (
+      {difficulty &&
+      !oneAtATime &&
+      source === "random" &&
+      !freeform &&
+      split ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">
             How do you want the list to be made?
@@ -175,7 +204,7 @@ export function NewDraftForm({
         </section>
       ) : null}
 
-      {difficulty && source === "random" && freeform ? (
+      {difficulty && !oneAtATime && source === "random" && freeform ? (
         <section className="space-y-2">
           <h2 className="text-foreground text-lg font-bold">Freeform</h2>
           <p className="text-muted-foreground text-sm">
@@ -187,13 +216,22 @@ export function NewDraftForm({
         </section>
       ) : null}
 
-      {difficulty && source === "random" && !freeform && challengeCount > 0 ? (
+      {difficulty &&
+      !oneAtATime &&
+      source === "random" &&
+      !freeform &&
+      challengeCount > 0 ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">Challenge films</h2>
-          <ChallengeModeToggle
-            value={challengeMode}
-            onChange={setChallengeMode}
-          />
+          {/* Narrow on purpose, same reasoning as `DraftSourceToggle` above
+              — a 2-option radiogroup, not something that benefits from the
+              page's full width. */}
+          <div className="max-w-xl">
+            <ChallengeModeToggle
+              value={challengeMode}
+              onChange={setChallengeMode}
+            />
+          </div>
           {challengeMode === "choose" ? (
             <ChallengeBrowser
               challenges={challenges}
@@ -260,11 +298,14 @@ export function NewDraftForm({
       {difficulty ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">Deadline</h2>
-          <TimeModeToggle value={timeMode} onChange={setTimeMode} />
+          {/* Narrow on purpose, same reasoning as the toggles above. */}
+          <div className="max-w-xl">
+            <TimeModeToggle value={timeMode} onChange={setTimeMode} />
+          </div>
         </section>
       ) : null}
 
-      {difficulty && source === "random" ? (
+      {difficulty && !oneAtATime && source === "random" ? (
         <>
           <input type="hidden" name="difficulty" value={difficulty} />
           <input type="hidden" name="timeMode" value={timeMode} />
@@ -318,11 +359,17 @@ export function NewDraftForm({
       ) : null}
 
       <Button
-        type={source === "diy" ? "button" : "submit"}
+        type={source === "diy" || oneAtATime ? "button" : "submit"}
         disabled={!readyToSubmit || isPending}
-        onClick={source === "diy" ? handleContinueToDiy : undefined}
+        onClick={
+          oneAtATime
+            ? handleContinueToOneAtATime
+            : source === "diy"
+              ? handleContinueToDiy
+              : undefined
+        }
       >
-        {source === "diy"
+        {source === "diy" || oneAtATime
           ? "Continue"
           : isPending
             ? "Creating draft…"

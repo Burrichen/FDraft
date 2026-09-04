@@ -28,7 +28,7 @@ export function HalloweenDifficultyPicker({
   onSelect,
 }: HalloweenDifficultyPickerProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {HALLOWEEN_DIFFICULTY_ORDER.map((id) => {
         const definition = DIFFICULTIES[id];
         const isSelected = selected === id;
