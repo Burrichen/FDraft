@@ -6692,7 +6692,7 @@ was hidden.
   lint, strict typecheck, production build, and the existing Halloween
   e2e suite.
 
-### Phase 25 — Halloween art/layout rework, One At A Time Drafting, and release-hardening (v1.2.0-beta.11)
+### Phase 25 — Halloween art/layout rework, One At A Time Drafting, and release-hardening (v1.2.0-beta.12)
 
 Four passes shipped together as one Beta: a Halloween art/layout rework
 and its own follow-up visual repair, a brand-new "One At A Time" Draft
@@ -6774,4 +6774,15 @@ released independently.
   Phase removed) were left untouched as out of scope. Full pass: format,
   lint, strict typecheck, the full unit/integration suite (2,027 tests),
   the full e2e suite, production build, and the Tauri Beta desktop build
-  (`v1.2.0-beta.11`).
+  (`v1.2.0-beta.12`).
+- **Note on `v1.2.0-beta.11`**: tagged and pushed once, but its CI release
+  run failed at the "Generate release body from PATCH_NOTES" step —
+  `scripts/generate-release-body.ts` requires `PATCH_NOTES`'s newest
+  entry to match `package.json`'s version, and this Phase's version bump
+  had no matching entry yet (an omission in this Phase's own release
+  procedure, not a bug in the generator, which is doing exactly its
+  documented job of catching that mistake before publishing a release
+  with no real notes). No GitHub Release or installer was ever published
+  under that tag. Fixed forward as `v1.2.0-beta.12` — a real
+  `PATCH_NOTES`/`PATCH_NOTES.md` entry added for it — rather than
+  deleting/retargeting the already-pushed `beta.11` tag.

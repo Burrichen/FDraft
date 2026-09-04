@@ -1,5 +1,22 @@
 # Patch Notes
 
+### v1.2.0-beta.12 — Trick or Treat (Beta 12)
+
+#### Added
+
+- "One At A Time" — a brand new way to build a Draft: add films one at a time by Random pick, Choose My Own, or Challenge, reviewing each one before it's added, then finish with Done whenever you're happy with the list — no fixed film count required.
+
+#### Changed
+
+- FDraft now uses even more of the screen on large and ultra-wide desktop displays — Start a Draft, Settings, the Challenge picker, and the new One At A Time screens all fill significantly more of very wide windows than before.
+- The Halloween page's moon now grows on very large displays instead of staying a fixed small size.
+
+#### Fixed
+
+- Halloween's app-wide decoration is now just a single ghost, with no stray leftover shapes on ordinary pages.
+- The Halloween pumpkin easter egg has moved to the History page (it no longer appears on the Halloween Event page itself), with four distinct states to discover.
+- Fixed a bug where an active Halloween Draft's countdown could occasionally show an outdated date instead of the real end of the event.
+
 ### v1.2.0-beta.10 — Trick or Treat (Beta 10)
 
 #### Changed
