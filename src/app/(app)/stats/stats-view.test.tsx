@@ -1,7 +1,10 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setEventDateOverride } from "@/application/events/event-date-override-store";
+import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
+import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
 import { LocalWatchlistRepository } from "@/infrastructure/local-db/watchlist-repository";
@@ -12,7 +15,9 @@ const PROFILE_ID = "alex";
 function Harness({ databaseName }: { databaseName: string }) {
   return (
     <ProfileProvider databaseName={databaseName}>
-      <StatsView />
+      <EventDiscoveryProvider>
+        <StatsView />
+      </EventDiscoveryProvider>
     </ProfileProvider>
   );
 }
@@ -147,5 +152,85 @@ describe("StatsView — Points (PROMPT B2.2)", () => {
     // make the counter non-zero (see docs/updates §"IF HAUNTED POINTS
     // HAVE NO EARNING RULE").
     expect(screen.getByText("0")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Covers docs/updates, "HALLOWEEN UI CLEANUP" §2-3: the interactive
+ * pumpkin easter egg moved here from the History page — same persisted-
+ * per-profile state/click cycle, same visibility condition
+ * (`useHalloweenAmbientVisible`: joined AND currently active AND Event
+ * Visuals on), but with NO visible "Halloween Pumpkin" caption anywhere —
+ * only the button's own non-visible accessible name.
+ */
+describe("StatsView — Halloween pumpkin (moved here from History)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("shows the pumpkin, with no visible 'Halloween Pumpkin' text, when Halloween is joined/active with visuals on", async () => {
+    const databaseName = crypto.randomUUID();
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.profiles.create({
+      id: PROFILE_ID,
+      displayName: "Alex",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastOpenedAt: "2026-01-01T00:00:00.000Z",
+      timezone: "UTC",
+      settings: {
+        reducedMotion: false,
+        defaultPage: "watchlist",
+        franchiseChronologicalOrder: false,
+        adminMode: true,
+        halloweenPumpkinState: "uncarved",
+      },
+      dataVersion: 1,
+    });
+    await repos.settings.set(PROFILE_ID, "events.settings", {
+      eventsEnabled: true,
+      eventVisualsEnabled: true,
+      activeEvent: null,
+      manuallyEnabledEvents: [],
+    });
+    await repos.settings.set(PROFILE_ID, "events.participations", {
+      [`${HALLOWEEN_EVENT_ID}:2026`]: "joined",
+    });
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: HALLOWEEN_EVENT_ID,
+      simulatedDate: "2026-10-15T12:00:00.000Z",
+    });
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /pumpkin: uncarved/i }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/halloween pumpkin/i)).not.toBeInTheDocument();
+  });
+
+  it("hides the pumpkin when Halloween hasn't been joined", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("No stats yet")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: /pumpkin/i }),
+    ).not.toBeInTheDocument();
   });
 });

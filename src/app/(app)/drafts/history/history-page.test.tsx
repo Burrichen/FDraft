@@ -1,7 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setEventDateOverride } from "@/application/events/event-date-override-store";
 import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
 import { ProfileProvider } from "@/components/profiles/profile-provider";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
@@ -69,6 +68,7 @@ function baseDraft(overrides: Partial<DraftRecord> = {}): DraftRecord {
     sourceEventManuallyEnabled: null,
     rewardsGrantedAt: "2026-10-20T00:00:00.000Z",
     customName: null,
+    eventOccurrenceYear: null,
     createdAt: "2026-10-01T00:00:00.000Z",
     updatedAt: "2026-10-20T00:00:00.000Z",
     ...overrides,
@@ -129,7 +129,11 @@ describe("Draft History — normal and Halloween Drafts stay distinguishable", (
     );
 
     const user = userEvent.setup();
-    const summary = screen.getByText(/october baby draft/i);
+    // Canonical Halloween naming (see docs/updates, "HALLOWEEN UI CLEANUP"
+    // §7-9) — never the generated `<Month> <Difficulty> Draft` form, even
+    // though `baseDraft()`'s own difficulty/startedAt would otherwise
+    // produce "October Baby Draft" for this record.
+    const summary = screen.getByText(/halloween 2026 draft/i);
     await user.click(summary);
 
     expect(screen.getByText(/event deadline/i)).toBeInTheDocument();
@@ -159,7 +163,12 @@ describe("Draft History — normal and Halloween Drafts stay distinguishable", (
       expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
     );
 
-    expect(screen.getAllByText(/october baby draft/i)).toHaveLength(2);
+    // The normal draft keeps its generated name; the Halloween draft shows
+    // its own canonical name instead — the two are no longer identical
+    // text now that Halloween naming doesn't follow creation month/
+    // difficulty (see docs/updates, "HALLOWEEN UI CLEANUP" §7-9).
+    expect(screen.getByText(/october baby draft/i)).toBeInTheDocument();
+    expect(screen.getByText(/halloween 2026 draft/i)).toBeInTheDocument();
     expect(screen.getByText("Halloween")).toBeInTheDocument();
   });
 });
@@ -261,19 +270,19 @@ describe("Draft History — One At A Time draft", () => {
 });
 
 /**
- * Covers docs/updates, "HALLOWEEN VISUAL/LAYOUT REPAIR" §3: the
- * interactive pumpkin moved off the Halloween Event page onto History,
- * shown under the exact same condition the app-wide ambient decorations
- * already use (`useHalloweenAmbientVisible`) — joined AND currently
- * active AND Event Visuals on — never unconditionally.
+ * Regression coverage for docs/updates, "HALLOWEEN UI CLEANUP" §2: the
+ * interactive pumpkin easter egg moved from here to Stats — its positive
+ * coverage (shown when joined/active with visuals on) now lives in
+ * `stats-view.test.tsx`; this only needs to prove it's genuinely gone from
+ * History, even under the exact conditions that used to show it here.
  */
-describe("Draft History — Halloween pumpkin (moved here from the Event page)", () => {
+describe("Draft History — no Halloween pumpkin (moved to Stats)", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
   });
 
-  it("shows the pumpkin when Halloween is joined/active with visuals on", async () => {
+  it("never shows the pumpkin here, even when Halloween is joined/active with visuals on", async () => {
     const databaseName = crypto.randomUUID();
     const db = new FDraftLocalDatabase(databaseName);
     const repos = createLocalRepositories(db);
@@ -301,27 +310,9 @@ describe("Draft History — Halloween pumpkin (moved here from the Event page)",
     await repos.settings.set(PROFILE_ID, "events.participations", {
       [`${HALLOWEEN_EVENT_ID}:2026`]: "joined",
     });
-    await setEventDateOverride(repos, PROFILE_ID, {
-      enabled: true,
-      eventId: HALLOWEEN_EVENT_ID,
-      simulatedDate: "2026-10-15T12:00:00.000Z",
-    });
     await db.close();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-15T12:00:00.000Z"));
-
-    render(<Harness databaseName={databaseName} />);
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /pumpkin: uncarved/i }),
-      ).toBeInTheDocument(),
-    );
-  });
-
-  it("hides the pumpkin when Halloween hasn't been joined", async () => {
-    const databaseName = crypto.randomUUID();
-    await seedProfile(databaseName);
 
     render(<Harness databaseName={databaseName} />);
 

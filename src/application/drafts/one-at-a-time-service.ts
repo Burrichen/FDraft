@@ -345,6 +345,7 @@ export async function finalizeOneAtATimeDraft(
     sourceEventManuallyEnabled: null,
     rewardsGrantedAt: null,
     customName: null,
+    eventOccurrenceYear: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

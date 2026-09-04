@@ -22,6 +22,22 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.13",
+    nickname: "Trick or Treat (Beta 13)",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          'The Halloween Draft\'s film-progress bar is now Halloween orange instead of green, and a Halloween Draft is always named "Halloween <year> Draft" (it can no longer be renamed).',
+          'The Halloween pumpkin easter egg has moved from History to Stats, and no longer shows a visible "Halloween Pumpkin" label.',
+          "Horror and Kitsch film badges on Halloween films are now much easier to read.",
+          "Halloween's Horror and Kitsch film lists are now simple built-in lists shipped with each update, instead of being fetched over the network.",
+          "Removed the Halloween Candy Bowl easter egg.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.12",
     nickname: "Trick or Treat (Beta 12)",
     sections: [

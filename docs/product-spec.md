@@ -2267,25 +2267,33 @@ or under a different simulated Admin date). Every one of 30 Sep 19:00,
 
 ### Editing the Horror and Kitsch lists
 
-Both lists live in one small, hand-edited, versioned JSON file —
-`src/domain/events/manifests/halloween.json` — documented field-by-field
-in `src/domain/events/manifests/README.md`. That same file is BOTH the
-small bundled fallback shipped in every build AND the live file every
-installation periodically re-fetches straight from this repository's
-`main` branch, so publishing a Horror/Kitsch list change is: edit the
-file, bump its `updatedAt`, commit and push to `main` — no new FDraft
-release required. Online, FDraft validates and caches whatever it
-fetches; offline, it uses its last good cached copy; with no cache at
-all, it falls back to the small bundled list; a malformed or invalid
-fetch is treated exactly like a network failure and never overwrites a
-previously-good cache.
+Both lists live in one small, hand-edited, static JSON file —
+`public/events/halloween/films.json` — documented in
+docs/event-film-lists.md, alongside the equivalent files for January
+(`public/events/january/films.json`) and Christmas
+(`public/events/christmas/films.json`, content-pack support only — no
+Christmas Draft mechanic exists yet). See docs/updates, "STATIC EVENT
+FILM CONTENT PACKS" — this deliberately REPLACED an earlier
+remotely-fetched-manifest design (a live file periodically re-fetched
+from this repository's `main` branch, with its own cache/staleness
+logic): these lists now ship purely as static content bundled into the
+app itself, with no network dependency of any kind. Publishing a
+Horror/Kitsch list change is: edit the file, commit, and ship the next
+FDraft build — there is no live sync, and no way for an already-installed
+copy to pick up a change without a new build.
 
-An entry in either list identifies a film by (in order of preference) a
-stable TMDB id, a Letterboxd slug, or a plain title/year pair. A listed
-film with no local match yet is created locally the first time it's
-needed (title/year only — nothing is ever fabricated) and enriched via
-the normal metadata provider when online, without ever touching anyone's
-personal Watchlist.
+An entry in either list identifies a film by TITLE + YEAR only — no
+provider id, no Letterboxd slug (a deliberate simplification; year is
+what stops "Halloween (1978)" from ever being confused with "Halloween
+(2007)" — matching is exact and case-insensitive, never fuzzy, via
+`FilmRepository.findByTitleAndYear`). A listed film with no local match
+yet is created locally the first time it's needed (title/year only —
+nothing is ever fabricated) and enriched via the normal metadata provider
+when online, without ever touching anyone's personal Watchlist. A film
+accidentally listed in both Horror and Kitsch is reported (a validation
+test, and a console warning at app startup) but never silently removed
+from either — the Draft generator's own cross-pool exclusion already
+guarantees it's never drawn twice into the same Draft.
 
 ### Event Page and icon
 
@@ -2327,6 +2335,32 @@ affect drafts, watched state, or any other real data. Outside Halloween's
 window, and on every ordinary (non-Event) page while Halloween IS active,
 app-wide ambient decoration is limited to a single small approved motif —
 no stray/leftover shapes from earlier art passes.
+
+---
+
+## CHRISTMAS EVENT — CONTENT-PACK SCAFFOLDING ONLY
+
+Christmas has a real visual art pack (see the Event Art System, and
+`public/events/christmas/`) and, as of docs/updates, "STATIC EVENT FILM
+CONTENT PACKS," a real static curated film content file —
+`public/events/christmas/films.json` (see docs/event-film-lists.md) —
+with two manually-curated categories:
+
+- **`classic`** — films that are directly and recognisably Christmas
+  films.
+- **`adjacent`** — films that fit Christmas/winter/holiday-season viewing
+  but aren't necessarily straightforward traditional Christmas films.
+
+Neither category is inferred from genre metadata — both are editorial,
+the same convention Halloween's Horror/Kitsch lists use.
+
+This is deliberately content-pack support ONLY. There is no Christmas
+`EventDefinition` in `event-registry.ts` yet, no Christmas Draft pool
+generation, no Christmas eligibility rules, and no Christmas Event page —
+none of that is invented here. `getEventFilmContent("christmas")`
+resolves and validates the file exactly like Halloween's/January's own
+content does, ready for whichever future phase adds the real event
+mechanic on top of it.
 
 ---
 
@@ -6786,3 +6820,98 @@ released independently.
   under that tag. Fixed forward as `v1.2.0-beta.12` — a real
   `PATCH_NOTES`/`PATCH_NOTES.md` entry added for it — rather than
   deleting/retargeting the already-pushed `beta.11` tag.
+
+### Phase 26 — Halloween UI cleanup, then Static Event Film Content Packs
+
+Two passes shipped together (neither released independently — both are
+uncommitted, stacked on top of Phase 25 at the time of writing):
+
+- **Halloween UI cleanup**: the Candy Bowl easter egg removed from the
+  app entirely (its component, art, and registry entries all left in
+  place — see `halloween-decoration-layout.ts`'s own comment — only the
+  Designed Slot that rendered it, and the wrapper component that mounted
+  that slot, were deleted; `ghost-02` had no other approved placement, so
+  per that same requirement it was not moved elsewhere either). The
+  interactive pumpkin moved a second time, from History to Stats (bottom-
+  centre, below every stat card/chart), with its own "Halloween Pumpkin"
+  visible caption removed — the button's own `aria-label` is now its only
+  description. The Halloween Draft's FILMS progress bar now uses the
+  Halloween orange accent (`bg-halloween-pumpkin`) instead of the normal
+  green; Days, normal Drafts, and January are unaffected. Halloween Draft
+  naming became canonical — always "Halloween `<year>` Draft," never the
+  generated `<Month> <Difficulty> Draft` form or a custom name — via a
+  new `DraftRecord.eventOccurrenceYear` field captured at creation time
+  from the Admin-aware EventClock (so Admin Event Testing simulating a
+  different year produces the right name even though `startedAt` always
+  records the real wall-clock instant), with a same-year `startedAt`
+  fallback fixing existing Beta drafts automatically. The rename control
+  is hidden for Halloween Drafts specifically. Horror/Kitsch source
+  badges gained proper high-contrast foreground pairings (deep plum +
+  light lavender for Horror; warm pumpkin/brown + pale cream for Kitsch),
+  distinct from each other and from Halloween-Adjacent's own unchanged
+  treatment. A genuine race-condition-shaped bug was also caught during
+  this phase's own testing and fixed:
+  `findByTitleAndYear`'s exact-year lookup path was case-SENSITIVE (its
+  null-year fallback path already wasn't) — unified into one
+  case-insensitive, exact-year filter scan, since FDraft's local film
+  catalog is personal-scale, not the kind of size an index lookup is
+  load-bearing for.
+- **Static Event Film Content Packs**: replaces the entire
+  remotely-fetched-manifest architecture for Halloween's Horror/Kitsch
+  pools and January's curated extra-eligibility list (`src/domain/events/
+manifests/*.json`, fetched from GitHub raw content with its own cache/
+  staleness logic — `EventManifestCacheStore`, `refreshHalloweenManifest`,
+  `refreshJanuaryManifest`, the two Settings "Refresh event data" dev
+  buttons, all deleted) with genuinely static, bundled-only content —
+  `public/events/<eventId>/films.json`, alongside each event's existing
+  art `manifest.json` — with NO remote fetch, cache, or staleness check
+  of any kind (see docs/event-film-lists.md, and docs/product-spec.md,
+  "Editing the Horror and Kitsch lists," both rewritten for this). Every
+  entry is now TITLE + YEAR only (no `tmdbId`/`letterboxdSlug` — a
+  deliberate simplification; FDraft's existing metadata system resolves
+  everything else the normal way), matched via the now-fixed
+  `findByTitleAndYear` — exact and case-insensitive, deliberately never
+  fuzzy, so "Halloween (1978)" can never resolve to "Halloween (2007)".
+  New: `event-film-content-schema.ts` (the shared entry schema plus one
+  content schema per event, each throwing on a malformed bundled file —
+  an authoring mistake, not untrusted network input, unlike the old
+  manifest schemas' safe-parse-and-degrade convention — plus
+  `findWithinCategoryDuplicates`/`findCrossCategoryDuplicates`, the
+  latter reporting rather than silently deduplicating a film accidentally
+  listed in two categories of the same event, e.g. both Horror and
+  Kitsch); `event-film-content.ts` (the one place the three bundled files
+  are actually imported, plus the generic `getEventFilmContent(eventId)`
+  lookup); `halloween-film-content-service.ts`/
+  `january-film-content-service.ts` (replacing the two deleted `refresh*
+Manifest` functions — same in-memory overlay hand-off to the
+  synchronous `EventDefinition` layer as before, just with nothing left
+  to fetch). `EventDefinition` gained an optional `contentPools` field
+  (Halloween: `horror`/`kitsch`; January: `curated`) — purely
+  declarative, so a future generic tool never needs a hardcoded switch
+  over category names. Christmas got the same static-content-pack
+  support (`classic`/`adjacent`, `public/events/christmas/films.json`) —
+  content-pack scaffolding only; no Christmas `EventDefinition` or Draft
+  mechanic exists yet. A genuine bug was found and fixed during this
+  phase's own testing: `loadHalloweenFilmContent` resolved horror/kitsch
+  via `Promise.all`, which raced a film accidentally listed in both
+  categories — each resolve-or-create pass independently found "no local
+  match yet" and created its own separate `FilmRecord`, silently
+  defeating the Draft generator's own dedup-by-id cross-pool exclusion;
+  now resolved sequentially, so kitsch's lookup always finds whatever
+  horror's pass just created.
+- **Verification**: full unit/integration suite green (2,034 tests, up
+  from 2,027 — new coverage: `event-film-content-schema.test.ts`,
+  `event-film-content.test.ts` — which validates the REAL shipped
+  `films.json` files, not just fixtures, so a broken bundled file fails
+  CI here — `halloween-film-content-service.test.ts` plus a dedicated
+  cross-category-duplicate-warning test, `january-film-content-service.
+test.ts`, and rewritten `resolve-manifest-film-ids.test.ts`/
+  `resolve-or-create-halloween-films.test.ts` covering the new title-
+  +year-only identity, including an explicit "never resolves a different
+  year of the same title" regression test); one pre-existing, unrelated
+  flaky subprocess test confirmed to pass in isolation. A live-browser
+  check confirmed the full pipeline end to end — bundled JSON parsed,
+  resolved into real local films, reflected correctly in the Halloween
+  Draft creation screen's pool-availability counts — with zero console
+  errors. Format, lint, strict typecheck, production build, the Tauri
+  static export, and `cargo check --release` all clean.

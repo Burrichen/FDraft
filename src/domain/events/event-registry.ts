@@ -73,6 +73,9 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
   // this event's own visual theme — a hand-authored trash can (see
   // docs/updates, "PROMPT B2.1", §3) — rather than a new icon.
   page: { route: "/events/january", navLabel: "January" },
+  // See docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12 — matches
+  // `public/events/january/films.json`'s one category key.
+  contentPools: [{ key: "curated", label: "Curated" }],
 };
 
 /**
@@ -194,6 +197,12 @@ const HALLOWEEN: EventDefinition = {
     foundingYear: 2026,
     buttonLabel: "See you next year.",
   },
+  // See docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12 — matches
+  // `public/events/halloween/films.json`'s two category keys.
+  contentPools: [
+    { key: "horror", label: "Horror" },
+    { key: "kitsch", label: "Kitsch" },
+  ],
 };
 
 /**

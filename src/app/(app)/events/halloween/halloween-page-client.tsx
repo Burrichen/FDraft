@@ -6,7 +6,6 @@ import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import {
-  HalloweenActivePageDecorations,
   HalloweenDecorativeLayer,
   HalloweenGhostPeekLayer,
 } from "@/components/events/halloween-decorative-layer";
@@ -173,15 +172,15 @@ export function HalloweenPageClient() {
         />
 
         {/* No interactive easter egg row here any more (see docs/updates,
-            "HALLOWEEN VISUAL/LAYOUT REPAIR") — the gravestone left this
-            page first (still reachable via the Event Studio theme system,
-            see `theme-interaction-registry.tsx`), and the pumpkin has now
-            moved to the History page (`HalloweenPumpkin`, in
-            `drafts/history/page.tsx`), shown there instead whenever
-            Halloween is joined/active with visuals on. The Candy Bowl
-            stays on this page via the bottom-right Designed Slot below
-            (`HalloweenActivePageDecorations`) — it was always a page
-            decoration, never a History concern. */}
+            "HALLOWEEN VISUAL/LAYOUT REPAIR" and "HALLOWEEN UI CLEANUP") —
+            the gravestone left this page first (still reachable via the
+            Event Studio theme system, see `theme-interaction-registry.tsx`),
+            the pumpkin moved to History and then on to Stats
+            (`HalloweenPumpkin`, in `stats-view.tsx`), and the Candy Bowl
+            that used to sit here has been removed from the app entirely
+            (its component/art/registry entries remain in the codebase —
+            see `halloween-decoration-layout.ts`'s top comment — simply
+            with no live slot rendering it any more). */}
         {isActiveForProfile &&
         hauntedPoints !== null &&
         hauntedPoints !== undefined ? (
@@ -191,17 +190,6 @@ export function HalloweenPageClient() {
           </p>
         ) : null}
       </div>
-      {/* Rendered AFTER (not alongside `HalloweenDecorativeLayer` above)
-          deliberately: this is the one Designed Slot that's genuinely
-          interactive (the Candy Bowl), and every earlier sibling here —
-          including the whole content column above, itself `position:
-          relative` — paints over an `auto`-`z-index` positioned sibling
-          that comes BEFORE it in tree order. Being last guarantees this
-          slot's real buttons stay clickable/on top rather than getting
-          silently swallowed by the content column's own (invisible,
-          full-size) box — see docs/updates, "HALLOWEEN EVENT ART REWORK",
-          "CANDY BOWL CLICK-THROUGH FIX". */}
-      {isActiveForProfile ? <HalloweenActivePageDecorations /> : null}
     </div>
   );
 }

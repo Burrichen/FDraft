@@ -118,6 +118,7 @@ describe("History preserves Halloween-sourced drafts after opting out (PROMPT 18
       sourceEventId: HALLOWEEN_EVENT_ID,
       sourceEventManuallyEnabled: false,
       rewardsGrantedAt: "2026-10-16T00:00:00.000Z",
+      eventOccurrenceYear: null,
       customName: null,
       createdAt: "2026-10-15T00:00:00.000Z",
       updatedAt: "2026-10-16T00:00:00.000Z",

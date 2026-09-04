@@ -19,11 +19,17 @@ export function ActiveDraftFilms({
   onReroll,
   onManualReplace,
   onSlotReroll,
+  filmsProgressIndicatorClassName,
 }: {
   films: DraftFilmCardView[];
   onReroll?: (itemId: string) => Promise<void>;
   onManualReplace?: (itemId: string) => void;
   onSlotReroll?: (itemId: string) => Promise<void>;
+  /** Overrides the FILM progress bar's fill colour — used for a Halloween
+   * Draft's canonical orange (see docs/updates, "HALLOWEEN UI CLEANUP" §6);
+   * omitted (the default `bg-watchlist-green`) for every normal or January
+   * draft, which keep their existing styling unchanged. */
+  filmsProgressIndicatorClassName?: string;
 }) {
   const watchUndo = useWatchUndo();
 
@@ -62,7 +68,9 @@ export function ActiveDraftFilms({
         <Progress
           value={progress.percentWatched}
           aria-label="Films watched"
-          indicatorClassName="bg-watchlist-green"
+          indicatorClassName={
+            filmsProgressIndicatorClassName ?? "bg-watchlist-green"
+          }
         />
       </div>
 

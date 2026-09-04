@@ -40,17 +40,37 @@ const HALLOWEEN_SOURCE_LABELS: Partial<Record<DraftItemSource, string>> = {
 
 /**
  * Pool-specific badge colors (see docs/updates, "PROMPT 20 — HIGH-EFFORT
- * HALLOWEEN UI + APPROVED EASTER EGGS" §6) — pumpkin/purple/cream, never
- * the generic "outline" badge or a blood-red. Shared with
+ * HALLOWEEN UI + APPROVED EASTER EGGS" §6; contrast revised in "HALLOWEEN
+ * UI CLEANUP" §10-12) — pumpkin/purple/pumpkin-and-cream, never the
+ * generic "outline" badge or a blood-red. Shared with
  * `drafts/history/page.tsx` so both surfaces render identical badges for
  * the same source.
+ *
+ * Horror and Kitsch were both previously a low-opacity tint of their own
+ * color paired with EITHER that same color as text (Horror: purple-on-
+ * near-black purple-tint, too close in lightness to read clearly) OR a
+ * foreground token designed for an opaque background used against a
+ * barely-tinted dark card instead (Kitsch: `cream-foreground`, a dark
+ * brown, meant to sit on solid cream — nearly as dark as the card itself
+ * at 20% opacity). Both now use their color's own proper `-foreground`/
+ * light-text pairing at a richer background opacity instead, the same
+ * high-contrast pattern `--primary`/`--primary-foreground` already
+ * establishes for Halloween's dark palette, and a subtle matching border
+ * for definition — while staying deliberately distinct from each other
+ * AND from `halloween-adjacent` (which keeps its own already-legible
+ * pumpkin-on-near-black treatment unchanged): Horror reads as a deep
+ * plum chip with near-white lavender text; Kitsch a warm pumpkin/brown
+ * chip with pale cream text, never Horror's purple or a copy of
+ * `halloween-adjacent`'s monochrome orange-on-orange.
  */
 export const HALLOWEEN_SOURCE_BADGE_CLASSNAMES: Partial<
   Record<DraftItemSource, string>
 > = {
   "halloween-adjacent": "bg-halloween-pumpkin/15 text-halloween-pumpkin",
-  horror: "bg-halloween-purple/20 text-halloween-purple",
-  kitsch: "bg-halloween-cream/20 text-halloween-cream-foreground",
+  horror:
+    "bg-halloween-purple/35 text-halloween-purple-foreground border-halloween-purple/60",
+  kitsch:
+    "bg-halloween-pumpkin/30 text-halloween-cream border-halloween-cream/40",
 };
 
 export interface DraftFilmChallengeView {

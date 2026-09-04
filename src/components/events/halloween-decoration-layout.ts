@@ -3,8 +3,9 @@ import type { EventDecorationSlotPositions } from "./event-decoration-layer";
 
 /**
  * Halloween Event page's decoration layout (see docs/updates, "HALLOWEEN
- * EVENT ART REWORK" and "HALLOWEEN VISUAL/LAYOUT REPAIR") — exactly four
- * real, supplied-art pieces, each with one designed job:
+ * EVENT ART REWORK", "HALLOWEEN VISUAL/LAYOUT REPAIR", and "HALLOWEEN UI
+ * CLEANUP") — exactly three real, supplied-art pieces, each with one
+ * designed job:
  *
  *  - `header-right` (top-right): `full-moon`, always — no longer a
  *    weighted pick against "nothing"/"moon-and-bats"; the brief calls for
@@ -12,26 +13,31 @@ import type { EventDecorationSlotPositions } from "./event-decoration-layer";
  *  - `edge-peek-left` (mid-left, far edge): a 25% chance of `ghost-01`
  *    peeking in from off-screen, 75% nothing — see
  *    `HALLOWEEN_HEADER_DECORATION_LAYOUT`'s own comment for why this is a
- *    separate layout from the two below.
+ *    separate layout from the one below.
  *  - `edge-peek-right` (far bottom-right): `cyndaquil`, always, flipped to
  *    face into the page (the registry entry itself applies the flip —
  *    see `halloween-decoration-registry.tsx`).
  *
  * All three render unconditionally (regardless of whether the profile is
  * currently joined) via `HalloweenDecorativeLayer`/`HalloweenGhostPeekLayer`.
- * The interactive bottom-right slot (75% Candy Bowl / 25% `ghost-02`) is
- * deliberately a SEPARATE layout, `HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT`
- * — the Candy Bowl is a real interactive easter egg, not ambient theming,
- * and this app's existing convention only ever showed its interactive
- * pieces once a profile is actively joined to the current occurrence.
- * Splitting it out lets `HalloweenPageClient` mount it only behind that
- * same `isActiveForProfile` gate.
  *
- * The interactive pumpkin isn't a slot here at all, and isn't on this page
- * any more either (see docs/updates, "HALLOWEEN VISUAL/LAYOUT REPAIR" §3)
- * — it moved to the History page (`HalloweenPumpkin`, in
- * `drafts/history/page.tsx`), still a single, always-the-same, persisted-
- * state easter egg, just relocated.
+ * The interactive bottom-right slot that used to sit here (75% Candy Bowl /
+ * 25% `ghost-02`, `HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT`) is REMOVED —
+ * see docs/updates, "HALLOWEEN UI CLEANUP" §1: the Candy Bowl should no
+ * longer be rendered anywhere in the app. Its component
+ * (`HalloweenCandyBowl`, in `halloween-candy-bowl.tsx`), registry entries,
+ * and every underlying art asset are all deliberately left in place —
+ * only the slot that rendered it, and the wrapper component that mounted
+ * that slot (`HalloweenActivePageDecorations`, previously in
+ * `halloween-decorative-layer.tsx`), were deleted. `ghost-02` had no other
+ * approved placement, so per that same requirement it was NOT
+ * automatically moved elsewhere — it now simply has no live slot, exactly
+ * like the Candy Bowl.
+ *
+ * The interactive pumpkin isn't a slot here at all — see docs/updates,
+ * "HALLOWEEN VISUAL/LAYOUT REPAIR" §3 (moved off this page to History) and
+ * "HALLOWEEN UI CLEANUP" §2 (moved again, from History to Stats) — still a
+ * single, always-the-same, persisted-state easter egg, just relocated.
  *
  * Every asset id referenced below must exist in
  * `HALLOWEEN_DECORATION_REGISTRY` (`halloween-decoration-registry.tsx`) —
@@ -81,33 +87,11 @@ export const HALLOWEEN_HEADER_DECORATION_LAYOUT: EventDecorationLayout = {
 };
 
 /**
- * The Halloween page's one INTERACTIVE decoration slot — bottom-right,
- * 75% Candy Bowl / 25% `ghost-02` — kept behind the same
- * `isActiveForProfile` gate the Candy Bowl always required (see this
- * file's own top comment). Uses the SAME session-stable weighted-pick
- * mechanism as every other Designed Slot (`resolveDecorationLayout`), so
- * "stable for the session, a fresh app launch may choose again" comes for
- * free rather than being hand-rolled again for this one slot.
- */
-export const HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT: EventDecorationLayout = {
-  "lower-right": {
-    slot: "lower-right",
-    visibleFrom: "base",
-    variants: [
-      { assetId: "candy-bowl", weight: 75 },
-      { assetId: "ghost-02", weight: 25 },
-    ],
-  },
-};
-
-/**
- * Coordinates for the Event page's own decorative layer, shared by both
- * layouts above (a slot name is only ever positioned once regardless of
- * which layout object it's declared in). Deliberately composed so the
- * bottom-right cluster reads as ONE arrangement rather than two things
- * randomly stacked: `lower-right` (Candy Bowl/ghost-02) sits inward/up
- * from `edge-peek-right` (Cyndaquil, tucked into the very corner) — see
- * docs/updates, "CYNDAQUIL + BOWL SLOT COEXISTENCE".
+ * Coordinates for the Event page's own decorative layer. `lower-right` (the
+ * removed Candy Bowl/ghost-02 slot's old position — see this file's top
+ * comment) is deliberately gone from this map entirely, not merely unused,
+ * so nothing accidentally re-renders anything at that spot in the future
+ * without a deliberate new entry here.
  */
 export const HALLOWEEN_PAGE_SLOT_POSITIONS: EventDecorationSlotPositions = {
   "header-right": "absolute top-0 right-2 sm:right-4 lg:top-2 lg:right-10",
@@ -118,8 +102,6 @@ export const HALLOWEEN_PAGE_SLOT_POSITIONS: EventDecorationSlotPositions = {
   // rather than peeking in beside it.
   "edge-peek-left": "absolute top-1/2 -left-12 -translate-y-1/2",
   "edge-peek-right": "absolute -right-1 bottom-0 sm:right-2 sm:bottom-1",
-  "lower-right":
-    "absolute right-24 bottom-6 sm:right-28 sm:bottom-8 lg:right-36",
 };
 
 export const HALLOWEEN_MODAL_DECORATION_LAYOUT: EventDecorationLayout = {

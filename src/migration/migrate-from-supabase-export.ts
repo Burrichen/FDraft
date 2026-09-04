@@ -189,6 +189,10 @@ export async function migrateFromSupabaseExport(
       // ordering entirely — every migrated draft uses the generated
       // default name.
       customName: null,
+      // The Supabase-era data model predates Halloween's occurrence-year
+      // naming entirely too — moot in practice anyway, since sourceEventId
+      // above is unconditionally null for every migrated draft.
+      eventOccurrenceYear: null,
       createdAt: draft.created_at,
       updatedAt: draft.updated_at,
     };

@@ -242,4 +242,16 @@ export interface EventDefinition {
   fixedEventDeadline?: boolean;
   /** This event's own Event-over/ending experience config, or `null`/absent for an event with no ending defined yet — see `EventEndingContent`. */
   ending?: EventEndingContent | null;
+  /**
+   * Which static curated film categories this event has (see
+   * docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12) — `key` matches
+   * the category's field name in that event's `public/events/<id>/
+   * films.json` (see `event-film-content-schema.ts`, e.g. `"horror"`/
+   * `"kitsch"`), `label` is its display name. Purely declarative — no
+   * Draft-generation code branches on this array today, it exists so a
+   * future generic tool (a settings preview, a validation script, ...)
+   * can enumerate an event's pools without a hardcoded switch statement.
+   * `undefined` for an event with no static curated content at all.
+   */
+  contentPools?: Array<{ key: string; label: string }>;
 }

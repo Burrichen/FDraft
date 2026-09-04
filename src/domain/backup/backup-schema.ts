@@ -359,6 +359,11 @@ export const backupDraftSchema = z.object({
   // `null`, the same "use the generated default name" every draft already
   // had (see `src/domain/drafts/draft-name.ts`).
   customName: nullableBoundedString(200).default(null),
+  // A backup exported before this field existed defaults to `null` — the
+  // same legacy fallback `getDraftDisplayName` itself uses (derives the
+  // Halloween title's year from `startedAt` instead; see that field's own
+  // comment on `DraftRecord`).
+  eventOccurrenceYear: z.number().int().nullable().default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

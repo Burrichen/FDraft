@@ -1,3 +1,4 @@
+import { formatInTimeZone } from "date-fns-tz";
 import {
   fetchHalloweenAdjacentCandidates,
   fetchHalloweenManifestCandidates,
@@ -215,6 +216,14 @@ export async function createHalloweenLocalDraft(
     effectiveNow,
     timezone,
   )!.end;
+  // Captured from `effectiveNow` (Admin-aware), never `now`/`clock.now()`
+  // (always the real wall clock — see `DraftRecord.eventOccurrenceYear`'s
+  // own comment) — so this draft's canonical "Halloween <year> Draft" title
+  // reflects whatever occurrence Admin Event Testing is actually simulating
+  // right now, not the computer's unrelated real year.
+  const eventOccurrenceYear = Number(
+    formatInTimeZone(effectiveNow, timezone, "yyyy"),
+  );
 
   const draft: DraftRecord = {
     id: draftId,
@@ -235,6 +244,7 @@ export async function createHalloweenLocalDraft(
     sourceEventManuallyEnabled: null,
     rewardsGrantedAt: null,
     customName: null,
+    eventOccurrenceYear,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

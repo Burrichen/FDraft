@@ -11,8 +11,6 @@ import { HALLOWEEN_SOURCE_BADGE_CLASSNAMES } from "@/components/drafts/draft-fil
 import { HistoricalDraftSortControl } from "@/components/drafts/historical-draft-sort-control";
 import { RecentlyWatchedSection } from "@/components/drafts/recently-watched-section";
 import { EventPresentationBadge } from "@/components/events/event-presentation-badge";
-import { useHalloweenAmbientVisible } from "@/components/events/halloween-ambient-decorations";
-import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Badge } from "@/components/ui/badge";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
@@ -88,13 +86,6 @@ interface HistoricalDraftItemView {
  */
 export default function DraftHistoryPage() {
   const { activeProfile, repositories } = useProfileContext();
-  // Moved here from the Halloween Event page itself (see docs/updates,
-  // "HALLOWEEN VISUAL/LAYOUT REPAIR" §3) — same persisted-per-profile
-  // state and click cycle (`HalloweenPumpkin` itself is unchanged, only
-  // WHERE it's rendered moved), shown under the exact same condition the
-  // app-wide ambient decorations already use: Halloween currently joined/
-  // active AND Event Visuals turned on.
-  const showHalloweenPumpkin = useHalloweenAmbientVisible();
 
   const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
@@ -181,14 +172,8 @@ export default function DraftHistoryPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
         <h1 className="page-heading">Draft history</h1>
-        {showHalloweenPumpkin ? (
-          <div className="flex flex-col items-center gap-1">
-            <HalloweenPumpkin />
-            <p className="text-muted-foreground text-xs">Halloween pumpkin</p>
-          </div>
-        ) : null}
       </div>
 
       <RecentlyWatchedSection films={data.recentlyWatched} />

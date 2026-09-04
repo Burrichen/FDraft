@@ -34,7 +34,10 @@ import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
 import { getCurrentOccurrenceBounds } from "@/domain/events/event-availability";
-import { getEventDefinition } from "@/domain/events/event-registry";
+import {
+  getEventDefinition,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import {
   resolveAdminMode,
   resolveFranchiseChronologicalOrder,
@@ -307,6 +310,14 @@ export function DraftLifecycleView({
   const event = draft.sourceEventId
     ? getEventDefinition(draft.sourceEventId)
     : null;
+  // Halloween Draft naming is canonical ("Halloween <year> Draft" — see
+  // docs/updates, "HALLOWEEN UI CLEANUP" §7-9) — the rename control is
+  // hidden entirely for this event rather than offered and then silently
+  // ignored, since `getDraftDisplayName` already refuses to show a custom
+  // name for a Halloween draft regardless of what's persisted. No other
+  // event (or a normal draft) is affected — January and normal drafts keep
+  // their existing rename behaviour unchanged.
+  const isHalloweenDraft = draft.sourceEventId === HALLOWEEN_EVENT_ID;
   const eventWindow =
     event?.fixedEventDeadline && effectiveEventNow
       ? getCurrentOccurrenceBounds(
@@ -447,11 +458,13 @@ export function DraftLifecycleView({
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
             />
-            <DraftNameEditor
-              draftId={draft.id}
-              currentCustomName={draft.customName}
-              onSaved={reloadSilently}
-            />
+            {isHalloweenDraft ? null : (
+              <DraftNameEditor
+                draftId={draft.id}
+                currentCustomName={draft.customName}
+                onSaved={reloadSilently}
+              />
+            )}
           </h1>
           <p className="page-subtitle">
             {watchedFilms.length}/{items.length} films completed · deadline was{" "}
@@ -539,11 +552,13 @@ export function DraftLifecycleView({
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
             />
-            <DraftNameEditor
-              draftId={draft.id}
-              currentCustomName={draft.customName}
-              onSaved={reloadSilently}
-            />
+            {isHalloweenDraft ? null : (
+              <DraftNameEditor
+                draftId={draft.id}
+                currentCustomName={draft.customName}
+                onSaved={reloadSilently}
+              />
+            )}
           </h1>
           <p className="page-subtitle">
             {unresolvedChallengeCount > 0
@@ -576,6 +591,9 @@ export function DraftLifecycleView({
         onReroll={handleReroll}
         onManualReplace={handleManualReplace}
         onSlotReroll={handleSlotReroll}
+        filmsProgressIndicatorClassName={
+          isHalloweenDraft ? "bg-halloween-pumpkin" : undefined
+        }
       />
       <ManualReplaceSlotSheet
         open={replacingItemId !== null}

@@ -277,6 +277,23 @@ export interface DraftRecord {
    * default" behaviour every draft already had.
    */
   customName: string | null;
+  /**
+   * The real-world calendar year of the Event occurrence this draft was
+   * created under, captured ONCE at creation time from the Admin-aware
+   * `getEffectiveEventDate` (see docs/updates, "HALLOWEEN UI CLEANUP" §7) —
+   * `null` for a normal, non-event draft, or for a Halloween draft created
+   * before this field existed. Exists so a Halloween draft's canonical
+   * "Halloween <year> Draft" title (`getDraftDisplayName`) reflects the
+   * occurrence it actually belongs to even when Admin Event Testing is
+   * simulating a year that differs from the real system clock — `startedAt`
+   * always records the REAL creation instant (see `sourceEventManuallyEnabled`'s
+   * own comment on why persisted timestamps never follow the simulated
+   * clock), so it can't be used for this. A legacy record with no such
+   * property normalizes to `null`; `getDraftDisplayName` falls back to
+   * `startedAt`'s own year in that case, which is exactly correct for every
+   * draft that was never created under a simulated Admin date.
+   */
+  eventOccurrenceYear: number | null;
   createdAt: string;
   updatedAt: string;
 }

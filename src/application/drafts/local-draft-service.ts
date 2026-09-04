@@ -334,6 +334,7 @@ export async function createLocalDraft(
       : null,
     rewardsGrantedAt: null,
     customName: null,
+    eventOccurrenceYear: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -578,6 +579,7 @@ export async function createLocalDraftFromSelection(
     sourceEventManuallyEnabled: null,
     rewardsGrantedAt: null,
     customName: null,
+    eventOccurrenceYear: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

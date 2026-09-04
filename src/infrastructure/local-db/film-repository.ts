@@ -22,26 +22,27 @@ export class LocalFilmRepository implements FilmRepository {
     title: string,
     releaseYear: number | null,
   ): Promise<FilmRecord | null> {
-    // Dexie compound indexes require every key part to be present, and
-    // `releaseYear` is nullable here (see src/domain/import/film-key.ts —
-    // this is the slug-less fallback path), so this falls back to a full
-    // scan rather than the `[title+releaseYear]` index when there's no year.
-    if (releaseYear === null) {
-      const lowerTitle = title.toLowerCase();
-      const films = await this.db.films
-        .filter(
-          (film) =>
-            film.releaseYear === null &&
-            film.title.toLowerCase() === lowerTitle,
-        )
-        .toArray();
-      return films[0] ?? null;
-    }
-    const film = await this.db.films
-      .where("[title+releaseYear]")
-      .equals([title, releaseYear])
-      .first();
-    return film ?? null;
+    // A full-table filter scan rather than the `[title+releaseYear]`
+    // index in every case — not just when `releaseYear` is null (see
+    // src/domain/import/film-key.ts, the slug-less fallback path this
+    // also serves) — because an exact index `.equals()` lookup is
+    // case-SENSITIVE, and title matching here must be case-insensitive
+    // (see docs/updates, "STATIC EVENT FILM CONTENT PACKS" §3: "normalise
+    // obvious casing differences") without ever loosening the YEAR
+    // comparison, which stays an exact match — that's what prevents
+    // "Halloween (1978)" from ever resolving to "Halloween (2007)". A
+    // full scan is an acceptable trade-off for FDraft's personal-scale
+    // local film catalog (hundreds to low thousands of rows, not
+    // millions).
+    const lowerTitle = title.toLowerCase();
+    const films = await this.db.films
+      .filter(
+        (film) =>
+          film.releaseYear === releaseYear &&
+          film.title.toLowerCase() === lowerTitle,
+      )
+      .toArray();
+    return films[0] ?? null;
   }
 
   async create(film: FilmRecord): Promise<void> {

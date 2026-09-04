@@ -3,8 +3,8 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { refreshHalloweenManifest } from "@/application/events/halloween-manifest-service";
-import { refreshJanuaryManifest } from "@/application/events/january-manifest-service";
+import { loadHalloweenFilmContent } from "@/application/events/halloween-film-content-service";
+import { loadJanuaryFilmContent } from "@/application/events/january-film-content-service";
 import { EventEndingDialog } from "@/components/events/event-ending-dialog";
 import { EventIntroDialog } from "@/components/events/event-intro-dialog";
 import {
@@ -24,8 +24,6 @@ import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/updates/update-dialog";
 import { UpdateProvider } from "@/components/updates/update-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
-import { parseHalloweenManifest } from "@/domain/events/halloween-manifest-schema";
-import { LocalStorageEventManifestCacheStore } from "@/infrastructure/events/event-manifest-cache-store";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
 /**
@@ -58,19 +56,15 @@ function AppShellContent({ children }: { children: ReactNode }) {
   // — films/their metadata are installation-wide, not per-profile (see
   // `film-repository.ts`), and re-running this on every profile switch
   // would be wasteful for a question that has nothing to do with which
-  // profile is active (same rationale as the update checker). Never
-  // blocks render and never throws — see `refreshJanuaryManifest`'s own
-  // doc comment (docs/updates, "Remote manifest failure must NEVER
-  // prevent FDraft starting").
+  // profile is active (same rationale as the update checker). Resolves
+  // FDraft's bundled, static curated Event film content (see
+  // docs/updates, "STATIC EVENT FILM CONTENT PACKS") into local film ids
+  // — no network fetch involved at all any more, but still async (a real
+  // IndexedDB round trip) and still never throws, so this can never block
+  // or break app startup.
   useEffect(() => {
-    void refreshJanuaryManifest({
-      cacheStore: new LocalStorageEventManifestCacheStore(),
-      films: repositories.films,
-    });
-    void refreshHalloweenManifest({
-      cacheStore: new LocalStorageEventManifestCacheStore(
-        parseHalloweenManifest,
-      ),
+    void loadJanuaryFilmContent({ films: repositories.films });
+    void loadHalloweenFilmContent({
       films: repositories.films,
       unresolvedMetadata: repositories.unresolvedMetadata,
     });

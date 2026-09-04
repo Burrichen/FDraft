@@ -12,6 +12,8 @@ import {
 } from "@/components/stats/point-currency-icons";
 import { PointsCard } from "@/components/stats/points-card";
 import { StatCard } from "@/components/stats/stat-card";
+import { useHalloweenAmbientVisible } from "@/components/events/halloween-ambient-decorations";
+import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { formatRuntimeMinutes } from "@/domain/stats/format";
 import {
@@ -22,6 +24,15 @@ import { useAsyncData } from "@/hooks/use-async-data";
 
 export function StatsView() {
   const { activeProfile, repositories } = useProfileContext();
+  // Moved here from the History page (see docs/updates, "HALLOWEEN UI
+  // CLEANUP" §2) — same persisted-per-profile state and click cycle
+  // (`HalloweenPumpkin` itself is unchanged, only WHERE it's rendered
+  // moved), shown under the exact same condition the app-wide ambient
+  // decorations already use: Halloween currently joined/active AND Event
+  // Visuals turned on. No visible "Halloween Pumpkin" caption (§3) — the
+  // component's own `aria-label`/`title` already describe it for assistive
+  // tech and hover, so it renders here as a pure visual decoration.
+  const showHalloweenPumpkin = useHalloweenAmbientVisible();
 
   const {
     data: stats,
@@ -225,6 +236,15 @@ export function StatsView() {
           </section>
         </>
       )}
+
+      {showHalloweenPumpkin ? (
+        // Bottom-centre, below every real stat card/chart/control — an
+        // environmental decoration, not competing for space with any of
+        // them (see docs/updates, "HALLOWEEN UI CLEANUP" §2).
+        <div className="flex justify-center pt-2">
+          <HalloweenPumpkin />
+        </div>
+      ) : null}
     </div>
   );
 }

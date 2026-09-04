@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultDraftName, getDraftDisplayName } from "./draft-name";
+import {
+  getDefaultDraftName,
+  getDraftDisplayName,
+  getHalloweenDraftDisplayName,
+} from "./draft-name";
 
 describe("getDefaultDraftName", () => {
   it("formats as <Month> <Difficulty> Draft, using the draft's own month", () => {
@@ -50,6 +54,8 @@ describe("getDraftDisplayName", () => {
         startedAt: "2026-08-15T00:00:00.000Z",
         timezone: "UTC",
         difficulty: "medium",
+        sourceEventId: null,
+        eventOccurrenceYear: null,
       }),
     ).toBe("August Medium Draft");
   });
@@ -61,7 +67,71 @@ describe("getDraftDisplayName", () => {
         startedAt: "2026-08-15T00:00:00.000Z",
         timezone: "UTC",
         difficulty: "medium",
+        sourceEventId: null,
+        eventOccurrenceYear: null,
       }),
     ).toBe("Summer Blockbusters");
+  });
+
+  it("uses the canonical Halloween title for a Halloween draft, ignoring any custom name", () => {
+    expect(
+      getDraftDisplayName({
+        customName: "My Spooky Picks",
+        startedAt: "2026-10-15T00:00:00.000Z",
+        timezone: "UTC",
+        difficulty: "baby",
+        sourceEventId: "halloween",
+        eventOccurrenceYear: 2026,
+      }),
+    ).toBe("Halloween 2026 Draft");
+  });
+
+  it("uses the canonical Halloween title even with no custom name, never the generated <Month> <Difficulty> Draft form", () => {
+    expect(
+      getDraftDisplayName({
+        customName: null,
+        startedAt: "2026-10-15T00:00:00.000Z",
+        timezone: "UTC",
+        difficulty: "baby",
+        sourceEventId: "halloween",
+        eventOccurrenceYear: 2026,
+      }),
+    ).toBe("Halloween 2026 Draft");
+  });
+});
+
+describe("getHalloweenDraftDisplayName", () => {
+  it("prefers the persisted eventOccurrenceYear over startedAt's own year", () => {
+    // Simulates Admin Event Testing: the draft was created while an
+    // October 2028 occurrence was simulated, but `startedAt` still records
+    // the real (2026) system-clock instant — the persisted year must win.
+    expect(
+      getHalloweenDraftDisplayName({
+        startedAt: "2026-09-04T12:00:00.000Z",
+        timezone: "UTC",
+        eventOccurrenceYear: 2028,
+      }),
+    ).toBe("Halloween 2028 Draft");
+  });
+
+  it("falls back to startedAt's own year for a legacy draft with no persisted year", () => {
+    expect(
+      getHalloweenDraftDisplayName({
+        startedAt: "2026-10-15T00:00:00.000Z",
+        timezone: "UTC",
+        eventOccurrenceYear: null,
+      }),
+    ).toBe("Halloween 2026 Draft");
+  });
+
+  it("evaluates the fallback year in the draft's own timezone, not UTC", () => {
+    // 2026-12-31 23:30 UTC is already 2027 in a UTC+something zone.
+    expect(
+      getHalloweenDraftDisplayName({
+        startedAt: "2026-12-31T23:30:00.000Z",
+        timezone: "Pacific/Kiritimati",
+        eventOccurrenceYear: null,
+      }),
+    ).toBe("Halloween 2027 Draft");
   });
 });

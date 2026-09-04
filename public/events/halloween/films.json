@@ -1,7 +1,6 @@
 {
   "schemaVersion": 1,
   "event": "halloween",
-  "updatedAt": "2026-08-23T00:00:00.000Z",
   "horror": [
     { "title": "Halloween", "year": 1978 },
     { "title": "A Nightmare on Elm Street", "year": 1984 },

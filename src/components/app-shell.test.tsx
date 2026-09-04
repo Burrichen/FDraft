@@ -12,10 +12,11 @@ import { ProfileService } from "@/application/profiles/profile-service";
  * local profile exists yet.
  */
 describe("AppShell (real fake-indexeddb, no auth/session anywhere)", () => {
-  // AppShell fires a one-shot January manifest refresh on mount (see
-  // `january-manifest-service.ts`) — stubbed here so this suite never
-  // makes a real network call; the fallback behaviour that stub exercises
-  // is itself covered by `january-manifest-service.test.ts`.
+  // Defensive safety net: nothing AppShell fires on mount makes a real
+  // network call any more (see docs/updates, "STATIC EVENT FILM CONTENT
+  // PACKS" — January/Halloween's curated content is now bundled, static
+  // JSON, no remote fetch involved), but this still guarantees the suite
+  // never accidentally does one if that ever changes.
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",

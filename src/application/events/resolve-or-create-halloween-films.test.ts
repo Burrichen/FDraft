@@ -25,9 +25,10 @@ describe("resolveOrCreateHalloweenManifestFilms", () => {
     const film = await repos.films.getById(result.resolvedFilmIds[0]);
     expect(film?.title).toBe("Halloween");
     expect(film?.releaseYear).toBe(1978);
+    expect(film?.letterboxdSlug).toBeNull();
   });
 
-  it("resolves an existing film by title+year without creating a duplicate", async () => {
+  it("resolves an existing film by exact title+year without creating a duplicate", async () => {
     const repos = setup();
     await repos.films.create({
       id: "existing-1",
@@ -45,86 +46,42 @@ describe("resolveOrCreateHalloweenManifestFilms", () => {
     expect(result.newlyCreatedFilmIds).toEqual([]);
   });
 
-  it("resolves an existing film by letterboxdSlug", async () => {
+  it("never resolves a different year of the same title — creates a distinct film instead of confusing a remake", async () => {
     const repos = setup();
     await repos.films.create({
-      id: "existing-2",
-      title: "Hocus Pocus",
-      releaseYear: 1993,
-      letterboxdSlug: "hocus-pocus",
-      letterboxdUri: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-    const result = await resolveOrCreateHalloweenManifestFilms(repos, [
-      { title: "Some Different Title", letterboxdSlug: "hocus-pocus" },
-    ]);
-    expect(result.resolvedFilmIds).toEqual(["existing-2"]);
-    expect(result.newlyCreatedFilmIds).toEqual([]);
-  });
-
-  it("resolves an existing film by tmdbId via matched metadata", async () => {
-    const repos = setup();
-    await repos.films.create({
-      id: "existing-3",
-      title: "The Exorcist",
-      releaseYear: 1973,
+      id: "remake-2007",
+      title: "Halloween",
+      releaseYear: 2007,
       letterboxdSlug: null,
       letterboxdUri: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    await repos.films.upsertMetadata({
-      id: "existing-3-meta",
-      filmId: "existing-3",
-      provider: "tmdb",
-      posterUrl: null,
-      runtimeMinutes: null,
-      genres: null,
-      directors: null,
-      countries: null,
-      languages: null,
-      collectionId: null,
-      collectionName: null,
-      collectionOrder: null,
-      averageRating: null,
-      popularity: null,
-      watchCount: null,
-      fansCount: null,
-      listAppearances: null,
-      externalIds: { tmdb: "9552" },
-      releaseDate: null,
-      releaseStatus: "Released",
-      providerTitle: null,
-      raw: null,
-      matchMethod: "automatic",
-      lastEnrichedAt: "2026-01-01T00:00:00.000Z",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
     const result = await resolveOrCreateHalloweenManifestFilms(repos, [
-      { title: "The Exorcist", tmdbId: "9552" },
+      { title: "Halloween", year: 1978 },
     ]);
-    expect(result.resolvedFilmIds).toEqual(["existing-3"]);
-    expect(result.newlyCreatedFilmIds).toEqual([]);
+    expect(result.resolvedFilmIds).not.toContain("remake-2007");
+    expect(result.newlyCreatedFilmIds).toEqual(result.resolvedFilmIds);
+    const film = await repos.films.getById(result.resolvedFilmIds[0]);
+    expect(film?.releaseYear).toBe(1978);
   });
 
   it("deduplicates when two entries resolve to the same film", async () => {
     const repos = setup();
     const result = await resolveOrCreateHalloweenManifestFilms(repos, [
       { title: "Same Movie", year: 2000 },
-      { title: "Same Movie", year: 2000 },
+      { title: "same movie", year: 2000 },
     ]);
     expect(result.resolvedFilmIds).toHaveLength(1);
   });
 
-  it("never fabricates metadata beyond what the manifest supplies", async () => {
+  it("never fabricates metadata beyond what the entry supplies", async () => {
     const repos = setup();
     const result = await resolveOrCreateHalloweenManifestFilms(repos, [
-      { title: "Mystery Movie" },
+      { title: "Mystery Movie", year: 2024 },
     ]);
     const film = await repos.films.getById(result.resolvedFilmIds[0]);
-    expect(film?.releaseYear).toBeNull();
+    expect(film?.releaseYear).toBe(2024);
     const metadata = await repos.films.getMetadataForFilm(film!.id);
     expect(metadata).toHaveLength(0);
   });

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "event": "christmas",
+  "classic": [
+    { "title": "It's a Wonderful Life", "year": 1946 },
+    { "title": "Miracle on 34th Street", "year": 1947 }
+  ],
+  "adjacent": [
+    { "title": "Die Hard", "year": 1988 },
+    { "title": "Gremlins", "year": 1984 }
+  ]
+}

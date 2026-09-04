@@ -9,7 +9,6 @@ import {
 } from "./halloween-ambient-decoration-layout";
 import { HALLOWEEN_DECORATION_REGISTRY } from "./halloween-decoration-registry";
 import {
-  HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
   HALLOWEEN_HEADER_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_DECORATION_LAYOUT,
   HALLOWEEN_MODAL_SLOT_POSITIONS,
@@ -46,16 +45,17 @@ registerEventArt({
   decorationRegistry: HALLOWEEN_DECORATION_REGISTRY,
   surfaces: {
     page: {
-      // Combines the always-on ambient layout with the interactive Candy
-      // Bowl/ghost-02 slot purely so the dev-only preview
+      // Combines the page layout with the header-scoped ghost-01 peek
+      // layout purely so the dev-only preview
       // (`EventArtSystemPreviewSection`) shows every real slot at once —
       // `HalloweenPageClient` itself still renders them as two separate
-      // layers so it can gate the interactive one behind
-      // `isActiveForProfile` (see `halloween-decorative-layer.tsx`).
+      // layers (see `halloween-decorative-layer.tsx`). No interactive Candy
+      // Bowl/ghost-02 slot any more — see docs/updates, "HALLOWEEN UI
+      // CLEANUP" §1 — it was removed from the app entirely, not merely from
+      // this preview.
       layout: {
         ...HALLOWEEN_PAGE_DECORATION_LAYOUT,
         ...HALLOWEEN_HEADER_DECORATION_LAYOUT,
-        ...HALLOWEEN_ACTIVE_PAGE_DECORATION_LAYOUT,
       },
       positions: HALLOWEEN_PAGE_SLOT_POSITIONS,
     },
