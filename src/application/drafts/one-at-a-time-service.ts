@@ -169,7 +169,6 @@ export async function attemptOneAtATimeChallenge(
     challengeId: string;
     excludeFilmIds: readonly string[];
     manualGenre?: string;
-    diyFilmEntryId?: string;
     /**
      * Overrides the candidate pool the challenge resolves against (see
      * docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §9) —
@@ -197,30 +196,14 @@ export async function attemptOneAtATimeChallenge(
     (candidate) => !excluded.has(candidate.filmId),
   );
 
-  const diyEligibleCandidates = params.diyFilmEntryId
-    ? (
-        await fetchLocalChallengeCandidates(repos, params.profileId, {
-          applyFranchiseOrderingRule: false,
-        })
-      ).filter((candidate) => !excluded.has(candidate.filmId))
-    : undefined;
-
   const context: Omit<ChallengeContext, "previousPicks"> = {
     rng,
     now: clock.now(),
     candidates,
     watchedFilms,
     config: DEFAULT_CHALLENGE_ENGINE_CONFIG,
-    ...(diyEligibleCandidates ? { diyEligibleCandidates } : {}),
-    ...(params.manualGenre || params.diyFilmEntryId
-      ? {
-          manualSelections: {
-            ...(params.manualGenre ? { genre: params.manualGenre } : {}),
-            ...(params.diyFilmEntryId
-              ? { diyFilmEntryIds: [params.diyFilmEntryId] }
-              : {}),
-          },
-        }
+    ...(params.manualGenre
+      ? { manualSelections: { genre: params.manualGenre } }
       : {}),
   };
 

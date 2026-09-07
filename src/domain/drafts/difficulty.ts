@@ -76,10 +76,29 @@ export const DIFFICULTY_ORDER: DraftDifficulty[] = [
   "one-at-a-time",
 ];
 
-/** Type guard for an untrusted value (e.g. a URL search param) — never trust a raw string as a `DraftDifficulty` without going through this first. */
+/**
+ * Freeform is retired as a creation mode (see docs/product-spec.md,
+ * "FREEFORM MODE" — kept legacy-only for reading historical drafts). Every
+ * NEW-draft entry point (pickers, URL-param guards) should iterate/validate
+ * against this list instead of `DIFFICULTY_ORDER`.
+ */
+export const CREATABLE_DIFFICULTY_ORDER: DraftDifficulty[] =
+  DIFFICULTY_ORDER.filter((id) => id !== "freeform");
+
+/** Type guard for an untrusted value (e.g. a URL search param) — never trust a raw string as a `DraftDifficulty` without going through this first. Accepts legacy values (e.g. "freeform") — use `isCreatableDraftDifficulty` at a NEW-draft entry point instead. */
 export function isDraftDifficulty(value: unknown): value is DraftDifficulty {
   return (
     typeof value === "string" && (DIFFICULTY_ORDER as string[]).includes(value)
+  );
+}
+
+/** Type guard for a difficulty that can still be used to start a NEW draft — excludes legacy-only values like "freeform". Use this (not `isDraftDifficulty`) anywhere a raw string reaches a draft-creation flow, so a hand-crafted `?difficulty=freeform` URL can't reach it. */
+export function isCreatableDraftDifficulty(
+  value: unknown,
+): value is DraftDifficulty {
+  return (
+    typeof value === "string" &&
+    (CREATABLE_DIFFICULTY_ORDER as string[]).includes(value)
   );
 }
 

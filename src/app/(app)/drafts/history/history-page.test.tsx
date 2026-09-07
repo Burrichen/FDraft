@@ -453,6 +453,128 @@ describe("Draft History — Event category/source badges", () => {
  * `stats-view.test.tsx`; this only needs to prove it's genuinely gone from
  * History, even under the exact conditions that used to show it here.
  */
+/**
+ * Freeform and the "Pick Your Own" (diy) Challenge are retired as creation
+ * modes (product simplification — see docs/product-spec.md, "FREEFORM
+ * MODE"), but any draft/item already persisted with these values before
+ * that change (or restored from an old backup) must keep rendering
+ * truthfully in History, never silently relabeled as Random/Chosen.
+ */
+describe("Draft History — legacy Freeform and Challenge items remain readable", () => {
+  afterEach(cleanup);
+
+  it("shows a legacy Freeform draft's generated name and its achieved rank", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "legacy-freeform-draft",
+        difficulty: "freeform",
+        totalFilms: 10,
+        randomFilmCount: 10,
+        freeformAchievedRank: "medium",
+      }),
+    );
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+
+    const summary = screen.getByText(/october freeform draft/i);
+    expect(summary).toBeInTheDocument();
+    await userEvent.setup().click(summary);
+
+    expect(screen.getByText(/achieved: medium/i)).toBeInTheDocument();
+  });
+
+  it("shows a historical item's real 'Challenge: <name>' source, even for the now-removed 'Pick Your Own' challenge id", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.films.create({
+      id: "film-1",
+      title: "Chosen Long Ago",
+      releaseYear: 2019,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await repos.films.create({
+      id: "film-2",
+      title: "The Eldest Film",
+      releaseYear: 1985,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "legacy-challenge-draft",
+        totalFilms: 2,
+        randomFilmCount: 0,
+        challengeFilmCount: 2,
+      }),
+    );
+    await repos.drafts.createItems([
+      {
+        id: "item-1",
+        draftId: "legacy-challenge-draft",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "challenge",
+        challengeId: "diy",
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+      {
+        id: "item-2",
+        draftId: "legacy-challenge-draft",
+        filmId: "film-2",
+        watchlistEntryId: "entry-2",
+        source: "challenge",
+        challengeId: "the-eldest",
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 1,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+    ]);
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/october baby draft/i));
+
+    // "the-eldest" is still a registered challenge — resolves to its real name.
+    expect(screen.getByText("Challenge: The Eldest")).toBeInTheDocument();
+    // "diy" ("Pick Your Own") is deleted from the catalogue — falls back to
+    // the raw historical id rather than inventing/erasing a label.
+    expect(screen.getByText("Challenge: diy")).toBeInTheDocument();
+  });
+});
+
 describe("Draft History — no Halloween pumpkin (moved to Stats)", () => {
   afterEach(() => {
     cleanup();

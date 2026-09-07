@@ -1,14 +1,11 @@
-import { attemptOneAtATimeChallenge } from "@/application/drafts/one-at-a-time-service";
 import { fetchLocalChallengeCandidates } from "@/application/drafts/local-fetch-context";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   pickEventCategoryRandomFilm,
   resolveEventCategoryPickerCandidates,
-  resolveEventChallengeCandidatePool,
   type EventCategoryPickerCandidate,
 } from "@/application/events/resolve-event-category-candidates";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
-import type { ChallengeResult } from "@/domain/challenges/types";
 import { resolveEligibleCandidates } from "@/domain/events/event-eligibility";
 import { getCurrentOccurrenceBounds } from "@/domain/events/event-availability";
 import { getEventDefinition } from "@/domain/events/event-registry";
@@ -224,84 +221,6 @@ export async function resolveEventOneAtATimePickerCandidates(
   });
 }
 
-export interface AttemptEventOneAtATimeChallengeOutcome {
-  challengeId: string;
-  result: ChallengeResult;
-  posterUrl: string | null;
-  eventCategoryKey: string | null;
-}
-
-/**
- * The generic "Challenge" entry point for Event One At A Time (see
- * docs/updates §9/§10/§11) — pre-resolves the Event-valid candidate pool
- * (the category union for Halloween/Christmas, the eligibility-filtered
- * watchlist for January) and delegates the actual resolution to the exact
- * same `attemptOneAtATimeChallenge` the normal flow uses, via its
- * `candidateOverride` param — no second Challenge Engine integration.
- */
-export async function attemptEventOneAtATimeChallenge(
-  repos: EventOneAtATimeRepos,
-  params: {
-    profileId: string;
-    eventId: string;
-    challengeId: string;
-    excludeFilmIds: readonly string[];
-    manualGenre?: string;
-    /**
-     * This event's REAL One At A Time category keys (Halloween:
-     * `["horror","kitsch"]`, Christmas: `["classic","adjacent"]`), or
-     * `null` for an event with none (January). Deliberately caller-supplied
-     * rather than inferred from `EventDefinition.contentPools` — that
-     * field predates this feature (January's own pre-existing `contentPools:
-     * [{key:"curated",...}]` documents its unrelated ADDITIVE-eligibility
-     * curated list, not a real drawable category pool) and would
-     * misidentify January as category-based if read here.
-     */
-    categoryKeys: readonly string[] | null;
-  },
-  deps: { rng?: Rng; clock?: Clock } = {},
-): Promise<AttemptEventOneAtATimeChallengeOutcome> {
-  const event = getEventDefinition(params.eventId);
-
-  let candidateOverride;
-  let categoryByFilmId = new Map<string, string>();
-  if (params.categoryKeys) {
-    const pool = await resolveEventChallengeCandidatePool(repos, {
-      profileId: params.profileId,
-      eventId: params.eventId,
-      categoryKeys: params.categoryKeys,
-    });
-    candidateOverride = pool.candidates;
-    categoryByFilmId = pool.categoryByFilmId;
-  } else {
-    const rawCandidates = await fetchLocalChallengeCandidates(
-      repos,
-      params.profileId,
-    );
-    candidateOverride = event
-      ? resolveEligibleCandidates(rawCandidates, event.eligibilityRules)
-      : rawCandidates;
-  }
-
-  const outcome = await attemptOneAtATimeChallenge(
-    repos,
-    {
-      profileId: params.profileId,
-      challengeId: params.challengeId,
-      excludeFilmIds: params.excludeFilmIds,
-      manualGenre: params.manualGenre,
-      candidateOverride,
-    },
-    deps,
-  );
-
-  const eventCategoryKey =
-    outcome.result.status === "success"
-      ? (categoryByFilmId.get(outcome.result.film.filmId) ?? null)
-      : null;
-  return { ...outcome, eventCategoryKey };
-}
-
 export type FinalizeEventOneAtATimeDraftErrorCode =
   "already_active" | "empty_selection" | "duplicate_film" | "invalid_event";
 export type FinalizeEventOneAtATimeDraftOutcome =
@@ -325,9 +244,9 @@ export type FinalizeEventOneAtATimeDraftOutcome =
  * generic currency-earning engine (`awardEventDraftItemReward`) applies
  * with zero new award code (§16) — nothing here ever touches
  * `PointsRepository` directly. Only this function ever writes anything;
- * every prior "Random"/"Choose My Own"/"Challenge" step is a pure read
- * (§17: cancelling the builder at any point creates no Draft, no points,
- * no History).
+ * every prior "Random"/"Choose My Own" step is a pure read (§17:
+ * cancelling the builder at any point creates no Draft, no points, no
+ * History).
  */
 export async function finalizeEventOneAtATimeDraft(
   repos: EventOneAtATimeRepos,

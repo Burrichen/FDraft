@@ -23,11 +23,7 @@ import {
 } from "@/domain/challenges/types";
 import { calculateDraftDeadline } from "@/domain/drafts/deadline";
 import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
-import {
-  FREEFORM_BATCH_SIZE,
-  getFilmCount,
-  isFreeform,
-} from "@/domain/drafts/difficulty";
+import { getFilmCount } from "@/domain/drafts/difficulty";
 import { calculateFreeformRank } from "@/domain/drafts/freeform";
 import type { DraftConfigInput } from "@/domain/drafts/schemas";
 import { resolveEligibleCandidates } from "@/domain/events/event-eligibility";
@@ -243,42 +239,15 @@ export async function createLocalDraft(
     ? resolveEligibleCandidates(rawCandidates, event.eligibilityRules)
     : rawCandidates;
 
-  const freeform = isFreeform(config.difficulty);
-  const totalFilms = freeform
-    ? Math.min(FREEFORM_BATCH_SIZE, candidates.length)
-    : getFilmCount(config.difficulty);
-  const randomCount = freeform ? totalFilms : (config.randomCount ?? 0);
-  const challengeCount = freeform ? 0 : (config.challengeCount ?? 0);
+  const totalFilms = getFilmCount(config.difficulty);
+  const randomCount = config.randomCount ?? 0;
+  const challengeCount = config.challengeCount ?? 0;
 
-  // A film the user explicitly pre-picked for a deliberately-CHOSEN "diy"
-  // slot must survive to the challenge phase untouched — see docs/updates,
-  // v1.1.1, "DIY Challenge Film": "prevent challenge draft finalisation
-  // until a valid film has been chosen." Excluded here from both the
-  // random draw and franchise-order substitution's own candidate pool, so
-  // neither can silently consume it first purely by chance; it's added
-  // back for the challenge engine below via `remainingCandidates` (built
-  // from the full, unfiltered `candidates`). "Decide For Me"'s optional
-  // backups are deliberately NOT reserved — they're explicitly best-effort
-  // ("if one of your challenge slots happens to randomly land on...").
-  const reservedForDiyEntryIds =
-    !freeform &&
-    config.challengeMode === "choose" &&
-    config.diyFilmEntryIds?.length
-      ? new Set(config.diyFilmEntryIds)
-      : new Set<string>();
-  const randomDrawPool =
-    reservedForDiyEntryIds.size > 0
-      ? candidates.filter(
-          (candidate) =>
-            !reservedForDiyEntryIds.has(candidate.watchlistEntryId),
-        )
-      : candidates;
-
-  if (randomDrawPool.length < randomCount) {
+  if (candidates.length < randomCount) {
     return {
       ok: false,
       error: "not_enough_films",
-      message: `This draft needs at least ${randomCount} active watchlist films for its random selection (you have ${randomDrawPool.length}).`,
+      message: `This draft needs at least ${randomCount} active watchlist films for its random selection (you have ${candidates.length}).`,
     };
   }
 
@@ -290,7 +259,7 @@ export async function createLocalDraft(
   });
 
   const rolledRandomPickIds = pickRandomFilms(
-    randomDrawPool.map((candidate) => ({
+    candidates.map((candidate) => ({
       id: candidate.watchlistEntryId,
       weight: candidate.selectionWeight,
     })),
@@ -302,7 +271,7 @@ export async function createLocalDraft(
   );
   const { finalPickIds: randomPickIds, substitutionByEntryId } =
     applyFranchiseChronologicalOrder({
-      candidates: randomDrawPool,
+      candidates,
       candidateByEntryId,
       rolledPickIds: rolledRandomPickIds,
       enabled: franchiseChronologicalOrder,
@@ -365,41 +334,19 @@ export async function createLocalDraft(
   await repos.drafts.createItems(randomItems);
 
   let challengeWarning: string | null = null;
-  if (!freeform && challengeCount > 0) {
+  if (challengeCount > 0) {
     const watchedFilms = await fetchLocalChallengeWatchedFilms(
       repos,
       profileId,
     );
-    // The "diy" challenge validates its pre-picked film(s) against the
-    // full, franchise-UNRESTRICTED DIY-eligible pool — the same one the
-    // picker showed the user — rather than `remainingCandidates` (which
-    // may have already excluded a later sequel via the franchise-ordering
-    // rule that only applies to the engine's own automatic picks). See
-    // docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films" — a
-    // film franchise-excluded from `remainingCandidates` simply won't be
-    // found there via `findIndex`/`splice` bookkeeping, so no double-pick
-    // risk from wiring in a second, wider pool just for this lookup.
-    const diyEligibleCandidates = config.diyFilmEntryIds?.length
-      ? await fetchLocalChallengeCandidates(repos, profileId, {
-          applyFranchiseOrderingRule: false,
-        })
-      : undefined;
     const engineContext: Omit<ChallengeContext, "previousPicks"> = {
       rng,
       now,
       candidates: remainingCandidates,
       watchedFilms,
       config: DEFAULT_CHALLENGE_ENGINE_CONFIG,
-      ...(diyEligibleCandidates ? { diyEligibleCandidates } : {}),
-      ...(config.manualGenre || config.diyFilmEntryIds?.length
-        ? {
-            manualSelections: {
-              ...(config.manualGenre ? { genre: config.manualGenre } : {}),
-              ...(config.diyFilmEntryIds?.length
-                ? { diyFilmEntryIds: config.diyFilmEntryIds }
-                : {}),
-            },
-          }
+      ...(config.manualGenre
+        ? { manualSelections: { genre: config.manualGenre } }
         : {}),
     };
 
@@ -455,8 +402,9 @@ export type CreateLocalDraftFromSelectionOutcome =
  * substitution, the challenge engine) don't apply here at all — but it
  * reuses every SHARED piece that isn't roll-specific: the same
  * `DraftRecord`/`DraftItemRecord` shapes, the same `calculateDraftDeadline`,
- * the same `getFilmCount`/`isFreeform` sizing rules (never a
- * DIY-specific film count), and the same eligibility-filtered candidate
+ * the same `getFilmCount` sizing rules (never a DIY-specific film count —
+ * Freeform is retired as a creation mode, so every difficulty here has a
+ * fixed count), and the same eligibility-filtered candidate
  * pool every other draft-generation path uses (see
  * `local-fetch-context.ts`) — a film that couldn't be randomly drafted
  * (unreleased, an unstarted later series entry, a metadata identity
@@ -505,19 +453,12 @@ export async function createLocalDraftFromSelection(
     };
   }
 
-  const freeform = isFreeform(difficulty);
-  const requiredCount = freeform ? null : getFilmCount(difficulty);
-  if (
-    freeform
-      ? watchlistEntryIds.length === 0
-      : watchlistEntryIds.length !== requiredCount
-  ) {
+  const requiredCount = getFilmCount(difficulty);
+  if (watchlistEntryIds.length !== requiredCount) {
     return {
       ok: false,
       error: "invalid_selection_count",
-      message: freeform
-        ? "Select at least one film to build a Freeform DIY draft."
-        : `Select exactly ${requiredCount} films for a ${difficulty} DIY draft.`,
+      message: `Select exactly ${requiredCount} films for a ${difficulty} DIY draft.`,
     };
   }
 
@@ -1122,118 +1063,6 @@ export async function submitLocalPostmortemResponse(
   };
 }
 
-export type GenerateLocalFreeformBatchErrorCode =
-  "not_found" | "not_active" | "not_freeform" | "nothing_left";
-export type GenerateLocalFreeformBatchOutcome =
-  | { ok: true; addedCount: number }
-  | { ok: false; error: GenerateLocalFreeformBatchErrorCode; message: string };
-
-/**
- * Local port of `add_draft_films` via `generate-freeform-batch.ts` — adds
- * another batch of up to `FREEFORM_BATCH_SIZE` films to an already-active
- * Freeform draft, excluding films already in it so a second batch never
- * repeats a film from the first.
- */
-export async function generateLocalFreeformBatch(
-  repos: DraftRepos,
-  params: { profileId: string; draftId: string },
-  deps: { idGenerator?: IdGenerator; clock?: Clock; rng?: Rng } = {},
-): Promise<GenerateLocalFreeformBatchOutcome> {
-  const idGenerator = deps.idGenerator ?? defaultIdGenerator;
-  const clock = deps.clock ?? new SystemClock();
-  const rng = deps.rng ?? createDefaultRng();
-
-  const draft = await repos.drafts.getById(params.profileId, params.draftId);
-  if (!draft) {
-    return { ok: false, error: "not_found", message: "Draft not found." };
-  }
-  if (draft.status !== "active") {
-    return {
-      ok: false,
-      error: "not_active",
-      message: "This draft is not active.",
-    };
-  }
-  if (draft.difficulty !== "freeform") {
-    return {
-      ok: false,
-      error: "not_freeform",
-      message: "Only Freeform drafts can add films after creation.",
-    };
-  }
-
-  const existingItems = await repos.drafts.listItemsForDraft(params.draftId);
-  const usedEntryIds = new Set(
-    existingItems
-      .map((item) => item.watchlistEntryId)
-      .filter((id): id is string => id !== null),
-  );
-  // Routed through the same eligibility-checked candidate pool every
-  // other draft path uses (see `local-fetch-context.ts`, "DRAFT
-  // CANDIDATE INTEGRITY") — previously read `listActiveEntries` directly
-  // with no metadata access at all, so an unreleased film or an
-  // unstarted later series entry could enter a Freeform batch with
-  // nothing to stop it.
-  const eligibleCandidates = await fetchLocalChallengeCandidates(
-    repos,
-    params.profileId,
-  );
-  const candidates = eligibleCandidates
-    .filter((candidate) => !usedEntryIds.has(candidate.watchlistEntryId))
-    .map((candidate) => ({
-      id: candidate.watchlistEntryId,
-      weight: candidate.selectionWeight,
-      filmId: candidate.filmId,
-    }));
-
-  if (candidates.length === 0) {
-    return {
-      ok: false,
-      error: "nothing_left",
-      message: "Every active watchlist film is already in this draft.",
-    };
-  }
-
-  const batchSize = Math.min(FREEFORM_BATCH_SIZE, candidates.length);
-  const selectedEntryIds = pickRandomFilms(candidates, batchSize, rng);
-  const candidateByEntryId = new Map(candidates.map((c) => [c.id, c]));
-  const now = clock.now().toISOString();
-  const startingOrderIndex =
-    existingItems.length > 0
-      ? Math.max(...existingItems.map((item) => item.orderIndex)) + 1
-      : 0;
-
-  const newItems: DraftItemRecord[] = selectedEntryIds.map(
-    (entryId, index) => ({
-      id: idGenerator.generate(),
-      draftId: params.draftId,
-      filmId: candidateByEntryId.get(entryId)!.filmId,
-      watchlistEntryId: entryId,
-      source: "random",
-      challengeId: null,
-      challengeAttemptId: null,
-      challengeDisplayValue: null,
-      orderIndex: startingOrderIndex + index,
-      isCompleted: false,
-      completedAt: null,
-      watchedHistoryId: null,
-      originFilmId: null,
-      substitutionReason: null,
-      createdAt: now,
-    }),
-  );
-  await repos.drafts.createItems(newItems);
-
-  await repos.drafts.updateDraft({
-    ...draft,
-    totalFilms: draft.totalFilms + newItems.length,
-    randomFilmCount: draft.randomFilmCount + newItems.length,
-    updatedAt: now,
-  });
-
-  return { ok: true, addedCount: newItems.length };
-}
-
 export type SetLocalDraftCustomNameErrorCode = "not_found";
 export type SetLocalDraftCustomNameOutcome =
   | { ok: true }
@@ -1283,11 +1112,10 @@ export type AddManualFilmToLocalDraftOutcome =
  * it goes through the exact same `DraftItemRecord`/`createItems` write
  * every random or challenge pick already uses, just tagged
  * `source: "manual"` so nothing downstream mistakes it for a random roll,
- * a reroll, or a failure. Capacity grows by exactly one film — the same
- * "extend totalFilms" pattern `generateLocalFreeformBatch` already uses
- * for adding films to an in-progress draft — for any difficulty, not only
- * Freeform, since a manual add is an intentional addition on top of
- * whatever the draft already generated, not a fill-in for a missing slot.
+ * a reroll, or a failure. Capacity grows by exactly one film via the same
+ * "extend totalFilms" pattern for adding films to an in-progress draft —
+ * a manual add is an intentional addition on top of whatever the draft
+ * already generated, not a fill-in for a missing slot.
  * Never marks anything watched; never touches `watchedHistoryId`.
  */
 export async function addManualFilmToLocalDraft(

@@ -56,7 +56,7 @@ test("DIY Draft picker exposes every Mission: Impossible sequel via search, not 
 
   await page.getByRole("link", { name: "Drafts" }).click();
   await page.getByRole("button", { name: "Start a draft" }).click();
-  await page.getByRole("button", { name: /Freeform/ }).click();
+  await page.getByRole("button", { name: "Baby" }).click();
   await page.getByRole("radio", { name: /Build My Own Draft/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(

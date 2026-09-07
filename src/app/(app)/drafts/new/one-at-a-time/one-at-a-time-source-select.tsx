@@ -41,16 +41,22 @@ export function OneAtATimeSourceSelect({
   onSelectRandom,
   onSelectManual,
   onSelectChallenge,
+  showChallenge = true,
 }: {
   onSelectRandom: () => void;
   onSelectManual: () => void;
-  onSelectChallenge: () => void;
+  onSelectChallenge?: () => void;
+  /** Event One At A Time (see docs/product-spec.md, "ONE AT A TIME MODE") has no Challenge source — normal One At A Time leaves this at its default. */
+  showChallenge?: boolean;
 }) {
   const handlers = {
     random: onSelectRandom,
     manual: onSelectManual,
     challenge: onSelectChallenge,
   } as const;
+  const options = showChallenge
+    ? OPTIONS
+    : OPTIONS.filter((option) => option.id !== "challenge");
 
   return (
     <section className="space-y-3">
@@ -58,7 +64,7 @@ export function OneAtATimeSourceSelect({
         Choose your next film
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {OPTIONS.map((option) => {
+        {options.map((option) => {
           const Icon = option.icon;
           return (
             <button

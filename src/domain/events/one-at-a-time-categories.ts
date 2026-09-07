@@ -9,10 +9,9 @@ import { CHRISTMAS_EVENT_ID, HALLOWEEN_EVENT_ID } from "./event-registry";
  *
  * Deliberately NOT read from `EventDefinition.contentPools` — that field
  * predates this feature and means something else for January (its own
- * ADDITIVE-eligibility curated list, not a real drawable category — see
- * `attemptEventOneAtATimeChallenge`'s identical note). `null` (January)
- * means no category step at all; the event's whole canonical eligible
- * pool is the only "category."
+ * ADDITIVE-eligibility curated list, not a real drawable category). `null`
+ * (January) means no category step at all; the event's whole canonical
+ * eligible pool is the only "category."
  */
 export const EVENT_ONE_AT_A_TIME_CATEGORIES: Record<
   string,

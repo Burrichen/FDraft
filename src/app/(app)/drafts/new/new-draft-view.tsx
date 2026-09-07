@@ -1,7 +1,6 @@
 "use client";
 
 import { listLocalChallengeAvailability } from "@/application/challenges/list-local-challenge-availability";
-import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
 import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useAsyncData } from "@/hooks/use-async-data";
@@ -19,14 +18,7 @@ export function NewDraftView() {
       repositories,
       activeProfile.id,
     );
-    // Same canonical eligible pool the DIY Draft screen uses — reused here
-    // for the "Pick Your Own" challenge slot picker (see docs/updates,
-    // v1.1.1, "DIY Challenge Film").
-    const diyEligibleFilms = await getDiyEligibleFilms(
-      repositories,
-      activeProfile.id,
-    );
-    return { activeWatchlistCount, diyEligibleFilms, ...availability };
+    return { activeWatchlistCount, ...availability };
   }, [activeProfile?.id, repositories]);
 
   if (!activeProfile) {
@@ -45,7 +37,7 @@ export function NewDraftView() {
     // 1440px up (see docs/product-spec.md, "Desktop Layout Width," and the
     // "FINAL QA FOR LAYOUT + HALLOWEEN + ONE AT A TIME" release-hardening
     // pass that measured it). Now uses the full shared shell width, same
-    // as most other primary pages — the difficulty picker (7 options) and
+    // as most other primary pages — the difficulty picker (6 options) and
     // the Challenge Browser's card grid both genuinely benefit from it.
     // The few small binary/ternary toggles in `NewDraftForm` (source,
     // challenge mode, time mode) would look absurd stretched this wide
@@ -63,7 +55,6 @@ export function NewDraftView() {
         activeWatchlistCount={data.activeWatchlistCount}
         challenges={data.challenges}
         availableGenres={data.availableGenres}
-        diyEligibleFilms={data.diyEligibleFilms}
       />
     </div>
   );

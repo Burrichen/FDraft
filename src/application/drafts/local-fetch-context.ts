@@ -25,9 +25,9 @@ import type { WatchlistRepository } from "@/repositories/watchlist-repository";
  * As of v1.1.0 ("DRAFT CANDIDATE INTEGRITY"), this is also the ONE place
  * `evaluateCandidateEligibility` runs — every candidate returned here has
  * already passed the unreleased/later-series-entry/metadata-identity
- * checks, so every caller (random rolls, Freeform batches, missing-
- * metadata rerolls, and the DIY selection screen) benefits without
- * re-implementing the checks itself. `ChallengeCandidateFilm`'s own shape
+ * checks, so every caller (random rolls, missing-metadata rerolls, and the
+ * DIY selection screen) benefits without re-implementing the checks
+ * itself. `ChallengeCandidateFilm`'s own shape
  * is deliberately left untouched — the extra fields the eligibility check
  * needs (`releaseDate`/`releaseStatus`/`providerTitle`) are read here and
  * discarded once each candidate has been judged, not threaded through to
@@ -37,9 +37,9 @@ import type { WatchlistRepository } from "@/repositories/watchlist-repository";
  * As of v1.1.2, the later-series-entry check is the one piece of this
  * that's opt-out (`options.applyFranchiseOrderingRule`, default `true`) —
  * see docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films": DIY
- * Draft and the "Pick Your Own" Challenge Film picker pass `false` so a
- * user manually picking their own films can select any sequel directly,
- * while every generated/random draft path keeps the default.
+ * Draft passes `false` so a user manually picking their own films can
+ * select any sequel directly, while every generated/random draft path
+ * keeps the default.
  */
 export async function fetchLocalChallengeCandidates(
   repos: {

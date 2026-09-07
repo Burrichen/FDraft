@@ -1,36 +1,9 @@
-import {
-  generateLocalFreeformBatch,
-  submitLocalPostmortemResponse,
-} from "@/application/drafts/local-draft-service";
+import { submitLocalPostmortemResponse } from "@/application/drafts/local-draft-service";
 import type {
   DraftDifficulty,
   PostmortemResponseType,
   Repositories,
 } from "@/repositories";
-
-export interface GenerateBatchActionState {
-  error: string | null;
-}
-
-export async function generateBatchAction(
-  context: { repositories: Repositories; profileId: string },
-  _prevState: GenerateBatchActionState,
-  formData: FormData,
-): Promise<GenerateBatchActionState> {
-  const draftId = formData.get("draftId");
-  if (typeof draftId !== "string" || draftId.length === 0) {
-    return { error: "Missing draft id." };
-  }
-
-  const outcome = await generateLocalFreeformBatch(context.repositories, {
-    profileId: context.profileId,
-    draftId,
-  });
-  if (!outcome.ok) {
-    return { error: outcome.message };
-  }
-  return { error: null };
-}
 
 export interface SubmitPostmortemActionResult {
   ok: boolean;

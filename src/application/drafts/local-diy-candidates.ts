@@ -6,19 +6,19 @@ import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 import { fetchLocalChallengeCandidates } from "./local-fetch-context";
 
 /**
- * THE canonical eligible-candidate set for every DIY surface — the DIY
- * Draft selection grid, its "Need ideas?" recommendation questions, and
- * the DIY Challenge Film slot picker (see docs/updates, v1.1.1,
- * "Centralise DIY recommendation eligibility"). Every one of them must
- * call this function rather than re-deriving its own film list: it's a
- * thin wrapper around `fetchLocalChallengeCandidates` (the same
- * eligibility every random roll, Freeform batch, and reroll already goes
- * through — active profile, on that profile's watchlist, unwatched,
- * released, no metadata identity mismatch), with only the one extra field
- * (`posterUrl`) DIY's own UI needs added on top. A future recommendation
- * question, or a future DIY surface, automatically inherits every
- * protection here for free just by consuming this function's result — it
- * never needs to re-implement or loosen any of it.
+ * THE canonical eligible-candidate set for every DIY/manual-picker surface
+ * — the DIY Draft selection grid, its "Need ideas?" recommendation
+ * questions, "Choose My Own" manual film pickers, and manual slot
+ * replacement (see docs/updates, v1.1.1, "Centralise DIY recommendation
+ * eligibility"). Every one of them must call this function rather than
+ * re-deriving its own film list: it's a thin wrapper around
+ * `fetchLocalChallengeCandidates` (the same eligibility every random roll
+ * and reroll already goes through — active profile, on that profile's
+ * watchlist, unwatched, released, no metadata identity mismatch), with
+ * only the one extra field (`posterUrl`) DIY's own UI needs added on top.
+ * A future recommendation question, or a future DIY surface, automatically
+ * inherits every protection here for free just by consuming this
+ * function's result — it never needs to re-implement or loosen any of it.
  *
  * Deliberately passes `applyFranchiseOrderingRule: false` — see
  * docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films": unlike a

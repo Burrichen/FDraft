@@ -46,13 +46,12 @@ export function pickRandomFilm(
 
 /**
  * Weighted-random pick of up to `count` *distinct* films — used to fill a
- * Monthly Watchlist Draft's random slots and to generate a Freeform batch
- * (see docs/product-spec.md, "Monthly Watchlist Drafts" and "Freeform
- * Mode"). Returns fewer than `count` ids when the watchlist doesn't have
- * enough active candidates, rather than throwing — a draft with fewer
- * films than requested is a real, handled state, not an error (see
- * docs/product-spec.md edge cases: "fewer watchlist films than difficulty
- * requires").
+ * Monthly Watchlist Draft's random slots (see docs/product-spec.md,
+ * "Monthly Watchlist Drafts"). Returns fewer than `count` ids when the
+ * watchlist doesn't have enough active candidates, rather than throwing —
+ * a draft with fewer films than requested is a real, handled state, not an
+ * error (see docs/product-spec.md edge cases: "fewer watchlist films than
+ * difficulty requires").
  */
 export function pickRandomFilms(
   candidates: RandomFilmCandidate[],

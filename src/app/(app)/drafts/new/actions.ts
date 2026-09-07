@@ -49,10 +49,6 @@ export async function createDraftAction(
     .getAll("chosenChallengeIds")
     .map(String)
     .filter((id) => id.length > 0);
-  const diyFilmEntryIds = formData
-    .getAll("diyFilmEntryIds")
-    .map(String)
-    .filter((id) => id.length > 0);
 
   const parsed = draftConfigInputSchema.safeParse({
     difficulty: formData.get("difficulty"),
@@ -63,7 +59,6 @@ export async function createDraftAction(
     chosenChallengeIds:
       chosenChallengeIds.length > 0 ? chosenChallengeIds : undefined,
     manualGenre: readOptionalString(formData, "manualGenre"),
-    diyFilmEntryIds: diyFilmEntryIds.length > 0 ? diyFilmEntryIds : undefined,
   });
   if (!parsed.success) {
     return {

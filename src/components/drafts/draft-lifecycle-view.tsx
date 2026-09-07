@@ -29,7 +29,6 @@ import { RegenerateDraftButton } from "@/components/drafts/regenerate-draft-butt
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
-import { FREEFORM_BATCH_SIZE, isFreeform } from "@/domain/drafts/difficulty";
 import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
@@ -43,7 +42,6 @@ import {
   resolveFranchiseChronologicalOrder,
 } from "@/domain/profiles/profile";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { GenerateBatchButton } from "@/app/(app)/drafts/generate-batch-button";
 
 /**
  * One Draft's full lifecycle UI (no draft / active / expired-with-
@@ -348,7 +346,6 @@ export function DraftLifecycleView({
     dateStyle: "medium",
     timeStyle: "short",
   });
-  const freeform = isFreeform(draft.difficulty);
   const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
 
   // Recomputed live against the current Admin Mode setting on every render
@@ -584,13 +581,6 @@ export function DraftLifecycleView({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {freeform && draft.status === "active" ? (
-            <GenerateBatchButton
-              draftId={draft.id}
-              batchSize={FREEFORM_BATCH_SIZE}
-              onGenerated={reload}
-            />
-          ) : null}
           {adminModeEnabled && draft.status === "active" ? (
             <RegenerateDraftButton
               draftId={draft.id}

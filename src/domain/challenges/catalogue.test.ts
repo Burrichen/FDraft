@@ -3,10 +3,10 @@ import { ALL_CHALLENGES, registerAllChallenges } from "./catalogue";
 import { createChallengeRegistry } from "./registry";
 
 describe("catalogue", () => {
-  it("has 78 challenges across the full ten-category catalogue with unique ids", () => {
-    expect(ALL_CHALLENGES).toHaveLength(78);
+  it("has 77 challenges across the full ten-category catalogue with unique ids", () => {
+    expect(ALL_CHALLENGES).toHaveLength(77);
     const ids = ALL_CHALLENGES.map((c) => c.id);
-    expect(new Set(ids).size).toBe(78);
+    expect(new Set(ids).size).toBe(77);
   });
 
   it("every challenge has a non-empty name and description", () => {
@@ -30,18 +30,18 @@ describe("catalogue", () => {
   it("registers cleanly into a fresh registry", () => {
     const registry = createChallengeRegistry();
     registerAllChallenges(registry);
-    expect(registry.list()).toHaveLength(78);
+    expect(registry.list()).toHaveLength(77);
   });
 
   it("is idempotent — registering twice does not throw or duplicate", () => {
     const registry = createChallengeRegistry();
     registerAllChallenges(registry);
     expect(() => registerAllChallenges(registry)).not.toThrow();
-    expect(registry.list()).toHaveLength(78);
+    expect(registry.list()).toHaveLength(77);
   });
 
-  it("the real singleton registry has all 78 challenges registered on import", async () => {
+  it("the real singleton registry has all 77 challenges registered on import", async () => {
     const { challengeRegistry } = await import("./registry");
-    expect(challengeRegistry.list().length).toBeGreaterThanOrEqual(78);
+    expect(challengeRegistry.list().length).toBeGreaterThanOrEqual(77);
   });
 });

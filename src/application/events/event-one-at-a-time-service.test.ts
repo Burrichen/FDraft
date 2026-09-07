@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  attemptEventOneAtATimeChallenge,
   finalizeEventOneAtATimeDraft,
   pickEventOneAtATimeRandomFilm,
   resolveEventOneAtATimePickerCandidates,
@@ -227,42 +226,14 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
       expect(kitschPicker.map((c) => c.filmId)).toEqual(["kitsch-1"]);
     });
 
-    it("Challenge resolves within the Horror+Kitsch union and retains the film's real category", async () => {
-      db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
-      const repos = createLocalRepositories(db) as Repositories;
-      await seedProfile(repos);
-      // Seed enough films with real genre metadata for "Genre Roulette"
-      // (a non-interactive challenge that just needs any eligible film) to
-      // succeed deterministically.
-      for (let i = 0; i < 5; i++) {
-        await seedOffWatchlistFilm(repos, `horror-${i}`, `Horror ${i}`);
-      }
-      setEventCategoryFilmIds(HALLOWEEN_EVENT_ID, {
-        horror: ["horror-0", "horror-1", "horror-2", "horror-3", "horror-4"],
-      });
-
-      const outcome = await attemptEventOneAtATimeChallenge(repos, {
-        profileId: PROFILE_ID,
-        eventId: HALLOWEEN_EVENT_ID,
-        challengeId: "the-eldest",
-        excludeFilmIds: [],
-        categoryKeys: ["horror", "kitsch"],
-      });
-      expect(outcome.result.status).toBe("success");
-      if (outcome.result.status === "success") {
-        expect(outcome.eventCategoryKey).toBe("horror");
-      }
-    });
-
-    it("a mixed-source Draft (Random Horror + Chosen Kitsch + Challenge) finalizes with correct category/source and fixed deadline", async () => {
+    it("a mixed-source Draft (Random Horror + Chosen Kitsch) finalizes with correct category/source and fixed deadline", async () => {
       db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db) as Repositories;
       await seedProfile(repos);
       await seedOffWatchlistFilm(repos, "horror-random");
       await seedOffWatchlistFilm(repos, "kitsch-chosen");
-      await seedOffWatchlistFilm(repos, "horror-challenge");
       setEventCategoryFilmIds(HALLOWEEN_EVENT_ID, {
-        horror: ["horror-random", "horror-challenge"],
+        horror: ["horror-random"],
         kitsch: ["kitsch-chosen"],
       });
 
@@ -277,6 +248,52 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
           source: "manual",
           eventCategoryKey: "kitsch",
         }),
+      ];
+
+      const outcome = await finalizeEventOneAtATimeDraft(repos, {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: HALLOWEEN_EVENT_ID,
+        items,
+        sourceEventManuallyEnabled: false,
+      });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+
+      const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
+      expect(draft?.sourceEventId).toBe(HALLOWEEN_EVENT_ID);
+      expect(draft?.totalFilms).toBe(2);
+      expect(draft?.difficulty).toBe("one-at-a-time");
+      // Halloween's fixed deadline — 1 November 00:00, independent of
+      // whatever the real clock happened to be at creation.
+      expect(draft?.deadlineAt).toBe("2026-11-01T00:00:00.000Z");
+
+      const draftItems = await repos.drafts.listItemsForDraft(outcome.draftId);
+      const byFilmId = new Map(draftItems.map((item) => [item.filmId, item]));
+      expect(byFilmId.get("horror-random")?.source).toBe("random");
+      expect(byFilmId.get("horror-random")?.eventCategoryKey).toBe("horror");
+      expect(byFilmId.get("kitsch-chosen")?.source).toBe("manual");
+      expect(byFilmId.get("kitsch-chosen")?.eventCategoryKey).toBe("kitsch");
+      // Every category item's watchlistEntryId is null — never a real
+      // watchlist row, matching the existing Halloween convention.
+      expect(byFilmId.get("horror-random")?.watchlistEntryId).toBeNull();
+    });
+
+    // Event One At A Time no longer offers Challenge as a creation source,
+    // but a historical Draft item persisted with `source: "challenge"`
+    // (created before this change, or restored from a backup) must still
+    // finalize/read back correctly — this only exercises the persistence
+    // shape, not the (removed) Challenge attempt step.
+    it("still persists/reads back a historical source: 'challenge' item correctly (legacy shape compatibility)", async () => {
+      db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
+      const repos = createLocalRepositories(db) as Repositories;
+      await seedProfile(repos);
+      await seedOffWatchlistFilm(repos, "horror-challenge");
+      setEventCategoryFilmIds(HALLOWEEN_EVENT_ID, {
+        horror: ["horror-challenge"],
+      });
+
+      const items: OneAtATimeStagedItem[] = [
         stagedItem({
           filmId: "horror-challenge",
           source: "challenge",
@@ -295,25 +312,11 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
       expect(outcome.ok).toBe(true);
       if (!outcome.ok) return;
 
-      const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
-      expect(draft?.sourceEventId).toBe(HALLOWEEN_EVENT_ID);
-      expect(draft?.totalFilms).toBe(3);
-      expect(draft?.difficulty).toBe("one-at-a-time");
-      // Halloween's fixed deadline — 1 November 00:00, independent of
-      // whatever the real clock happened to be at creation.
-      expect(draft?.deadlineAt).toBe("2026-11-01T00:00:00.000Z");
-
       const draftItems = await repos.drafts.listItemsForDraft(outcome.draftId);
-      const byFilmId = new Map(draftItems.map((item) => [item.filmId, item]));
-      expect(byFilmId.get("horror-random")?.source).toBe("random");
-      expect(byFilmId.get("horror-random")?.eventCategoryKey).toBe("horror");
-      expect(byFilmId.get("kitsch-chosen")?.source).toBe("manual");
-      expect(byFilmId.get("kitsch-chosen")?.eventCategoryKey).toBe("kitsch");
-      expect(byFilmId.get("horror-challenge")?.source).toBe("challenge");
-      expect(byFilmId.get("horror-challenge")?.eventCategoryKey).toBe("horror");
-      // Every category item's watchlistEntryId is null — never a real
-      // watchlist row, matching the existing Halloween convention.
-      expect(byFilmId.get("horror-random")?.watchlistEntryId).toBeNull();
+      const item = draftItems.find((i) => i.filmId === "horror-challenge");
+      expect(item?.source).toBe("challenge");
+      expect(item?.challengeId).toBe("the-eldest");
+      expect(item?.eventCategoryKey).toBe("horror");
     });
 
     it("arbitrary Done count — 1 film is a valid finalized Draft, no fixed size", async () => {
@@ -345,7 +348,7 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
   });
 
   describe("Christmas — same generic code, proving reuse rather than duplication", () => {
-    it("Random Classic / Random Adjacent, Choose, Challenge, and finalize with correct total/deadline", async () => {
+    it("Random Classic / Random Adjacent, Choose, and finalize with correct total/deadline", async () => {
       db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db) as Repositories;
       await seedProfile(repos);
@@ -387,15 +390,6 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
         excludeFilmIds: [],
       });
       expect(picker).toHaveLength(3);
-
-      const challenge = await attemptEventOneAtATimeChallenge(repos, {
-        profileId: PROFILE_ID,
-        eventId: CHRISTMAS_EVENT_ID,
-        challengeId: "the-eldest",
-        excludeFilmIds: [],
-        categoryKeys: ["classic", "adjacent"],
-      });
-      expect(challenge.result.status).toBe("success");
 
       const finalize = await finalizeEventOneAtATimeDraft(repos, {
         profileId: PROFILE_ID,
@@ -485,37 +479,6 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
       expect(picker.map((c) => c.filmId)).toEqual(["eligible-film"]);
     });
 
-    it("Challenge candidates are constrained to January-eligible films only", async () => {
-      db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
-      const repos = createLocalRepositories(db) as Repositories;
-      await seedProfile(repos);
-      for (let i = 0; i < 5; i++) {
-        await seedWatchlistFilm(repos, {
-          filmId: `eligible-${i}`,
-          entryId: `entry-eligible-${i}`,
-          averageRating: 1.0,
-        });
-      }
-      await seedWatchlistFilm(repos, {
-        filmId: "ineligible-film",
-        entryId: "entry-ineligible",
-        averageRating: 4.9,
-      });
-
-      const outcome = await attemptEventOneAtATimeChallenge(repos, {
-        profileId: PROFILE_ID,
-        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-        challengeId: "the-eldest",
-        excludeFilmIds: [],
-        categoryKeys: null,
-      });
-      expect(outcome.result.status).toBe("success");
-      if (outcome.result.status === "success") {
-        expect(outcome.result.film.filmId).not.toBe("ineligible-film");
-        expect(outcome.eventCategoryKey).toBeNull();
-      }
-    });
-
     it("finalizes with January's fixed deadline and Event identity", async () => {
       db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
       const repos = createLocalRepositories(db) as Repositories;
@@ -562,13 +525,6 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
         eventId: HALLOWEEN_EVENT_ID,
         categoryKey: "horror",
         excludeFilmIds: [],
-      });
-      await attemptEventOneAtATimeChallenge(repos, {
-        profileId: PROFILE_ID,
-        eventId: HALLOWEEN_EVENT_ID,
-        challengeId: "the-eldest",
-        excludeFilmIds: [],
-        categoryKeys: ["horror", "kitsch"],
       });
 
       expect(

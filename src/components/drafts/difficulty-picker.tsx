@@ -1,7 +1,6 @@
 import {
+  CREATABLE_DIFFICULTY_ORDER,
   DIFFICULTIES,
-  DIFFICULTY_ORDER,
-  isOneAtATime,
 } from "@/domain/drafts/difficulty";
 import type { DraftDifficulty } from "@/repositories";
 import { cn } from "@/lib/utils";
@@ -26,8 +25,8 @@ export function DifficultyPicker({
   activeWatchlistCount,
 }: DifficultyPickerProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-      {DIFFICULTY_ORDER.map((id) => {
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      {CREATABLE_DIFFICULTY_ORDER.map((id) => {
         const definition = DIFFICULTIES[id];
         const required = definition.filmCount ?? 1;
         const disabled = activeWatchlistCount < required;
@@ -54,9 +53,7 @@ export function DifficultyPicker({
             <p className="text-muted-foreground text-xs">
               {definition.filmCount !== null
                 ? `${definition.filmCount} films`
-                : isOneAtATime(id)
-                  ? "Build your Draft one film at a time."
-                  : "Batches of 5"}
+                : "Build your Draft one film at a time."}
             </p>
             {disabled ? (
               <p className="text-destructive mt-1 text-xs">

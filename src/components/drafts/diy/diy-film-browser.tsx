@@ -21,12 +21,10 @@ import { DiyFilmCard, type DiySelectableFilmView } from "./diy-film-card";
 /**
  * The shared "browse the DIY-eligible watchlist" UI — search, sort/filter,
  * and the poster grid — factored out of the DIY Draft selection screen
- * (see docs/updates, v1.1.0, "NEW DRAFTING MODE — DIY DRAFT") so the
- * "Pick Your Own" Challenge Film picker can reuse the exact same browsing
- * experience instead of a second, cramped implementation (see
- * docs/updates, v1.1.2, "Redesign Challenge Films — Pick Your Own": "Do
- * not build a separate movie-browser implementation specifically for
- * Challenge Films"). Search/sort/filter are the exact same functions and
+ * (see docs/updates, v1.1.0, "NEW DRAFTING MODE — DIY DRAFT") so
+ * `DiyFilmPickerSheet` (manual film pickers elsewhere in the app) can reuse
+ * the exact same browsing experience instead of a second, cramped
+ * implementation. Search/sort/filter are the exact same functions and
  * control the Watchlist page itself uses
  * (`domain/watchlist/sort-filter.ts`, `components/watchlist/
  * sort-filter-control.tsx`), not a reimplementation. Owns its own

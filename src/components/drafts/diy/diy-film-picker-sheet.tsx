@@ -15,21 +15,19 @@ import { DiyFilmBrowser } from "./diy-film-browser";
 import type { DiySelectableFilmView } from "./diy-film-card";
 
 /**
- * The "Pick Your Own" Challenge Film picker (see docs/updates, v1.1.2,
- * "Redesign Challenge Films — Pick Your Own") — a proper popout (a
- * `Sheet`, the same drawer primitive `PatchNotesSheet`/the mobile nav
- * already use) replacing the old cramped inline list. Reuses
- * `DiyFilmBrowser` wholesale — the exact same poster grid, search, and
- * sort/filter the DIY Draft selection screen uses, sourced from the same
- * `getDiyEligibleFilms` pool — rather than a second, parallel
- * movie-browser implementation built just for Challenge Films.
+ * A single-film manual picker popout (a `Sheet`, the same drawer primitive
+ * `PatchNotesSheet`/the mobile nav already use), used by "Choose My Own"
+ * in One At A Time drafting and by manual slot replacement in an
+ * in-progress draft. Reuses `DiyFilmBrowser` wholesale — the exact same
+ * poster grid, search, and sort/filter the DIY Draft selection screen
+ * uses, sourced from the same `getDiyEligibleFilms` pool — rather than a
+ * second, parallel movie-browser implementation.
  *
  * Single-select: clicking a card replaces the current selection (or
  * clears it, if clicking the already-selected card again) rather than
  * toggling independently. Nothing is applied to the caller's state until
  * "Confirm" — "Cancel", closing the sheet, or pressing Escape all discard
- * the in-progress pick and leave the caller's actual selection untouched,
- * satisfying "do not mutate the challenge until selection is confirmed."
+ * the in-progress pick and leave the caller's actual selection untouched.
  */
 export function DiyFilmPickerSheet({
   open,

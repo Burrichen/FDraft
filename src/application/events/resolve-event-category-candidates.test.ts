@@ -3,7 +3,6 @@ import {
   fetchEventCategoryCandidates,
   pickEventCategoryRandomFilm,
   resolveEventCategoryPickerCandidates,
-  resolveEventChallengeCandidatePool,
 } from "./resolve-event-category-candidates";
 import { setEventCategoryFilmIds } from "@/domain/events/event-category-manifest-overlay";
 import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
@@ -227,40 +226,5 @@ describe("resolve-event-category-candidates (FDRAFT UPDATE 1 — EVENT ONE AT A 
     expect(byId.get("horror-on-watchlist")?.onWatchlist).toBe(true);
     expect(byId.get("horror-off-watchlist")?.onWatchlist).toBe(false);
     expect(candidates.every((c) => c.categoryKey === "horror")).toBe(true);
-  });
-
-  it("resolveEventChallengeCandidatePool unions every declared category and dedupes with first-declared-category provenance", async () => {
-    db = new FDraftLocalDatabase(`event-cat-${crypto.randomUUID()}`);
-    const repos = createLocalRepositories(db) as Repositories;
-    await seedOffWatchlistFilm(repos, "horror-only");
-    await seedOffWatchlistFilm(repos, "kitsch-only");
-    // A film listed in BOTH categories (a curator duplicate, see
-    // `findCrossCategoryDuplicates`) — must resolve to Horror's provenance,
-    // since Horror is declared first in Halloween's `contentPools`.
-    await seedOffWatchlistFilm(repos, "in-both");
-    setEventCategoryFilmIds(HALLOWEEN_EVENT_ID, {
-      horror: ["horror-only", "in-both"],
-      kitsch: ["kitsch-only", "in-both"],
-    });
-
-    const { candidates, categoryByFilmId } =
-      await resolveEventChallengeCandidatePool(repos, {
-        profileId: PROFILE_ID,
-        eventId: HALLOWEEN_EVENT_ID,
-        categoryKeys: ["horror", "kitsch"],
-      });
-
-    expect(candidates.map((c) => c.filmId).sort()).toEqual(
-      ["horror-only", "in-both", "kitsch-only"].sort(),
-    );
-    expect(categoryByFilmId.get("horror-only")).toBe("horror");
-    expect(categoryByFilmId.get("kitsch-only")).toBe("kitsch");
-    expect(categoryByFilmId.get("in-both")).toBe("horror");
-    // Every candidate has a synthetic, real-filmId-keyed watchlistEntryId
-    // and flat weight 1 — never a real watchlist row.
-    for (const candidate of candidates) {
-      expect(candidate.watchlistEntryId).toBe(candidate.filmId);
-      expect(candidate.selectionWeight).toBe(1);
-    }
   });
 });

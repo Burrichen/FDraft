@@ -22,6 +22,20 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.15",
+    nickname: "Back to Basics (Beta 15)",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          'Draft creation no longer offers "Freeform" — choose Baby, Easy, Medium, Hard, Hardcore, or "One At A Time" instead. Existing Freeform Drafts still appear in Draft History exactly as before.',
+          'Halloween, Christmas, and January\'s "One At A Time" no longer offers a Challenge source — just Random and Choose My Own. Normal Drafts keep their Challenges unchanged.',
+          'Removed the "Pick Your Own" Challenge and its "Want a chance at a \'Pick Your Own\' challenge slot?" option from Challenge selection — "Choose My Own" and manual film picking are unaffected.',
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.14",
     nickname: "All Wrapped Up (Beta 14)",
     sections: [

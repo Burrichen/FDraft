@@ -93,17 +93,7 @@ export function OneAtATimeBuilderView() {
     [staged],
   );
 
-  // "Pick Your Own" (the "diy" challenge) is deliberately excluded here —
-  // it needs its own two-step "choose the challenge, THEN pick a backing
-  // film" flow, which is exactly what the "Choose My Own" source already
-  // offers directly (see docs/updates §8) — offering it again inside
-  // "Challenge" would be a confusing, redundant second path to the same
-  // outcome.
-  const challenges = useMemo(
-    () =>
-      (data?.challenges ?? []).filter((challenge) => challenge.id !== "diy"),
-    [data],
-  );
+  const challenges = data?.challenges ?? [];
   const eligibleFilms = useMemo(
     () =>
       (data?.eligibleFilms ?? []).filter(
@@ -433,9 +423,6 @@ export function OneAtATimeBuilderView() {
             onChange={setChallengeSelectedIds}
             manualGenre={manualGenre}
             onManualGenreChange={setManualGenre}
-            diyEligibleFilms={[]}
-            diyChallengeFilmEntryIds={[]}
-            onDiyChallengeFilmEntryIdsChange={() => {}}
           />
           <div className="flex flex-wrap gap-2">
             <Button

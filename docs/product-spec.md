@@ -928,17 +928,23 @@ Hard — 12 films
 
 Hardcore — 20 films
 
-Freeform — special behaviour described below
-
 One At A Time — special behaviour described below
 
 Represent difficulty programmatically, not with duplicated magic numbers throughout the codebase.
 
+Freeform (see below) is retired as a creation mode — a new Draft can no
+longer be started as Freeform. It remains a legacy difficulty value: an
+existing historical Freeform Draft must still load, render fully in
+History (films, watched state, points, achieved rank), and survive
+import/export — only starting a NEW one is removed.
+
 ---
 
-## FREEFORM MODE
+## FREEFORM MODE (LEGACY — no longer creatable)
 
-Freeform works differently.
+This section describes Freeform's mechanics for the sole purpose of
+understanding historical Freeform Drafts still visible in History — a
+user can no longer start a new one. Freeform used to work differently.
 
 Generate films in batches of FIVE.
 
@@ -1005,6 +1011,14 @@ system rather than a parallel implementation:
   messaging, and bounded-retry behaviour every other Challenge draft
   uses; already-staged films are excluded from the attempt's candidate
   pool so a Challenge can never hand back a duplicate.
+
+This is the NORMAL (non-Event) One At A Time builder — it keeps all
+three sources. Event One At A Time (Halloween/Christmas/January) is a
+separate builder offering only **Random** and **Choose My Own** — Events
+do not offer Challenge as a source. A historical Event Draft item with
+`source: "challenge"` (created before this restriction) remains valid
+and still displays correctly in History; only creating a NEW one is
+removed.
 
 Each confirmed film lands on "Your Draft So Far" — every staged film
 shown with its own source badge ("Random," "Chosen," or "Challenge:
