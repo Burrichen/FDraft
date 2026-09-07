@@ -580,6 +580,37 @@
       opacity: 0.4;
     }
   }
+
+  /* January's own Event-ending scene (see docs/updates, "FDRAFT UPDATE 1 —
+     JANUARY EVENT-OVER EXPERIENCE") — the same restrained, slow-and-small
+     convention as Halloween's ending motion above: "the miserable spell
+     has finally broken," never a celebration. One cloud drifting apart and
+     one soft, slowly breathing light — nothing else moves. */
+  .january-cloud-drift {
+    animation: january-cloud-drift 10s ease-in-out infinite;
+  }
+  @keyframes january-cloud-drift {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(0.5rem);
+    }
+  }
+
+  .january-sun-glow {
+    animation: january-sun-glow 6s ease-in-out infinite;
+  }
+  @keyframes january-sun-glow {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.75;
+    }
+  }
 }
 
 /*

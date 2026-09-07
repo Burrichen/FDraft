@@ -41,6 +41,15 @@ export interface OneAtATimeStagedItem {
   releaseYear: number | null;
   /** Display-only — never read by `finalizeOneAtATimeDraft` (posters have no bearing on persistence), just carried along so "Your Draft So Far" can render a real poster grid without a re-fetch. */
   posterUrl: string | null;
+  /**
+   * Which Event curated category (Horror/Kitsch/Classic/Adjacent) this
+   * item came from — see `DraftItemRecord.eventCategoryKey`'s own doc
+   * comment (docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME
+   * DRAFTING"). `null`/absent for a normal (non-event) staged item, or an
+   * event item from an event with no categories (January) — every normal
+   * One At A Time call site is unaffected by this field's addition.
+   */
+  eventCategoryKey?: string | null;
 }
 
 /** Whether `filmId` is already staged — the one duplicate-prevention check every source path (Random, Choose My Own, Challenge) must run before letting a candidate be confirmed. Stable film-id comparison, never title matching. */

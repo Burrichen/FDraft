@@ -188,6 +188,7 @@ export async function buildProfileBackup(
         JsonValue
       > | null,
       eventRewardGrantedAt: item.eventRewardGrantedAt ?? null,
+      eventCategoryKey: item.eventCategoryKey ?? null,
     })),
     draftChallengeAttempts,
     draftChallengeInteractions,

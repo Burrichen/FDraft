@@ -35,6 +35,7 @@ function normalizeDraftItem(item: DraftItemRecord): DraftItemRecord {
     originFilmId: item.originFilmId ?? null,
     substitutionReason: item.substitutionReason ?? null,
     eventRewardGrantedAt: item.eventRewardGrantedAt ?? null,
+    eventCategoryKey: item.eventCategoryKey ?? null,
   };
 }
 
@@ -75,6 +76,19 @@ export class LocalDraftRepository implements DraftRepository {
     const drafts = await this.db.drafts
       .where("[profileId+status]")
       .equals([profileId, "archived"])
+      .toArray();
+    return drafts
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(normalizeDraft);
+  }
+
+  async listHistorical(profileId: string): Promise<DraftRecord[]> {
+    const drafts = await this.db.drafts
+      .where("[profileId+status]")
+      .anyOf([
+        [profileId, "archived"],
+        [profileId, "expired"],
+      ])
       .toArray();
     return drafts
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

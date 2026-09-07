@@ -132,10 +132,21 @@ export function HalloweenPageClient() {
 
         <DraftLifecycleView
           sourceEventId={HALLOWEEN_EVENT_ID}
-          emptyState={
+          emptyState={(reloadDraft) =>
             isActiveForProfile ? (
               <HalloweenDraftCreationView
-                onCreated={reloadSilently}
+                onCreated={() => {
+                  // Refreshes BOTH this page's own Haunted Points balance
+                  // AND `DraftLifecycleView`'s own internal draft data (see
+                  // docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME
+                  // DRAFTING") — without the latter, a newly created Draft
+                  // never actually replaces this empty state until a full
+                  // page reload, since `DraftLifecycleView` has its own
+                  // separate `useAsyncData` instance this page's own
+                  // `reloadSilently` has no way to touch.
+                  void reloadSilently();
+                  reloadDraft();
+                }}
                 gameplayEnabled={discovery.result.eventsEnabled}
               />
             ) : (

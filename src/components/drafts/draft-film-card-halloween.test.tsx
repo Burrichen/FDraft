@@ -44,6 +44,7 @@ function halloweenFilm(
     substitution: null,
     canEdit: false,
     source: "horror",
+    eventCategoryKey: null,
     ...overrides,
   };
 }

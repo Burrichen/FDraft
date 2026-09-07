@@ -13,7 +13,7 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
-import { getFilmCount } from "@/domain/drafts/difficulty";
+import { getFilmCount, isOneAtATime } from "@/domain/drafts/difficulty";
 import {
   createDefaultHalloweenSplit,
   type HalloweenSplit,
@@ -27,9 +27,11 @@ import {
   getEventDefinition,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
+import { EVENT_ONE_AT_A_TIME_CATEGORIES } from "@/domain/events/one-at-a-time-categories";
 import { useAsyncData } from "@/hooks/use-async-data";
 import type { DraftDifficulty } from "@/repositories";
 import { describeFixedEventDeadline } from "./fixed-event-deadline-copy";
+import { EventOneAtATimeBuilderView } from "./event-one-at-a-time-builder-view";
 
 /**
  * "Create Halloween Draft" — the Halloween Event page's empty state (see
@@ -93,7 +95,13 @@ export function HalloweenDraftCreationView({
 
   function handleSelectDifficulty(id: Exclude<DraftDifficulty, "freeform">) {
     setDifficulty(id);
-    setSplit(createDefaultHalloweenSplit(getFilmCount(id)));
+    // One At A Time has no fixed film count (see docs/updates, "FDRAFT
+    // UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §1) — `getFilmCount` throws
+    // for it, so there's no split to seed; `EventOneAtATimeBuilderView`
+    // renders instead of the split sliders below for this difficulty.
+    setSplit(
+      isOneAtATime(id) ? null : createDefaultHalloweenSplit(getFilmCount(id)),
+    );
   }
 
   async function handleCreate() {
@@ -232,15 +240,17 @@ export function HalloweenDraftCreationView({
               </p>
             </section>
 
-            <section className="space-y-3">
-              <h3 className="text-foreground text-sm font-bold">
-                Choose a difficulty
-              </h3>
-              <HalloweenDifficultyPicker
-                selected={difficulty}
-                onSelect={handleSelectDifficulty}
-              />
-            </section>
+            {difficulty && isOneAtATime(difficulty) ? null : (
+              <section className="space-y-3">
+                <h3 className="text-foreground text-sm font-bold">
+                  Choose a difficulty
+                </h3>
+                <HalloweenDifficultyPicker
+                  selected={difficulty}
+                  onSelect={handleSelectDifficulty}
+                />
+              </section>
+            )}
 
             {difficulty && split && availability ? (
               <section className="space-y-3">
@@ -263,16 +273,39 @@ export function HalloweenDraftCreationView({
 
             {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
-            <Button
-              type="button"
-              disabled={!difficulty || !split || isCreating}
-              onClick={() => void handleCreate()}
-            >
-              {isCreating ? "Creating…" : "Create Halloween Draft"}
-            </Button>
+            {difficulty && !isOneAtATime(difficulty) ? (
+              <Button
+                type="button"
+                disabled={!difficulty || !split || isCreating}
+                onClick={() => void handleCreate()}
+              >
+                {isCreating ? "Creating…" : "Create Halloween Draft"}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       )}
+
+      {/* One At A Time (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT
+          A TIME DRAFTING") — a fully separate builder, not a branch inside
+          the card above, since its own bottom bar/Cancel/Done already
+          replace everything that card's difficulty picker/slider/Create
+          button would otherwise show. Halloween can never be manually
+          enabled (`manualActivationAllowed: false`), so
+          `sourceEventManuallyEnabled` is always `false` here. */}
+      {gameplayEnabled && formOpen && difficulty && isOneAtATime(difficulty) ? (
+        <EventOneAtATimeBuilderView
+          eventId={HALLOWEEN_EVENT_ID}
+          eventName="Halloween"
+          categories={EVENT_ONE_AT_A_TIME_CATEGORIES[HALLOWEEN_EVENT_ID]!}
+          sourceEventManuallyEnabled={false}
+          onDone={() => {
+            toast.success("Halloween Draft created");
+            onCreated();
+          }}
+          onCancel={() => setDifficulty(null)}
+        />
+      ) : null}
     </div>
   );
 }

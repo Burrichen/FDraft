@@ -15,6 +15,7 @@ import {
 import { HalloweenDialogDecoration } from "./halloween-dialog-decoration";
 import { HalloweenEndingDecoration } from "./halloween-ending-decoration";
 import { renderHalloweenIntroContent } from "./halloween-intro-content";
+import { JanuaryEndingDecoration } from "./january-ending-decoration";
 
 export interface EventVisualTheme {
   /** Widened from `LucideIcon` (same convention `nav-config.ts`'s `NavItem.icon` already uses) — accepts a plain lucide icon or a hand-authored SVG component like `HalloweenNavIcon`, since both are just components over `SVGProps<SVGSVGElement>`. */
@@ -87,7 +88,18 @@ export interface EventVisualTheme {
  * ICON RESERVATION"), but when one is, its icon is already decided.
  */
 export const EVENT_VISUAL_THEMES: Record<string, EventVisualTheme> = {
-  [F_YOU_ITS_JANUARY_EVENT_ID]: { icon: JanuaryTrashCanNavIcon },
+  [F_YOU_ITS_JANUARY_EVENT_ID]: {
+    icon: JanuaryTrashCanNavIcon,
+    // See docs/updates, "FDRAFT UPDATE 1 — JANUARY EVENT-OVER EXPERIENCE"
+    // §3/§4 — deliberately no `rootClassName`/color override: the app's
+    // own default `--primary` is already this exact cool blue (see
+    // `--watchlist-blue` in `globals.css`), so the ending dialog's plain
+    // default `Button` is already "a tasteful cool-blue FDraft-style
+    // button" with zero per-event styling needed. A modest width only,
+    // matching Halloween's own "quieter than a join modal" ending sizing.
+    endingRootClassName: "w-[92vw] sm:w-[80vw] max-w-lg",
+    EndingDecorationComponent: JanuaryEndingDecoration,
+  },
   [WATCHLIST_FRONTIER_EVENT_ID]: { icon: Compass },
   [SIGNAL_FROM_BEYOND_EVENT_ID]: { icon: Radio },
   [HALLOWEEN_EVENT_ID]: {

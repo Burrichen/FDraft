@@ -15,6 +15,7 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Badge } from "@/components/ui/badge";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
+import { formatOneAtATimeSourceLabel } from "@/domain/drafts/format-one-at-a-time-source-label";
 import { FREEFORM_RANK_LABELS } from "@/domain/drafts/freeform";
 import { getEventDefinition } from "@/domain/events/event-registry";
 import {
@@ -98,7 +99,7 @@ export default function DraftHistoryPage() {
       activeProfile.id,
     );
 
-    const drafts = await repositories.drafts.listArchived(activeProfile.id);
+    const drafts = await repositories.drafts.listHistorical(activeProfile.id);
     // One lookup for the whole profile's watched history, reused across
     // every draft below — cheap (a single indexed query) next to N draft
     // detail fetches, and this is the only way to recover "Watched Date"
@@ -236,6 +237,20 @@ function HistoricalDraftEntry({
   const completedCount = items.filter(({ item }) => item.isCompleted).length;
   const completionPercent =
     items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
+  // "archived" (every item resolved) vs "expired" (deadline/Event
+  // occurrence passed with some items unresolved) — see docs/updates,
+  // "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE AUDIT" §3/§6: an
+  // Event expiring must never be presented as if every film were
+  // completed. `listHistorical` only ever returns one of these two
+  // statuses, so this is exhaustive.
+  const isCompletedDraft = draft.status === "archived";
+
+  const event = draft.sourceEventId
+    ? getEventDefinition(draft.sourceEventId)
+    : null;
+  const categoryLabelByKey = Object.fromEntries(
+    (event?.contentPools ?? []).map((pool) => [pool.key, pool.label]),
+  );
 
   const sortedItems = sortHistoricalDraftItems(
     items.map((entry) => ({
@@ -268,7 +283,13 @@ function HistoricalDraftEntry({
               <EventPresentationBadge
                 sourceEventId={draft.sourceEventId}
                 eventVisualsEnabled={eventVisualsEnabled}
-              />
+              />{" "}
+              <Badge
+                variant={isCompletedDraft ? "secondary" : "outline"}
+                className="align-middle"
+              >
+                {isCompletedDraft ? "Completed" : "Expired"}
+              </Badge>
             </p>
             <p className="text-muted-foreground text-xs">
               {getDraftTimeModeLabel(draft)} ·{" "}
@@ -291,11 +312,13 @@ function HistoricalDraftEntry({
             label="Watched"
             items={watchedItems}
             emptyLabel={null}
+            categoryLabelByKey={categoryLabelByKey}
           />
           <HistoricalDraftFilmGroup
             label="Not Watched"
             items={notWatchedItems}
             emptyLabel={null}
+            categoryLabelByKey={categoryLabelByKey}
           />
         </div>
       </details>
@@ -312,10 +335,13 @@ function HistoricalDraftFilmGroup({
   label,
   items,
   emptyLabel,
+  categoryLabelByKey,
 }: {
   label: string;
   items: SortedHistoricalDraftItem[];
   emptyLabel: string | null;
+  /** This draft's Event category keys → display labels (see `EventDefinition.contentPools`) — `{}` for a normal draft or a categoryless event (January). */
+  categoryLabelByKey: Record<string, string>;
 }) {
   if (items.length === 0 && !emptyLabel) {
     return null;
@@ -375,21 +401,15 @@ function HistoricalDraftFilmGroup({
                     ) : null}
                   </span>
                 </span>
-                {entry.item.source === "challenge" ? (
-                  <Badge
-                    variant="secondary"
-                    className="shrink-0 text-[0.65rem]"
-                  >
-                    Challenge:{" "}
-                    {challengeDefinition?.name ?? entry.item.challengeId}
-                  </Badge>
-                ) : entry.item.source === "manual" ? (
-                  <Badge variant="outline" className="shrink-0 text-[0.65rem]">
-                    Manual
-                  </Badge>
-                ) : entry.item.source === "halloween-adjacent" ||
-                  entry.item.source === "horror" ||
-                  entry.item.source === "kitsch" ? (
+                {entry.item.source === "halloween-adjacent" ||
+                entry.item.source === "horror" ||
+                entry.item.source === "kitsch" ? (
+                  // The OLDER bulk-generation Halloween pool sources (see
+                  // docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS")
+                  // encode category directly in `source`, never set
+                  // `eventCategoryKey` — kept as its own branch, with its
+                  // own established styled badge, rather than folded into
+                  // the generic formatter below.
                   <Badge
                     variant="outline"
                     className={cn(
@@ -404,8 +424,34 @@ function HistoricalDraftFilmGroup({
                         : "Kitsch"}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="shrink-0 text-[0.65rem]">
-                    Random
+                  // Every other item — a normal draft's random/manual/
+                  // challenge pick, OR a category-based Event One At A Time
+                  // item (see docs/updates, "FDRAFT UPDATE 1 — EVENT STATS/
+                  // HISTORY/PERSISTENCE AUDIT" §5: History must preserve
+                  // Event category/source info, not collapse it to a
+                  // hardcoded "Random"). Reuses the EXACT same compound
+                  // formatter the live Draft page/builder already use
+                  // (`formatOneAtATimeSourceLabel`), so "Horror · Random"/
+                  // "Kitsch · Chosen"/"Horror · Challenge: <name>" render
+                  // identically here, never a lossy bare "Random" fallback.
+                  <Badge
+                    variant={
+                      entry.item.source === "challenge"
+                        ? "secondary"
+                        : "outline"
+                    }
+                    className="shrink-0 text-[0.65rem]"
+                  >
+                    {formatOneAtATimeSourceLabel({
+                      source: entry.item.source as
+                        "random" | "manual" | "challenge",
+                      challengeId: entry.item.challengeId,
+                      challengeName: challengeDefinition?.name ?? null,
+                      categoryLabel: entry.item.eventCategoryKey
+                        ? (categoryLabelByKey[entry.item.eventCategoryKey] ??
+                          entry.item.eventCategoryKey)
+                        : null,
+                    })}
                   </Badge>
                 )}
               </li>

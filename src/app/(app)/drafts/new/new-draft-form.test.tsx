@@ -21,6 +21,25 @@ vi.mock("./actions", () => ({
   createDraftAction: vi.fn(async () => ({ error: null })),
 }));
 
+// `NewDraftForm` reads the shared discovery snapshot to resolve the
+// currently active event for its One At A Time hand-off (see docs/updates,
+// "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING") — none of these tests
+// exercise that path, so a fixed "no event active" snapshot is sufficient,
+// matching the same mocking convention `useProfileContext` already uses
+// above rather than rendering under a real `EventDiscoveryProvider`.
+vi.mock("@/components/events/event-discovery-provider", () => ({
+  useEventDiscovery: () => ({
+    result: {
+      statuses: [],
+      eventVisualsEnabled: false,
+      eventsEnabled: false,
+      now: new Date(),
+    },
+    isLoading: false,
+    refresh: vi.fn(),
+  }),
+}));
+
 afterEach(() => {
   cleanup();
   push.mockReset();

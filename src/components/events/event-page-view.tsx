@@ -22,6 +22,7 @@ const POINT_CURRENCY_LABELS: Record<PointCurrency, string> = {
   signal: "Signal Points",
   bounty: "Bounty Points",
   haunted: "Haunted Points",
+  festive: "Festive Points",
 };
 
 /**
@@ -146,9 +147,20 @@ export function EventPageView({
 
       <DraftLifecycleView
         sourceEventId={event.id}
-        emptyState={
+        emptyState={(reloadDraft) =>
           isActiveForProfile ? (
-            (renderEmptyState?.(reloadSilently) ?? (
+            (renderEmptyState?.(() => {
+              // Refreshes BOTH this page's own point-balance display AND
+              // `DraftLifecycleView`'s own internal draft data (see
+              // docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME
+              // DRAFTING") — without the latter, a newly created Draft
+              // never actually replaces this empty state until a full page
+              // reload, since `DraftLifecycleView` has its own separate
+              // `useAsyncData` instance this page's own `reloadSilently`
+              // has no way to touch.
+              void reloadSilently();
+              reloadDraft();
+            }) ?? (
               <Card>
                 <CardContent>
                   <p className="text-muted-foreground text-sm">

@@ -3,6 +3,7 @@
 import { Check, Film, Pencil, RefreshCw, Shuffle } from "lucide-react";
 import { useState } from "react";
 import { formatChallengeDisplayValue } from "@/domain/challenges/format-display-value";
+import { formatOneAtATimeSourceLabel } from "@/domain/drafts/format-one-at-a-time-source-label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,6 +120,8 @@ export interface DraftFilmCardView {
   canEdit: boolean;
   /** See `DraftItemSource` — drives the Halloween pool badge and, for a `null` `entryId` item, which watch-toggle control renders (see docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS"). */
   source: DraftItemSource;
+  /** See `DraftItemRecord.eventCategoryKey` — `null` for a normal draft item, an old-style Halloween pool item (category is already encoded in `source` for those), or a January Event item (no categories). Set for a category-based Event One At A Time item (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §14). */
+  eventCategoryKey: string | null;
 }
 
 /**
@@ -186,12 +189,19 @@ export function DraftFilmCard({
   // undoable (see docs/product-spec.md, "WATCHED FILM UNDO").
   const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const canUndo = film.isCompleted && isWatchedThisSession && film.entryId;
-  // A Horror/Kitsch item is never on the watchlist (`entryId: null` by
-  // design, not decay — see `DraftFilmCardView.source`) — it gets a
-  // separate watch-toggle path, keyed by this draft item's own id instead
-  // of a watchlist entry id (see `halloween-film-watch-toggle.tsx`).
+  // A Horror/Kitsch item (old-style pool source) or a category-based Event
+  // One At A Time item (`eventCategoryKey` set) is never on the watchlist
+  // (`entryId: null` by design, not decay — see `DraftFilmCardView.source`/
+  // `.eventCategoryKey`) — either gets the same separate watch-toggle path,
+  // keyed by this draft item's own id instead of a watchlist entry id (see
+  // `halloween-film-watch-toggle.tsx`, itself already fully generic despite
+  // its name). A genuinely-decayed normal item (`entryId: null` because its
+  // watchlist entry was later deleted, unrelated to any of this) has
+  // neither condition and correctly falls through to hiding watch controls
+  // entirely, exactly as before.
   const isHalloweenPoolItem =
-    !film.entryId && !!HALLOWEEN_SOURCE_LABELS[film.source];
+    !film.entryId &&
+    (!!HALLOWEEN_SOURCE_LABELS[film.source] || film.eventCategoryKey !== null);
   const isWatchedThisSessionHalloween = useIsWatchedThisSessionForItem(
     isHalloweenPoolItem ? film.itemId : null,
   );
@@ -381,6 +391,30 @@ export function DraftFilmCard({
               )}
             >
               {HALLOWEEN_SOURCE_LABELS[film.source]}
+            </Badge>
+          ) : film.eventCategoryKey ? (
+            // A category-based Event One At A Time item (see docs/updates,
+            // "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §14) —
+            // "Horror · Random"/"Kitsch · Chosen"/"Horror · Challenge:
+            // <name>", a single compound badge composing the category with
+            // how this particular film was actually picked (unlike the
+            // OLDER Halloween pool badge above, which only ever meant
+            // "random from this pool" and never needed an origin at all).
+            <Badge variant="secondary" className="w-fit text-[0.65rem]">
+              {formatOneAtATimeSourceLabel({
+                source: film.source as "random" | "manual" | "challenge",
+                challengeId: null,
+                challengeName: film.challenge?.name ?? null,
+                // The category KEY (e.g. "horror") capitalized as a
+                // reasonable display label — this card has no access to
+                // `EventDefinition.contentPools[].label` without threading
+                // a lookup map through every caller; every real category
+                // key today (horror/kitsch/classic/adjacent) already reads
+                // correctly capitalized this way.
+                categoryLabel:
+                  film.eventCategoryKey.charAt(0).toUpperCase() +
+                  film.eventCategoryKey.slice(1),
+              })}
             </Badge>
           ) : null}
           {film.challenge ? (

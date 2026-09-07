@@ -131,6 +131,7 @@ export const pointCurrencySchema = z.enum([
   "signal",
   "bounty",
   "haunted",
+  "festive",
 ]);
 export const freeformRankSchema = z
   .enum(["below_baby", "baby", "easy", "medium", "hard", "hardcore"])
@@ -396,6 +397,10 @@ export const backupDraftItemSchema = z.object({
   // backup from letting an already-rewarded item earn its event currency
   // a second time.
   eventRewardGrantedAt: nullableIsoDateTimeSchema.default(null),
+  // A backup exported before this field existed has no such key — `null`
+  // (no category) is the correct, safe default (see docs/updates, "FDRAFT
+  // UPDATE 1 — EVENT ONE AT A TIME DRAFTING").
+  eventCategoryKey: nullableBoundedString(100).default(null),
   createdAt: isoDateTimeSchema,
 });
 

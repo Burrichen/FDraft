@@ -7,6 +7,7 @@ import { challengeRegistry } from "@/domain/challenges/catalogue";
 import { attemptChosenChallenges } from "@/domain/challenges/choose";
 import {
   DEFAULT_CHALLENGE_ENGINE_CONFIG,
+  type ChallengeCandidateFilm,
   type ChallengeContext,
   type ChallengeResult,
 } from "@/domain/challenges/types";
@@ -169,6 +170,16 @@ export async function attemptOneAtATimeChallenge(
     excludeFilmIds: readonly string[];
     manualGenre?: string;
     diyFilmEntryId?: string;
+    /**
+     * Overrides the candidate pool the challenge resolves against (see
+     * docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §9) —
+     * omitted (the normal-flow default) means the exact existing
+     * behavior: `fetchLocalChallengeCandidates` against the profile's own
+     * watchlist. An Event builder passes its own resolved category-union
+     * pool instead, so a challenge resolves only to a film genuinely
+     * valid for that event.
+     */
+    candidateOverride?: ChallengeCandidateFilm[];
   },
   deps: { rng?: Rng; clock?: Clock } = {},
 ): Promise<AttemptOneAtATimeChallengeOutcome> {
@@ -177,7 +188,9 @@ export async function attemptOneAtATimeChallenge(
   const excluded = new Set(params.excludeFilmIds);
 
   const [rawCandidates, watchedFilms] = await Promise.all([
-    fetchLocalChallengeCandidates(repos, params.profileId),
+    params.candidateOverride
+      ? Promise.resolve(params.candidateOverride)
+      : fetchLocalChallengeCandidates(repos, params.profileId),
     fetchLocalChallengeWatchedFilms(repos, params.profileId),
   ]);
   const candidates = rawCandidates.filter(

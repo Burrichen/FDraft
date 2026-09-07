@@ -54,3 +54,23 @@ export function MiseryPointsIcon(props: PointIconProps) {
     </svg>
   );
 }
+
+/**
+ * Festive Points (see docs/updates, "FDRAFT UPDATE 1 — FESTIVE POINTS +
+ * EVENT CURRENCY COMPLETION" §8) — a simple holly sprig (two rounded
+ * leaves + three berries), a real vector icon rather than an emoji, and
+ * distinct from the reserved-but-unused Snowflake (see
+ * `event-visual-themes.ts`'s "CHRISTMAS ICON RESERVATION" note) so this
+ * currency's own icon doesn't preempt that future Event's real theme.
+ */
+export function FestivePointsIcon(props: PointIconProps) {
+  return (
+    <svg {...svgDefaults(props)}>
+      <path d="M12 21c-3-2-5-4.5-5-7.5A4.5 4.5 0 0 1 12 9a4.5 4.5 0 0 1 5 4.5c0 3-2 5.5-5 7.5z" />
+      <path d="M12 9V4" />
+      <circle cx="10.5" cy="14.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="13.5" cy="14.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

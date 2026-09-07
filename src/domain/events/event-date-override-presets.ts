@@ -1,4 +1,5 @@
 import {
+  CHRISTMAS_EVENT_ID,
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
 } from "./event-registry";
@@ -23,8 +24,8 @@ export interface EventDateOverridePreset {
 }
 
 /**
- * Only the two events with an actual natural window worth demonstrating
- * today — see `event-registry.ts` for why Halloween now has one (a
+ * The events with an actual natural window worth demonstrating today —
+ * see `event-registry.ts` for why Halloween/Christmas now have one (a
  * temporary, one-off fixed window, not yet the real/permanent design).
  * The Watchlist Frontier and Signal from Beyond still have no window at
  * all, so there's nothing for a preset to safely land inside yet.
@@ -42,6 +43,14 @@ export const EVENT_DATE_OVERRIDE_PRESETS: EventDateOverridePreset[] = [
     eventId: HALLOWEEN_EVENT_ID,
     label: "Halloween",
     month: 10,
+    day: 15,
+    hour: 20,
+    minute: 0,
+  },
+  {
+    eventId: CHRISTMAS_EVENT_ID,
+    label: "Christmas",
+    month: 12,
     day: 15,
     hour: 20,
     minute: 0,

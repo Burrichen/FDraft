@@ -6,7 +6,9 @@ import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { AdditionsCard } from "@/components/stats/additions-card";
 import { DistributionCard } from "@/components/stats/distribution-card";
+import { EventStatsCard } from "@/components/stats/event-stats-card";
 import {
+  FestivePointsIcon,
   HauntedPointsIcon,
   MiseryPointsIcon,
 } from "@/components/stats/point-currency-icons";
@@ -14,13 +16,16 @@ import { PointsCard } from "@/components/stats/points-card";
 import { StatCard } from "@/components/stats/stat-card";
 import { useHalloweenAmbientVisible } from "@/components/events/halloween-ambient-decorations";
 import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { useProfileContext } from "@/components/profiles/profile-provider";
+import { computeEventOccurrenceStats } from "@/domain/events/event-occurrence-stats";
 import { formatRuntimeMinutes } from "@/domain/stats/format";
 import {
   calculateWatchlistStats,
   type StatsFilmInput,
 } from "@/domain/stats/watchlist-stats";
 import { useAsyncData } from "@/hooks/use-async-data";
+import type { DraftItemRecord } from "@/repositories/records";
 
 export function StatsView() {
   const { activeProfile, repositories } = useProfileContext();
@@ -95,6 +100,33 @@ export function StatsView() {
     return repositories.points.getAllBalances(activeProfile.id);
   }, [activeProfile?.id, repositories]);
 
+  // Compact per-occurrence Event participation summary (see docs/updates,
+  // "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE AUDIT" §9) — every
+  // Event-sourced Draft the profile has ever had, active or historical, so
+  // an in-progress occurrence shows up immediately, not only once it ends.
+  const { data: eventStats } = useAsyncData(async () => {
+    if (!activeProfile) return null;
+    const [historical, active] = await Promise.all([
+      repositories.drafts.listHistorical(activeProfile.id),
+      repositories.drafts.listActiveDrafts(activeProfile.id),
+    ]);
+    const eventDrafts = [...historical, ...active].filter(
+      (draft) => draft.sourceEventId !== null,
+    );
+    const itemsByDraftId = new Map<string, DraftItemRecord[]>();
+    await Promise.all(
+      eventDrafts.map(async (draft) => {
+        itemsByDraftId.set(
+          draft.id,
+          await repositories.drafts.listItemsForDraft(draft.id),
+        );
+      }),
+    );
+    return computeEventOccurrenceStats(eventDrafts, itemsByDraftId);
+  }, [activeProfile?.id, repositories]);
+
+  const { result: eventDiscovery } = useEventDiscovery();
+
   if (!activeProfile) {
     return null;
   }
@@ -118,7 +150,7 @@ export function StatsView() {
       {pointBalances ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">Points</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <PointsCard
               icon={Clapperboard}
               iconClassName="text-watchlist-green"
@@ -137,6 +169,27 @@ export function StatsView() {
               label="Haunted"
               value={pointBalances.haunted}
             />
+            <PointsCard
+              icon={FestivePointsIcon}
+              iconClassName="text-red-400"
+              label="Festive"
+              value={pointBalances.festive}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {eventStats && eventStats.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-foreground text-lg font-bold">Event Stats</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {eventStats.map((stat) => (
+              <EventStatsCard
+                key={`${stat.eventId}:${stat.occurrenceYear}`}
+                stat={stat}
+                eventVisualsEnabled={eventDiscovery.eventVisualsEnabled}
+              />
+            ))}
           </div>
         </section>
       ) : null}

@@ -8,6 +8,7 @@ import { HALLOWEEN_EVENT_ID } from "@/domain/events/event-registry";
 import { createLocalRepositories } from "@/infrastructure/local-db/create-local-repositories";
 import { FDraftLocalDatabase } from "@/infrastructure/local-db/database";
 import { LocalWatchlistRepository } from "@/infrastructure/local-db/watchlist-repository";
+import type { DraftItemRecord, DraftRecord } from "@/repositories/records";
 import { StatsView } from "./stats-view";
 
 const PROFILE_ID = "alex";
@@ -118,9 +119,10 @@ describe("StatsView — Points (PROMPT B2.2)", () => {
     expect(screen.getByText("Lifetime")).toBeInTheDocument();
     expect(screen.getByText("Misery")).toBeInTheDocument();
     expect(screen.getByText("Haunted")).toBeInTheDocument();
-    // Three distinct cards, each reading 0 — a real earned total, not a
+    expect(screen.getByText("Festive")).toBeInTheDocument();
+    // Four distinct cards, each reading 0 — a real earned total, not a
     // hidden/unavailable stat.
-    expect(screen.getAllByText("0")).toHaveLength(3);
+    expect(screen.getAllByText("0")).toHaveLength(4);
   });
 
   it("shows real, non-zero totals for each currency independently", async () => {
@@ -148,10 +150,10 @@ describe("StatsView — Points (PROMPT B2.2)", () => {
 
     await waitFor(() => expect(screen.getByText("47")).toBeInTheDocument());
     expect(screen.getByText("8")).toBeInTheDocument();
-    // Haunted stays at its real, honest 0 — no invented reward just to
-    // make the counter non-zero (see docs/updates §"IF HAUNTED POINTS
-    // HAVE NO EARNING RULE").
-    expect(screen.getByText("0")).toBeInTheDocument();
+    // Haunted and Festive stay at their real, honest 0 — no invented
+    // reward just to make the counter non-zero (see docs/updates §"IF
+    // HAUNTED POINTS HAVE NO EARNING RULE").
+    expect(screen.getAllByText("0")).toHaveLength(2);
   });
 });
 
@@ -232,5 +234,167 @@ describe("StatsView — Halloween pumpkin (moved here from History)", () => {
     expect(
       screen.queryByRole("button", { name: /pumpkin/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+function baseEventDraft(overrides: Partial<DraftRecord> = {}): DraftRecord {
+  return {
+    id: "halloween-draft-1",
+    profileId: PROFILE_ID,
+    difficulty: "one-at-a-time",
+    timeMode: "timer",
+    status: "archived",
+    totalFilms: 0,
+    randomFilmCount: 0,
+    challengeFilmCount: 0,
+    challengeMode: null,
+    startedAt: "2026-10-01T00:00:00.000Z",
+    deadlineAt: "2026-11-01T00:00:00.000Z",
+    timezone: "UTC",
+    completedAt: "2026-10-31T00:00:00.000Z",
+    freeformAchievedRank: null,
+    sourceEventId: HALLOWEEN_EVENT_ID,
+    sourceEventManuallyEnabled: false,
+    rewardsGrantedAt: "2026-10-31T00:00:00.000Z",
+    customName: null,
+    eventOccurrenceYear: 2026,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-31T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function baseEventItem(
+  overrides: Partial<DraftItemRecord> = {},
+): DraftItemRecord {
+  return {
+    id: "item-1",
+    draftId: "halloween-draft-1",
+    filmId: "film-1",
+    watchlistEntryId: null,
+    source: "random",
+    challengeId: null,
+    challengeAttemptId: null,
+    challengeDisplayValue: null,
+    orderIndex: 0,
+    isCompleted: true,
+    completedAt: "2026-10-15T00:00:00.000Z",
+    watchedHistoryId: null,
+    originFilmId: null,
+    substitutionReason: null,
+    eventRewardGrantedAt: "2026-10-15T00:00:00.000Z",
+    eventCategoryKey: "horror",
+    createdAt: "2026-10-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/**
+ * Covers docs/updates, "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE
+ * AUDIT" §9: a compact, per-occurrence Event participation summary,
+ * derived entirely from persisted Draft/DraftItem records (there is no
+ * per-award ledger — see `computeEventOccurrenceStats`'s own doc comment).
+ */
+describe("StatsView — Event Stats (EVENT STATS/HISTORY/PERSISTENCE AUDIT §9)", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("shows a completed occurrence's watched count and currency earned", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(baseEventDraft());
+    await repos.drafts.createItems([
+      baseEventItem({ id: "item-1", filmId: "film-1", isCompleted: true }),
+      baseEventItem({
+        id: "item-2",
+        filmId: "film-2",
+        isCompleted: false,
+        completedAt: null,
+        eventRewardGrantedAt: null,
+        eventCategoryKey: "kitsch",
+      }),
+    ]);
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Event Stats")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("2026")).toBeInTheDocument();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    // Exactly one film's item earned its reward.
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  it("shows 'In Progress' for a still-active Event Draft, never 'Completed'", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(
+      baseEventDraft({ status: "active", completedAt: null }),
+    );
+    await repos.drafts.createItems([baseEventItem()]);
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Event Stats")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Expired' for an unfinished occurrence, never falsely 'Completed'", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(
+      baseEventDraft({ status: "expired", completedAt: null }),
+    );
+    await repos.drafts.createItems([
+      baseEventItem({ id: "item-1", isCompleted: true }),
+      baseEventItem({
+        id: "item-2",
+        filmId: "film-2",
+        isCompleted: false,
+        completedAt: null,
+        eventRewardGrantedAt: null,
+      }),
+    ]);
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Event Stats")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("never renders an Event Stats section for a profile with no Event Drafts at all", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("No stats yet")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Event Stats")).not.toBeInTheDocument();
   });
 });

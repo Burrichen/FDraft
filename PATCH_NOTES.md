@@ -1,5 +1,23 @@
 # Patch Notes
 
+### v1.2.0-beta.14 — All Wrapped Up (Beta 14)
+
+#### Added
+
+- Christmas now has its own Event page — watching a film in a Christmas Draft earns a permanent Festive Point, on top of the usual Lifetime Point.
+- "One At A Time" is now available for Halloween, Christmas, and January Event Drafts, not just normal ones — pick Random, Choose My Own, or a Challenge from each event's own real films (Halloween: Horror/Kitsch, Christmas: Classic/Christmas Adjacent, January: its own eligible pool), with a "Prefer Watchlist" option for Halloween and Christmas.
+- January now has its own proper ending experience when the event closes, matching Halloween's — a closing message and an "I made it through the worst month." button.
+- A new compact "Event Stats" section on the Stats page shows each year you took part in an Event: films watched, points earned, and whether it finished Completed, Expired, or is still In Progress.
+
+#### Changed
+
+- Draft History now also shows Drafts that expired unfinished, clearly labeled "Expired" rather than silently leaving them out.
+- Draft History now shows an item's category alongside how it was picked (e.g. "Horror · Random", "Kitsch · Chosen") for Halloween/Christmas/January films added via One At A Time, instead of a bare, sometimes-misleading label.
+
+#### Fixed
+
+- Fixed a rare bug where using Admin Mode's Event Testing to simulate a date could leave an Event Draft with an incorrect "last modified" time once it expired.
+
 ### v1.2.0-beta.13 — Trick or Treat (Beta 13)
 
 #### Changed

@@ -64,8 +64,18 @@ import { GenerateBatchButton } from "@/app/(app)/drafts/generate-batch-button";
  */
 export interface DraftLifecycleViewProps {
   sourceEventId: string | null;
-  /** Shown instead of the draft UI when this scope has no active/expired draft at all. */
-  emptyState: ReactNode;
+  /**
+   * Shown instead of the draft UI when this scope has no active/expired
+   * draft at all. A plain `ReactNode` for a caller with nothing to refresh
+   * afterward (the normal Drafts page); a render function receiving THIS
+   * view's own `reloadSilently` (see docs/updates, "FDRAFT UPDATE 1 —
+   * EVENT ONE AT A TIME DRAFTING") for a caller whose empty state can
+   * create a new draft and needs this view to pick it up immediately,
+   * without a full page reload — the same "render function, not a plain
+   * node" convention `EventPageView`'s own `renderEmptyState` already
+   * uses, for the identical reason.
+   */
+  emptyState: ReactNode | ((reload: () => void) => ReactNode);
   /** Rendered above `emptyState` — the normal Drafts page's own "draft complete" banner; omitted (the default) shows nothing. */
   justArchivedBanner?: ReactNode;
   /** Rendered above the active-draft header — the normal Drafts page's post-creation challenge-shortfall banner; omitted (the default) shows nothing. */
@@ -216,6 +226,7 @@ export function DraftLifecycleView({
           // elsewhere doesn't require a full reload to take effect here.
           canEdit: false,
           source: item.source,
+          eventCategoryKey: item.eventCategoryKey ?? null,
         };
       });
 
@@ -278,7 +289,9 @@ export function DraftLifecycleView({
     return (
       <div className="space-y-6">
         {justArchivedBanner}
-        {emptyState}
+        {typeof emptyState === "function"
+          ? emptyState(reloadSilently)
+          : emptyState}
       </div>
     );
   }
@@ -310,13 +323,16 @@ export function DraftLifecycleView({
   const event = draft.sourceEventId
     ? getEventDefinition(draft.sourceEventId)
     : null;
-  // Halloween Draft naming is canonical ("Halloween <year> Draft" — see
-  // docs/updates, "HALLOWEEN UI CLEANUP" §7-9) — the rename control is
-  // hidden entirely for this event rather than offered and then silently
-  // ignored, since `getDraftDisplayName` already refuses to show a custom
-  // name for a Halloween draft regardless of what's persisted. No other
-  // event (or a normal draft) is affected — January and normal drafts keep
-  // their existing rename behaviour unchanged.
+  // A `fixedEventDeadline` event Draft's naming is canonical ("<Event>
+  // <year> Draft" — see docs/updates, "HALLOWEEN UI CLEANUP" §7-9,
+  // generalized by "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §15 to
+  // every such event, not just Halloween) — the rename control is hidden
+  // entirely for these rather than offered and then silently ignored,
+  // since `getDraftDisplayName` already refuses to show a custom name for
+  // one regardless of what's persisted. A normal draft, or an event with
+  // no fixed deadline (Frontier/Signal), keeps its existing rename
+  // behaviour unchanged.
+  const isCanonicallyNamedEventDraft = Boolean(event?.fixedEventDeadline);
   const isHalloweenDraft = draft.sourceEventId === HALLOWEEN_EVENT_ID;
   const eventWindow =
     event?.fixedEventDeadline && effectiveEventNow
@@ -458,7 +474,7 @@ export function DraftLifecycleView({
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
             />
-            {isHalloweenDraft ? null : (
+            {isCanonicallyNamedEventDraft ? null : (
               <DraftNameEditor
                 draftId={draft.id}
                 currentCustomName={draft.customName}
@@ -552,7 +568,7 @@ export function DraftLifecycleView({
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
             />
-            {isHalloweenDraft ? null : (
+            {isCanonicallyNamedEventDraft ? null : (
               <DraftNameEditor
                 draftId={draft.id}
                 currentCustomName={draft.customName}

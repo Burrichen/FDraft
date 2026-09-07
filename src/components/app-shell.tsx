@@ -4,7 +4,15 @@ import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { loadHalloweenFilmContent } from "@/application/events/halloween-film-content-service";
+import { loadEventCategoryFilmContent } from "@/application/events/load-event-category-film-content";
 import { loadJanuaryFilmContent } from "@/application/events/january-film-content-service";
+import { setEventCategoryFilmIds } from "@/domain/events/event-category-manifest-overlay";
+import { CHRISTMAS_FILM_CONTENT } from "@/domain/events/event-film-content";
+import { getHalloweenManifestFilmIds } from "@/domain/events/halloween-manifest-overlay";
+import {
+  CHRISTMAS_EVENT_ID,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import { EventEndingDialog } from "@/components/events/event-ending-dialog";
 import { EventIntroDialog } from "@/components/events/event-intro-dialog";
 import {
@@ -67,7 +75,29 @@ function AppShellContent({ children }: { children: ReactNode }) {
     void loadHalloweenFilmContent({
       films: repositories.films,
       unresolvedMetadata: repositories.unresolvedMetadata,
+    }).then(() => {
+      // Feeds the NEW generic Event category resolver (see docs/updates,
+      // "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING") from Halloween's
+      // already-resolved ids — never a second, redundant resolve-or-create
+      // pass over the same `films.json` (see
+      // `load-event-category-film-content.ts`'s own doc comment).
+      const { horrorFilmIds, kitschFilmIds } = getHalloweenManifestFilmIds();
+      setEventCategoryFilmIds(HALLOWEEN_EVENT_ID, {
+        horror: horrorFilmIds,
+        kitsch: kitschFilmIds,
+      });
     });
+    void loadEventCategoryFilmContent(
+      CHRISTMAS_EVENT_ID,
+      {
+        classic: CHRISTMAS_FILM_CONTENT.classic,
+        adjacent: CHRISTMAS_FILM_CONTENT.adjacent,
+      },
+      {
+        films: repositories.films,
+        unresolvedMetadata: repositories.unresolvedMetadata,
+      },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

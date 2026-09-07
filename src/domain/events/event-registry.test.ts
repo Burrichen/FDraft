@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  getCurrentOccurrenceBounds,
+  isEventAvailable,
+} from "./event-availability";
 import { setJanuaryManifestCuratedFilmIds } from "./january-manifest-overlay";
 import {
+  CHRISTMAS_EVENT_ID,
   EVENT_DEFINITIONS,
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
@@ -11,21 +16,23 @@ import {
 } from "./event-registry";
 
 describe("event-registry", () => {
-  it("registers F* You, It's January!, Halloween, The Watchlist Frontier, and Signal from Beyond", () => {
-    expect(EVENT_DEFINITIONS).toHaveLength(4);
+  it("registers F* You, It's January!, Halloween, The Watchlist Frontier, Signal from Beyond, and Christmas", () => {
+    expect(EVENT_DEFINITIONS).toHaveLength(5);
     expect(EVENT_DEFINITIONS.map((event) => event.id)).toEqual([
       F_YOU_ITS_JANUARY_EVENT_ID,
       HALLOWEEN_EVENT_ID,
       WATCHLIST_FRONTIER_EVENT_ID,
       SIGNAL_FROM_BEYOND_EVENT_ID,
+      CHRISTMAS_EVENT_ID,
     ]);
     expect(EVENT_DEFINITIONS[0].name).toBe("F* You, It's January!");
     expect(EVENT_DEFINITIONS[1].name).toBe("Halloween");
     expect(EVENT_DEFINITIONS[2].name).toBe("The Watchlist Frontier");
     expect(EVENT_DEFINITIONS[3].name).toBe("Signal from Beyond");
+    expect(EVENT_DEFINITIONS[4].name).toBe("Christmas");
   });
 
-  it("is naturally available 25–31 January every year, manually activatable the rest of the year, and awards Misery Points when normally active", () => {
+  it("is naturally available 25 January 00:00 through 1 February 00:00 exclusive every year, manually activatable the rest of the year, and awards Misery Points when normally active", () => {
     const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
     expect(event?.availability).toEqual({
       startsAt: null,
@@ -34,8 +41,10 @@ describe("event-registry", () => {
       recurringMonthDayRange: {
         startMonth: 1,
         startDay: 25,
-        endMonth: 1,
-        endDay: 31,
+        endMonth: 2,
+        endDay: 1,
+        endHour: 0,
+        endMinute: 0,
       },
     });
     expect(event?.manualActivationAllowed).toBe(true);
@@ -75,6 +84,20 @@ describe("event-registry", () => {
       route: "/events/january",
       navLabel: "January",
     });
+  });
+
+  it("has a fixed Event deadline pinned to its own occurrence's end, and a real Event-ending experience (FDRAFT UPDATE 1 — JANUARY EVENT-OVER EXPERIENCE)", () => {
+    const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
+    expect(event?.fixedEventDeadline).toBe(true);
+    expect(event?.ending?.enabled).toBe(true);
+    expect(event?.ending?.message).toBe(
+      "The world brightens. The January misery is forgotten as the first sun of the year burns through the clouds. The town of FDraft forgets what that awful phrase and people begin to smile again. They can rebuild.",
+    );
+    expect(event?.ending?.buttonLabel).toBe(
+      "I made it through the worst month.",
+    );
+    // No ordinal "Nth annual" line is required by this event's copy.
+    expect(event?.ending?.secondaryMessageTemplate).toBeUndefined();
   });
 
   it("getEventDefinition returns null for an unknown id", () => {
@@ -228,6 +251,91 @@ describe("event-registry", () => {
 
     it("supplies intro content for the generic event introduction modal", () => {
       const event = getEventDefinition(SIGNAL_FROM_BEYOND_EVENT_ID);
+      expect(event?.intro.description.length).toBeGreaterThan(0);
+      expect(event?.intro.bullets.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Christmas (docs/updates, FDRAFT UPDATE 1 — FESTIVE POINTS + EVENT CURRENCY COMPLETION, EVENT ONE AT A TIME DRAFTING)", () => {
+    it("is naturally available all of December every year (real end instant 1 January 00:00), manually activatable the rest of the year", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.availability).toEqual({
+        startsAt: null,
+        endsAt: null,
+        recurringMonths: null,
+        recurringMonthDayRange: {
+          startMonth: 12,
+          startDay: 1,
+          endMonth: 12,
+          endDay: 31,
+          endHour: 24,
+          endMinute: 0,
+        },
+      });
+      expect(event?.manualActivationAllowed).toBe(true);
+
+      // The real-world instant this resolves to is genuinely 1 January
+      // 00:00 (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME
+      // DRAFTING" §3) — confirmed via the same function `fixedEventDeadline`
+      // draft creation relies on, not just the raw config shape above.
+      const bounds = getCurrentOccurrenceBounds(
+        event!.availability,
+        new Date("2026-12-15T00:00:00.000Z"),
+        "UTC",
+      );
+      expect(bounds?.end.toISOString()).toBe("2027-01-01T00:00:00.000Z");
+      expect(isEventAvailable(event!.availability, bounds!.end, "UTC")).toBe(
+        false,
+      );
+      expect(
+        isEventAvailable(
+          event!.availability,
+          new Date(bounds!.end.getTime() - 1),
+          "UTC",
+        ),
+      ).toBe(true);
+    });
+
+    it("has a fixed Event deadline pinned to its own occurrence's end, and a dedicated temporary Event Page", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.fixedEventDeadline).toBe(true);
+      expect(event?.page).toEqual({
+        route: "/events/christmas",
+        navLabel: "Christmas",
+      });
+    });
+
+    it("has its own Festive Points currency, earned per film watched, and no per-completion currency of its own (see event-currency-earning.test.ts for the earning mechanic itself)", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.pointType).toBe("festive");
+      expect(event?.currency).toEqual({
+        id: "festive",
+        label: "Festive Points",
+        pointsPerFilm: 1,
+      });
+    });
+
+    it("has no curated eligibility data defined yet — uses normal FDraft drafting/eligibility", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.draftRules).toEqual({});
+      expect(event?.eligibilityRules).toEqual({});
+    });
+
+    it("declares its two static content pools (classic/adjacent), matching public/events/christmas/films.json", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.contentPools).toEqual([
+        { key: "classic", label: "Classic" },
+        { key: "adjacent", label: "Adjacent" },
+      ]);
+    });
+
+    it("has no visual theme yet — this phase is drafting mechanics, not presentation", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.visualTheme).toBeNull();
+    });
+
+    it("supplies intro content for the generic event introduction modal", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
       expect(event?.intro.description.length).toBeGreaterThan(0);
       expect(event?.intro.bullets.length).toBeGreaterThan(0);
     });

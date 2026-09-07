@@ -1,6 +1,7 @@
 import { Film, X } from "lucide-react";
 import type { ChallengeAvailability } from "@/components/drafts/challenge-browser";
 import { Badge } from "@/components/ui/badge";
+import { formatOneAtATimeSourceLabel } from "@/domain/drafts/format-one-at-a-time-source-label";
 import type { OneAtATimeStagedItem } from "@/domain/drafts/one-at-a-time";
 
 /**
@@ -11,21 +12,35 @@ import type { OneAtATimeStagedItem } from "@/domain/drafts/one-at-a-time";
  * badge is deliberately specific: "Random", "Chosen" (Choose My Own), or
  * "Challenge: <name>" — never a bare "Challenge" that leaves out which
  * one actually produced this film.
+ *
+ * `categoryLabelByKey` is optional and unused by the normal (non-event)
+ * builder — when supplied (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE
+ * AT A TIME DRAFTING" §14), an item's `eventCategoryKey` is prefixed onto
+ * its label ("Horror · Random"), reusing this exact same grid/card layout
+ * for the Event builder rather than a parallel component.
  */
 export function OneAtATimeStagedGrid({
   items,
   challenges,
   onRemove,
+  categoryLabelByKey,
 }: {
   items: readonly OneAtATimeStagedItem[];
   challenges: readonly ChallengeAvailability[];
   onRemove: (localId: string) => void;
+  categoryLabelByKey?: Record<string, string>;
 }) {
   function sourceLabel(item: OneAtATimeStagedItem): string {
-    if (item.source === "random") return "Random";
-    if (item.source === "manual") return "Chosen";
     const challenge = challenges.find((c) => c.id === item.challengeId);
-    return `Challenge: ${challenge?.name ?? item.challengeId}`;
+    const categoryLabel = item.eventCategoryKey
+      ? (categoryLabelByKey?.[item.eventCategoryKey] ?? item.eventCategoryKey)
+      : null;
+    return formatOneAtATimeSourceLabel({
+      source: item.source,
+      challengeId: item.challengeId,
+      challengeName: challenge?.name ?? null,
+      categoryLabel,
+    });
   }
 
   return (

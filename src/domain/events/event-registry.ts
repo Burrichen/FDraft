@@ -12,6 +12,21 @@ import { getJanuaryManifestCuratedFilmIds } from "./january-manifest-overlay";
  * (enforced centrally by `awardDraftCompletionReward`, not here) downgrades
  * `pointType` to generic/Lifetime Points automatically.
  *
+ * `recurringMonthDayRange`'s end is spelled out explicitly as `endMonth: 2,
+ * endDay: 1, endHour: 0, endMinute: 0` (see docs/updates, "FDRAFT UPDATE 1
+ * — JANUARY EVENT-OVER EXPERIENCE" §1: "25 January 00:00 through 1
+ * February 00:00 exclusive") rather than relying on the day-only end
+ * default — `isEventAvailable`'s own `isWithinMonthDayRange` resolves both
+ * forms to the exact same instant (end-of-31-January), so this is a
+ * behaviour-preserving clarification, not a change. It matters for
+ * `fixedEventDeadline` below: `getCurrentOccurrenceBounds` (the function
+ * that computes a `fixedEventDeadline` Draft's actual deadline instant)
+ * defaults an UNSET `endHour`/`endMinute` to `0`, not end-of-day — the
+ * opposite default `isWithinMonthDayRange` uses — so a day-only range
+ * would have silently given a `fixedEventDeadline` January Draft a
+ * deadline of "1 January 00:00" instead of the real end of the window.
+ * Spelling out the exact end instant sidesteps that divergence entirely.
+ *
  * `eligibilityRules.maxAverageRating: 3.5` (see docs/updates, "JANUARY
  * ELIGIBILITY RULES") is this event's one real film restriction: a film
  * qualifies if its community/external average rating is 3.5 or lower, OR
@@ -28,6 +43,32 @@ import { getJanuaryManifestCuratedFilmIds } from "./january-manifest-overlay";
  * (`resolveDraftCompletionReward`), which `currency` being set makes
  * fall back to plain Lifetime Points instead of ever reading it, so
  * nothing double-awards Misery.
+ *
+ * `fixedEventDeadline: true` (see docs/updates, "FDRAFT UPDATE 1 —
+ * JANUARY EVENT-OVER EXPERIENCE" §7) — new for this phase, mirroring
+ * Halloween: a January Draft's own deadline is now pinned to the event's
+ * real natural end instead of a profile-chosen Calendar/Timer deadline,
+ * so `finalizeExpiredEventDraftIfNeeded` (already fully generic, no
+ * per-event branch) safely finalises/archives an active January Draft at
+ * the exact moment the January event itself expires — the same mechanism
+ * Halloween's own ending already relies on, reused here rather than
+ * inventing a January-specific finalisation path.
+ *
+ * `ending` (see docs/updates, "FDRAFT UPDATE 1 — JANUARY EVENT-OVER
+ * EXPERIENCE" §2) gives January its own real Event-over experience,
+ * through the exact same generic framework Halloween's `ending` already
+ * uses (`resolveEventEndingCandidate`, `EventEndingDialog`,
+ * `acknowledgeEventEnding` — none of it touched by this change). `message`
+ * is the exact required body copy, verbatim, never rephrased. No
+ * `secondaryMessageTemplate`/`foundingYear` — nothing in this phase's
+ * required copy calls for an ordinal "Nth annual" line the way Halloween's
+ * does. `buttonLabel` is the exact required button copy; the button
+ * itself needs no per-event color override at all — the app's own default
+ * `--primary` token is already this exact cool blue (see
+ * `--watchlist-blue`, `globals.css`), so a plain default `Button` already
+ * satisfies "a tasteful cool-blue FDraft-style button" with zero new
+ * styling. See `event-visual-themes.ts` for the ending's own decoration
+ * (clouds parting/soft light/rain fading) and quieter modal sizing.
  */
 export const F_YOU_ITS_JANUARY_EVENT_ID = "f-you-its-january";
 
@@ -41,8 +82,10 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
     recurringMonthDayRange: {
       startMonth: 1,
       startDay: 25,
-      endMonth: 1,
-      endDay: 31,
+      endMonth: 2,
+      endDay: 1,
+      endHour: 0,
+      endMinute: 0,
     },
   },
   draftRules: {},
@@ -76,6 +119,13 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
   // See docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12 — matches
   // `public/events/january/films.json`'s one category key.
   contentPools: [{ key: "curated", label: "Curated" }],
+  fixedEventDeadline: true,
+  ending: {
+    enabled: true,
+    message:
+      "The world brightens. The January misery is forgotten as the first sun of the year burns through the clouds. The town of FDraft forgets what that awful phrase and people begin to smile again. They can rebuild.",
+    buttonLabel: "I made it through the worst month.",
+  },
 };
 
 /**
@@ -345,6 +395,113 @@ const SIGNAL_FROM_BEYOND: EventDefinition = {
 };
 
 /**
+ * FDraft's fifth real event (see docs/updates, "FDRAFT UPDATE 1 — FESTIVE
+ * POINTS + EVENT CURRENCY COMPLETION", extended by "FDRAFT UPDATE 1 —
+ * EVENT ONE AT A TIME DRAFTING"). The currency phase gave Christmas a
+ * real, registered `EventDefinition` with its own permanent per-film
+ * currency; this phase gives it real Draft-creation gameplay (One At A
+ * Time only — see `christmas-page-client.tsx`), so it now needs a
+ * dedicated page/nav tab and a fixed Event deadline too. It still has NO
+ * visual theme — see `src/components/events/event-visual-themes.ts`'s own
+ * "CHRISTMAS ICON RESERVATION" note (the reserved `Snowflake` icon stays
+ * unused until a future visual-polish phase) — this phase is drafting
+ * mechanics only, not presentation.
+ *  - `availability.recurringMonthDayRange` is 1 December 00:00 through the
+ *    end of 31 December (exclusive) — all of December, evaluated in the
+ *    profile's own timezone via `isEventAvailable`, the same convention
+ *    every other recurring event uses. CORRECTED in this phase: the
+ *    currency phase had set the end to 26 December, but "FDRAFT UPDATE 1
+ *    — EVENT ONE AT A TIME DRAFTING" §3 states Christmas's fixed deadline
+ *    is "1 Jan 00:00" — so the window's real end must be that same
+ *    instant. Deliberately spelled out as `endMonth: 12, endDay: 31,
+ *    endHour: 24, endMinute: 0` (an explicit end-of-day-31 boundary) rather
+ *    than `endMonth: 1, endDay: 1` — `recurringMonthDayRange` only
+ *    supports a range within a SINGLE calendar year (see its own doc
+ *    comment; `isEventAvailable`'s month-scaled ordinal comparison, which
+ *    orders December > January, would make a December→January range never
+ *    match at all). `hour: 24` is a legitimate JS `Date` overflow value
+ *    that normalizes to the next real calendar day at 00:00 — so
+ *    `getCurrentOccurrenceBounds` (which `fixedEventDeadline` below relies
+ *    on) resolves this to the exact real instant "1 January 00:00" the
+ *    task requires, entirely within December's own month value, matching
+ *    the exact end-of-day default `isWithinMonthDayRange` already uses for
+ *    every OTHER day-only range (`endHour ?? 24`) — just spelled out
+ *    explicitly here, for the same reason January's own end was spelled
+ *    out explicitly (see January's own doc comment above): `getCurrentOccurrenceBounds`'s
+ *    default for an UNSET `endHour` is `0`, not `24` — an unset value here
+ *    would silently compute the wrong deadline ("31 December 00:00").
+ *  - `manualActivationAllowed: true` — like January/Frontier/Signal (and
+ *    unlike Halloween), a profile can opt in outside the natural window
+ *    too; doing so downgrades BOTH reward paths to plain Lifetime Points —
+ *    `resolveEffectiveRewardCurrency` for the per-completion reward, and
+ *    `awardEventDraftItemReward`'s own independent `manuallyEnabled` check
+ *    for the per-film currency — the same CRITICAL RULE every event
+ *    follows, enforced in both places so neither can be forgotten.
+ *  - `eligibilityRules: {}` — Christmas has no additive eligibility
+ *    restriction (unlike January's rating/curated-whitelist rule); its
+ *    real candidate restriction is entirely the category system
+ *    (`contentPools` below), read by the new generic Event category
+ *    resolver (`src/application/events/resolve-event-category-candidates.ts`),
+ *    not by `resolveEligibleCandidates`.
+ *  - `pointType: "festive"` plus `currency` (see docs/updates, "EVENT
+ *    SYSTEM — UNIVERSAL EVENT CURRENCY EARNING") give Christmas its own
+ *    real, permanent, per-film-watched currency — every film watched from
+ *    a Christmas Draft earns one Festive Point, in addition to the
+ *    Lifetime Point the draft's own eventual completion still earns like
+ *    any other draft.
+ *  - `contentPools` matches `public/events/christmas/films.json`'s two
+ *    existing category keys — now genuinely read by the Event One At A
+ *    Time builder (Classic/Adjacent), not just declarative.
+ *  - `fixedEventDeadline: true` (see docs/updates, "FDRAFT UPDATE 1 —
+ *    EVENT ONE AT A TIME DRAFTING" §3) — mirrors Halloween/January: a
+ *    Christmas Draft's own deadline is the event's real occurrence end,
+ *    never a profile-chosen Calendar/Timer deadline.
+ *  - `page` — Christmas's own dedicated temporary page/nav tab, the same
+ *    convention every other real event with gameplay uses.
+ *  - `visualTheme: null` — deliberately still no visual theme (see this
+ *    comment's opening paragraph).
+ */
+export const CHRISTMAS_EVENT_ID = "christmas";
+
+const CHRISTMAS: EventDefinition = {
+  id: CHRISTMAS_EVENT_ID,
+  name: "Christmas",
+  availability: {
+    startsAt: null,
+    endsAt: null,
+    recurringMonths: null,
+    recurringMonthDayRange: {
+      startMonth: 12,
+      startDay: 1,
+      endMonth: 12,
+      endDay: 31,
+      endHour: 24,
+      endMinute: 0,
+    },
+  },
+  draftRules: {},
+  eligibilityRules: {},
+  intro: {
+    description:
+      "Christmas has arrived. Every film you watch from a Christmas Draft banks a permanent Festive Point, on top of the usual reward.",
+    bullets: [
+      "Every film watched in a Christmas Draft earns a permanent Festive Point",
+      "You can still opt in manually outside the season from Settings, but it only ever earns Lifetime Points off-season",
+    ],
+  },
+  pointType: "festive",
+  currency: { id: "festive", label: "Festive Points", pointsPerFilm: 1 },
+  visualTheme: null,
+  manualActivationAllowed: true,
+  contentPools: [
+    { key: "classic", label: "Classic" },
+    { key: "adjacent", label: "Adjacent" },
+  ],
+  fixedEventDeadline: true,
+  page: { route: "/events/christmas", navLabel: "Christmas" },
+};
+
+/**
  * The single place a real event gets registered as data — the "one engine
  * instead of hardcoding January/Sci-Fi/Western logic throughout the app"
  * Phase 2 exists for.
@@ -354,6 +511,7 @@ export const EVENT_DEFINITIONS: readonly EventDefinition[] = [
   HALLOWEEN,
   WATCHLIST_FRONTIER,
   SIGNAL_FROM_BEYOND,
+  CHRISTMAS,
 ];
 
 /**

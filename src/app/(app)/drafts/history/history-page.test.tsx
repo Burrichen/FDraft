@@ -270,6 +270,183 @@ describe("Draft History — One At A Time draft", () => {
 });
 
 /**
+ * Covers docs/updates, "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE
+ * AUDIT" §3/§6: History must show BOTH archived (completed) and expired
+ * (unfinished) drafts, with a visible status badge — an Event expiring
+ * must never be presented as if every film were completed.
+ */
+describe("Draft History — Completed vs Expired status", () => {
+  afterEach(cleanup);
+
+  it("shows an archived draft as 'Completed'", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(
+      baseDraft({ id: "archived-draft", status: "archived" }),
+    );
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+  });
+
+  it("shows an expired (unfinished) draft as 'Expired', never as if it were completed", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "expired-draft",
+        status: "expired",
+        completedAt: null,
+        rewardsGrantedAt: null,
+      }),
+    );
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("shows both an archived and an expired draft together, each with its own correct status", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(
+      baseDraft({ id: "archived-draft", status: "archived" }),
+    );
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "expired-draft",
+        status: "expired",
+        completedAt: null,
+        rewardsGrantedAt: null,
+        startedAt: "2026-09-01T00:00:00.000Z",
+        createdAt: "2026-09-01T00:00:00.000Z",
+      }),
+    );
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Covers docs/updates, "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE
+ * AUDIT" §5: a category-based Event One At A Time item must show its real
+ * category + pick-origin ("Horror · Random"/"Kitsch · Chosen"), never a
+ * lossy hardcoded "Random" fallback.
+ */
+describe("Draft History — Event category/source badges", () => {
+  afterEach(cleanup);
+
+  it("shows the compound 'Horror · Random' / 'Kitsch · Chosen' badge for category-based Event One At A Time items", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.films.create({
+      id: "film-1",
+      title: "Random Horror Pick",
+      releaseYear: 2020,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await repos.films.create({
+      id: "film-2",
+      title: "Chosen Kitsch Pick",
+      releaseYear: 2021,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "halloween-oaat-draft",
+        difficulty: "one-at-a-time",
+        sourceEventId: HALLOWEEN_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+        totalFilms: 2,
+      }),
+    );
+    await repos.drafts.createItems([
+      {
+        id: "item-1",
+        draftId: "halloween-oaat-draft",
+        filmId: "film-1",
+        watchlistEntryId: null,
+        source: "random",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 0,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        eventCategoryKey: "horror",
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+      {
+        id: "item-2",
+        draftId: "halloween-oaat-draft",
+        filmId: "film-2",
+        watchlistEntryId: null,
+        source: "manual",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: 1,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        eventCategoryKey: "kitsch",
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+    ]);
+    await db.close();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByText("Previous Drafts")).toBeInTheDocument(),
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/halloween 2026 draft/i));
+
+    expect(screen.getByText("Horror · Random")).toBeInTheDocument();
+    expect(screen.getByText("Kitsch · Chosen")).toBeInTheDocument();
+    // Never the old, lossy hardcoded fallback for these items.
+    expect(screen.queryByText(/^Random$/)).not.toBeInTheDocument();
+  });
+});
+
+/**
  * Regression coverage for docs/updates, "HALLOWEEN UI CLEANUP" §2: the
  * interactive pumpkin easter egg moved from here to Stats — its positive
  * coverage (shown when joined/active with visuals on) now lives in

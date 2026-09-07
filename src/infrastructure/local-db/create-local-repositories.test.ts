@@ -125,6 +125,7 @@ describe("createLocalRepositories (real fake-indexeddb, not mocked)", () => {
       signal: 0,
       bounty: 0,
       haunted: 0,
+      festive: 0,
     });
 
     await repos.points.setBalance({
@@ -149,6 +150,7 @@ describe("createLocalRepositories (real fake-indexeddb, not mocked)", () => {
       signal: 0,
       bounty: 0,
       haunted: 0,
+      festive: 0,
     });
   });
 });

@@ -2386,6 +2386,49 @@ between pools.
 
 **JANUARY**: +1 Misery Point per January Event Draft film watched.
 
+**CHRISTMAS**: +1 Festive Point per Christmas Draft film watched — Classic
+and Christmas Adjacent alike, with no distinction between pools (same
+universal rule above, Christmas's own instance of it).
+
+**PERMANENT CURRENCIES** (see docs/updates, "FDRAFT UPDATE 1 — FESTIVE
+POINTS + EVENT CURRENCY COMPLETION" / "EVENT STATS/HISTORY/PERSISTENCE
+AUDIT"): four permanent, cumulative-forever point totals, one row per
+`{profileId, currency}` in `PointBalanceRecord` — a single mutable running
+total, never a per-award ledger. Profile and Stats always read the exact
+same authoritative balance; there is no second, duplicated counter
+anywhere.
+
+| Currency | Label           | Earned by                                |
+| -------- | --------------- | ---------------------------------------- |
+| lifetime | Lifetime Points | any Draft film watched (normal or Event) |
+| misery   | Misery Points   | a January Event Draft film watched       |
+| haunted  | Haunted Points  | a Halloween Event Draft film watched     |
+| festive  | Festive Points  | a Christmas Event Draft film watched     |
+
+A film shared between a normal Draft and an Event Draft still credits
+Lifetime exactly once per real watch action, never twice, alongside the
+Event's own currency — see `completeMatchingActiveDraftItem`.
+
+**EVENT HISTORY RETENTION**: History must show every past (`"archived"` —
+completed — or `"expired"` — the occurrence closed with items unresolved,
+never conflated with "Completed") Event Draft, keyed by its own persisted
+`sourceEventId` + `eventOccurrenceYear` + Draft id — never rebuilt or
+re-derived from the CURRENT date, current curated content files, or the
+profile's current watchlist. A drafted film's own snapshot (`filmId`,
+`eventCategoryKey`, `source`, watched state/date) survives even if that
+film is later removed from a curated pool or the watchlist entirely.
+
+**BACKUP INCLUSION/EXCLUSION**: A profile's backup preserves every Event
+Draft (active and historical), Event participation/ending-acknowledgement
+state, the Admin date-override, watched states, film/category/source
+snapshots, and all four permanent currencies — every one of these already
+round-trips for free as ordinary rows in the generic Drafts/Settings/
+Points tables, with zero event-specific backup code. A backup NEVER
+includes the static application Event film catalogues themselves (e.g.
+`public/events/*/films.json`) — those are shared, redistributed application
+data, not per-profile state, and are expected to already exist (or be
+refreshed) on whatever profile a backup is restored into.
+
 **EVENT ENDINGS**: Each Event may define its own unique end-of-Event
 presentation (`EventDefinition.ending`), shown once to a profile that
 PARTICIPATED IN (joined) that occurrence, after that occurrence's window

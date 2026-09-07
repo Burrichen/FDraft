@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildProfileBackup } from "@/application/backup/export-backup";
 import { archiveLocalDraftIfResolved } from "@/application/drafts/local-draft-service";
+import { awardEventDraftItemReward } from "@/application/events/draft-completion-reward";
 import {
   markLocalFilmWatched,
   undoLocalFilmWatched,
   type WatchSessionUndoRecord,
 } from "@/application/watchlist/local-watchlist-service";
 import {
+  CHRISTMAS_EVENT_ID,
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
@@ -699,5 +701,578 @@ describe("Universal Event Currency Earning — per-film award/reverse (PROMPT: E
     });
     expect(rewarded).toBe(false);
     expect(await repos.points.getBalance(result.profileId, "haunted")).toBe(1);
+  });
+});
+
+/**
+ * Covers docs/updates, "FDRAFT UPDATE 1 — FESTIVE POINTS + EVENT CURRENCY
+ * COMPLETION" §10's test list for Christmas/Festive Points — the exact
+ * same generic per-film earning mechanism the Halloween/January describe
+ * block above already covers, since Christmas earns its own currency
+ * purely by declaring `EventDefinition.currency` (see `event-registry.ts`)
+ * with zero new award/reversal code (`awardEventDraftItemReward`/
+ * `reverseEventDraftItemReward` never branch on an event id).
+ */
+describe("Festive Points (Christmas) — per-film award/reverse (FDRAFT UPDATE 1)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+  });
+
+  it("watching a Christmas Draft film earns +1 Lifetime AND +1 Festive", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+
+    const outcome = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(outcome.ok).toBe(true);
+
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(0);
+    expect(await repos.points.getBalance(PROFILE_ID, "haunted")).toBe(0);
+  });
+
+  it("5 Christmas Draft films watched → +5 Festive Points, and exactly +1 Lifetime for the draft's own completion", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    const entryIds = ["entry-1", "entry-2", "entry-3", "entry-4", "entry-5"];
+    for (const entryId of entryIds) {
+      await seedFilm(repos, { filmId: `film-${entryId}`, entryId });
+    }
+    await repos.drafts.createDraft(
+      baseDraft({
+        totalFilms: 5,
+        randomFilmCount: 5,
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems(
+      entryIds.map((entryId, index) =>
+        baseItem({
+          id: `item-${index}`,
+          draftId: "draft-1",
+          filmId: `film-${entryId}`,
+          watchlistEntryId: entryId,
+          source: "manual",
+          orderIndex: index,
+        }),
+      ),
+    );
+
+    for (const entryId of entryIds) {
+      await watchAndArchiveIfResolved(repos, entryId);
+    }
+
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(5);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+    const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
+    expect(draft?.status).toBe("archived");
+  });
+
+  it("repeatedly clicking Watched on an already-completed item does not repeatedly award Festive Points", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+
+    const first = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(first.ok).toBe(true);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+
+    const second = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(second.ok).toBe(false);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+
+    const item = await repos.drafts.getItemById("item-1");
+    const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
+    expect(item?.eventRewardGrantedAt).toBeTruthy();
+    const rewarded = await awardEventDraftItemReward(repos, {
+      profileId: PROFILE_ID,
+      draft: draft!,
+      item: item!,
+    });
+    expect(rewarded).toBe(false);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+  });
+
+  it("Undo reverses the Festive Point award, and watching again afterward awards it exactly once more", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+
+    const watched = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(watched.ok).toBe(true);
+    if (!watched.ok) return;
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+
+    const undoRecord: WatchSessionUndoRecord = {
+      watchlistEntryId: watched.watchlistEntryId,
+      filmId: watched.filmId,
+      watchedHistoryId: watched.watchedHistoryId,
+      draftItemId: watched.draftItemId,
+      draftId: watched.draftId,
+      draftArchivedByThisAction: watched.draftArchivedByThisAction,
+      secondaryDraftCompletion: watched.secondaryDraftCompletion,
+    };
+    const undone = await undoLocalFilmWatched(repos, {
+      profileId: PROFILE_ID,
+      record: undoRecord,
+    });
+    expect(undone).toEqual({ ok: true });
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(0);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(0);
+    const afterUndo = await repos.drafts.getItemById("item-1");
+    expect(afterUndo?.eventRewardGrantedAt).toBeNull();
+    expect(afterUndo?.isCompleted).toBe(false);
+
+    const rewatched = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(rewatched.ok).toBe(true);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+  });
+
+  it("a manually-enabled Christmas Draft never earns Festive Points (only the completion's Lifetime Point)", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: true,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+
+    const outcome = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(outcome.ok).toBe(true);
+
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(0);
+  });
+
+  it("Festive Points and per-item award state survive a restart (fresh db handle against the same name)", async () => {
+    const databaseName = `currency-${crypto.randomUUID()}`;
+    db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-1");
+    await db.close();
+
+    const reopened = new FDraftLocalDatabase(databaseName);
+    const reopenedRepos = createLocalRepositories(reopened) as Repositories;
+    expect(await reopenedRepos.points.getBalance(PROFILE_ID, "festive")).toBe(
+      1,
+    );
+    const item = await reopenedRepos.drafts.getItemById("item-1");
+    expect(item?.eventRewardGrantedAt).toBeTruthy();
+    db = reopened;
+  });
+
+  it("Festive Points are isolated per profile", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-1");
+
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+    expect(await repos.points.getBalance("someone-else", "festive")).toBe(0);
+  });
+
+  it("Festive Points accumulate cumulatively across separate Christmas occurrences (never reset per year) — e.g. Christmas 2026 + Christmas 2027", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    // "2026" occurrence — a completed, archived Christmas Draft.
+    await seedFilm(repos, { filmId: "film-2026", entryId: "entry-2026" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "draft-2026",
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+        startedAt: "2026-12-01T00:00:00.000Z",
+        deadlineAt: "2026-12-26T00:00:00.000Z",
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-2026",
+        draftId: "draft-2026",
+        filmId: "film-2026",
+        watchlistEntryId: "entry-2026",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-2026");
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+
+    // "2027" occurrence — a second, later Christmas Draft for the same
+    // profile. The award simply adds onto the existing permanent total;
+    // nothing resets between years.
+    await seedFilm(repos, { filmId: "film-2027", entryId: "entry-2027" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "draft-2027",
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+        startedAt: "2027-12-01T00:00:00.000Z",
+        deadlineAt: "2027-12-26T00:00:00.000Z",
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-2027",
+        draftId: "draft-2027",
+        filmId: "film-2027",
+        watchlistEntryId: "entry-2027",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-2027");
+
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(2);
+  });
+
+  it("an archived Christmas Draft's completed items cannot farm Festive Points a second time, including via backup restore", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedProfile(repos);
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+
+    const draft = await repos.drafts.getById(PROFILE_ID, "draft-1");
+    expect(draft?.status).toBe("archived");
+
+    const backup = await buildProfileBackup(repos, PROFILE_ID, {
+      clock: CLOCK,
+    });
+    const result = await repos.backupRestore.importAsNewProfile(backup, {
+      idGenerator: sequentialIdGenerator("restored"),
+      clock: CLOCK,
+      currentSchemaVersion: 1,
+    });
+    expect(result.profileId).toBeTruthy();
+    expect(await repos.points.getBalance(result.profileId, "festive")).toBe(1);
+
+    const restoredDraft = (
+      await repos.drafts.listArchived(result.profileId)
+    )[0]!;
+    const restoredItem = (
+      await repos.drafts.listItemsForDraft(restoredDraft.id)
+    )[0];
+    expect(restoredItem?.eventRewardGrantedAt).toBeTruthy();
+    expect(restoredItem?.isCompleted).toBe(true);
+
+    const rewarded = await awardEventDraftItemReward(repos, {
+      profileId: result.profileId,
+      draft: restoredDraft,
+      item: restoredItem!,
+    });
+    expect(rewarded).toBe(false);
+    expect(await repos.points.getBalance(result.profileId, "festive")).toBe(1);
+  });
+
+  it("a film shared between a Normal Draft and a Christmas Draft at once: one watch action gives +1 Lifetime (not +2) AND +1 Festive (not +2)", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    // A plain, non-event Draft...
+    await repos.drafts.createDraft(baseDraft({ id: "draft-normal" }));
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-normal",
+        draftId: "draft-normal",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+      }),
+    ]);
+    // ...and a Christmas Draft, both active at once, both containing the
+    // exact same watchlist entry (see docs/product-spec.md, "DUAL DRAFT
+    // ARCHITECTURE").
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "draft-christmas",
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-christmas",
+        draftId: "draft-christmas",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+
+    const outcome = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(outcome.ok).toBe(true);
+
+    // Both single-item drafts resolved from this one action — but the
+    // profile only ever gains ONE Lifetime Point for it (both drafts
+    // resolve to the generic "lifetime" currency — a plain draft always
+    // does, and Christmas's own completion reward downgrades to Lifetime
+    // once `currency` is set), and exactly ONE Festive Point (only the
+    // Christmas draft's item has an event `currency` at all).
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+
+    const normalDraft = await repos.drafts.getById(PROFILE_ID, "draft-normal");
+    const christmasDraft = await repos.drafts.getById(
+      PROFILE_ID,
+      "draft-christmas",
+    );
+    expect(normalDraft?.status).toBe("archived");
+    expect(christmasDraft?.status).toBe("archived");
+    expect(normalDraft?.rewardsGrantedAt).toBeTruthy();
+    expect(christmasDraft?.rewardsGrantedAt).toBeTruthy();
+  });
+
+  it("an expired Christmas Draft's incomplete item cannot be completed or farm a Festive Point via a normal watch action", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(
+      baseDraft({
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+        status: "expired",
+        startedAt: "2026-12-01T00:00:00.000Z",
+        deadlineAt: "2026-12-26T00:00:00.000Z",
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+        source: "manual",
+      }),
+    ]);
+
+    // The underlying watchlist entry can still be marked watched normally
+    // (an expired event Draft doesn't freeze the rest of the app) — but
+    // an expired/historical draft is invisible to the completion engine
+    // (`listActiveDrafts` only returns `"active"` drafts), so its item is
+    // never completed and never earns a Festive Point.
+    const outcome = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(outcome.ok).toBe(true);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(0);
+
+    const item = await repos.drafts.getItemById("item-1");
+    expect(item?.isCompleted).toBe(false);
+    expect(item?.eventRewardGrantedAt).toBeNull();
+  });
+
+  it("watching a January or Halloween Draft film never earns Festive Points, and a Christmas Draft never earns Misery or Haunted Points", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, {
+      filmId: "january-film",
+      entryId: "entry-january",
+    });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "draft-january",
+        sourceEventId: F_YOU_ITS_JANUARY_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-january",
+        draftId: "draft-january",
+        filmId: "january-film",
+        watchlistEntryId: "entry-january",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-january");
+    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(0);
+
+    await seedFilm(repos, {
+      filmId: "halloween-film",
+      entryId: "entry-halloween",
+    });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "draft-halloween",
+        sourceEventId: HALLOWEEN_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-halloween",
+        draftId: "draft-halloween",
+        filmId: "halloween-film",
+        watchlistEntryId: "entry-halloween",
+        source: "halloween-adjacent",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-halloween");
+    expect(await repos.points.getBalance(PROFILE_ID, "haunted")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(0);
+
+    await seedFilm(repos, {
+      filmId: "christmas-film",
+      entryId: "entry-christmas",
+    });
+    await repos.drafts.createDraft(
+      baseDraft({
+        id: "draft-christmas",
+        sourceEventId: CHRISTMAS_EVENT_ID,
+        sourceEventManuallyEnabled: false,
+      }),
+    );
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-christmas",
+        draftId: "draft-christmas",
+        filmId: "christmas-film",
+        watchlistEntryId: "entry-christmas",
+        source: "manual",
+      }),
+    ]);
+    await watchAndArchiveIfResolved(repos, "entry-christmas");
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "misery")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "haunted")).toBe(1);
+  });
+
+  it("watching a plain (non-Event) Draft film never earns Festive Points", async () => {
+    db = new FDraftLocalDatabase(`currency-${crypto.randomUUID()}`);
+    const repos = createLocalRepositories(db) as Repositories;
+
+    await seedFilm(repos, { filmId: "film-1", entryId: "entry-1" });
+    await repos.drafts.createDraft(baseDraft());
+    await repos.drafts.createItems([
+      baseItem({
+        id: "item-1",
+        draftId: "draft-1",
+        filmId: "film-1",
+        watchlistEntryId: "entry-1",
+      }),
+    ]);
+
+    const outcome = await watchAndArchiveIfResolved(repos, "entry-1");
+    expect(outcome.ok).toBe(true);
+
+    expect(await repos.points.getBalance(PROFILE_ID, "lifetime")).toBe(1);
+    expect(await repos.points.getBalance(PROFILE_ID, "festive")).toBe(0);
   });
 });

@@ -88,7 +88,7 @@ export type WatchlistRemovalReason =
   "watched" | "postmortem_not_interested" | "manual";
 /** See `src/domain/events/point-currency.ts`. */
 export type PointCurrency =
-  "lifetime" | "misery" | "signal" | "bounty" | "haunted";
+  "lifetime" | "misery" | "signal" | "bounty" | "haunted" | "festive";
 export type WatchedHistorySource =
   "app_watchlist_action" | "import_diary" | "import_watched";
 /** See `src/domain/metadata/match-method.ts` — always read through `resolveMatchMethod()`, never trusted raw (a record from before this field existed has no such property at all). */
@@ -347,6 +347,24 @@ export interface DraftItemRecord {
    * through `LocalDraftRepository`'s normalization, never trusted raw.
    */
   eventRewardGrantedAt?: string | null;
+  /**
+   * Which of an event's curated categories this item came from (matching
+   * `EventDefinition.contentPools[].key`, e.g. `"horror"`/`"kitsch"`/
+   * `"classic"`/`"adjacent"`) — `null` for a normal (non-event) draft item,
+   * an event item from an event with no categories (January), or a
+   * pre-existing item from before this field existed (see docs/updates,
+   * "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING"). Deliberately
+   * SEPARATE from `source`, which keeps its own unchanged meaning — HOW a
+   * film was picked (`"random"`/`"manual"`/`"challenge"`) — so a Draft-So-Far
+   * display can compose both independently ("Horror · Random", "Kitsch ·
+   * Chosen", "Horror · Challenge: <name>") without a combinatorial explosion
+   * of `source` values. Never set by the OLDER Halloween bulk-generation
+   * flow (`createHalloweenLocalDraft`), which still encodes category
+   * directly in `source` (`"halloween-adjacent"`/`"horror"`/`"kitsch"`) —
+   * that flow is untouched by this field. Optional for the same
+   * backward-compatibility reason as `eventRewardGrantedAt`.
+   */
+  eventCategoryKey?: string | null;
   createdAt: string;
 }
 

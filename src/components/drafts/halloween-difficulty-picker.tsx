@@ -1,4 +1,4 @@
-import { DIFFICULTIES } from "@/domain/drafts/difficulty";
+import { DIFFICULTIES, isOneAtATime } from "@/domain/drafts/difficulty";
 import type { DraftDifficulty } from "@/repositories";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,10 @@ const HALLOWEEN_DIFFICULTY_ORDER: Exclude<DraftDifficulty, "freeform">[] = [
   "medium",
   "hard",
   "hardcore",
+  // See docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §1 —
+  // added alongside the existing numeric difficulties, same convention the
+  // normal `/drafts/new` picker already uses.
+  "one-at-a-time",
 ];
 
 interface HalloweenDifficultyPickerProps {
@@ -28,7 +32,7 @@ export function HalloweenDifficultyPicker({
   onSelect,
 }: HalloweenDifficultyPickerProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {HALLOWEEN_DIFFICULTY_ORDER.map((id) => {
         const definition = DIFFICULTIES[id];
         const isSelected = selected === id;
@@ -50,7 +54,9 @@ export function HalloweenDifficultyPicker({
               {definition.label}
             </p>
             <p className="text-muted-foreground text-xs">
-              {definition.filmCount} films
+              {isOneAtATime(id)
+                ? "Build your Draft one film at a time."
+                : `${definition.filmCount} films`}
             </p>
           </button>
         );

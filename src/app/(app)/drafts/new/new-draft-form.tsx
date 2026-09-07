@@ -16,6 +16,8 @@ import { DiyCompactFilmRow } from "@/components/drafts/diy/diy-compact-film-row"
 import type { DiySelectableFilmView } from "@/components/drafts/diy/diy-film-card";
 import { LinkedSliders } from "@/components/drafts/linked-sliders";
 import { TimeModeToggle } from "@/components/drafts/time-mode-toggle";
+import { useEventDiscovery } from "@/components/events/event-discovery-provider";
+import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { createDefaultSplit, type DraftSplit } from "@/domain/drafts/split";
@@ -49,6 +51,7 @@ export function NewDraftForm({
 }: NewDraftFormProps) {
   const router = useRouter();
   const { activeProfile, repositories } = useProfileContext();
+  const discovery = useEventDiscovery();
   const [state, formAction, isPending] = useActionState(
     (prevState: CreateDraftActionState, formData: FormData) =>
       createDraftAction(
@@ -153,10 +156,32 @@ export function NewDraftForm({
   // the builder, one film at a time — so this only ever needs the
   // deadline choice carried over, exactly like the DIY hand-off already
   // carries `timeMode` through the URL rather than re-asking for it.
+  //
+  // See docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" —
+  // resolves the current event the EXACT same way `createDraftAction`
+  // already does for every other difficulty (`isOccurrenceActiveNow`
+  // against the shared discovery snapshot, never `EventSettings.
+  // activeEvent` directly — see that action's own comment on the stale-
+  // January bug this avoids). When one is active, the One At A Time route
+  // becomes event-aware (event-scoped candidates/finalisation) instead of
+  // creating a plain draft — the same profile reaching this generic form
+  // during Halloween/Christmas/January gets the correct event experience
+  // here too, not just via each event's own dedicated page.
   function handleContinueToOneAtATime() {
-    router.push(
-      `/drafts/new/one-at-a-time?timeMode=${encodeURIComponent(timeMode)}`,
-    );
+    const currentEventStatus = discovery.result.eventsEnabled
+      ? discovery.result.statuses.find(isOccurrenceActiveNow)
+      : undefined;
+    const params = new URLSearchParams({
+      timeMode,
+    });
+    if (currentEventStatus) {
+      params.set("eventId", currentEventStatus.event.id);
+      params.set(
+        "sourceEventManuallyEnabled",
+        String(currentEventStatus.manuallyEnabled),
+      );
+    }
+    router.push(`/drafts/new/one-at-a-time?${params.toString()}`);
   }
 
   return (

@@ -7,8 +7,9 @@ import { expect, test } from "@playwright/test";
  * joining, the Kitsch Halloween theme, the nav tab's own active accent,
  * the Candy Bowl easter egg still on this page (the gravestone easter egg
  * moved off this page in "HALLOWEEN EVENT ART REWORK", and the pumpkin
- * moved to the History page in "HALLOWEEN VISUAL/LAYOUT REPAIR" §3 — both
- * covered separately), and the "Haunted" jumpscare's full lifecycle (armed
+ * moved to the History page in "HALLOWEEN VISUAL/LAYOUT REPAIR" §3, then
+ * on to the Stats page in "HALLOWEEN UI CLEANUP" §2 — all covered
+ * separately), and the "Haunted" jumpscare's full lifecycle (armed
  * warning → skull overlay → clean return, no navigation, no persisted
  * state).
  */
@@ -61,11 +62,11 @@ test("Halloween: opt-in, theme, easter eggs, and the Haunted jumpscare", async (
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
 
-  // Pumpkin: lives on History now (see docs/updates, "HALLOWEEN VISUAL/
-  // LAYOUT REPAIR" §3), shown there because Halloween is joined/active
-  // with visuals on — advances one state per click, persists across a
-  // reload.
-  await page.goto("/drafts/history");
+  // Pumpkin: lives on Stats now (see docs/updates, "HALLOWEEN UI CLEANUP"
+  // §2, moved there from History), shown there because Halloween is
+  // joined/active with visuals on — advances one state per click,
+  // persists across a reload.
+  await page.goto("/stats");
   const pumpkinButton = page.getByRole("button", {
     name: /pumpkin: uncarved/i,
   });
