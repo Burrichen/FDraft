@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
-import { getFilmCount, isFreeform } from "./difficulty";
+import { getFilmCount } from "./difficulty";
 import { isValidSplit } from "./split";
 
 const IANA_TIMEZONE_PATTERN =
@@ -20,7 +20,6 @@ const draftDifficultySchema = z.enum([
   "medium",
   "hard",
   "hardcore",
-  "freeform",
 ]);
 const draftTimeModeSchema = z.enum(["calendar", "timer"]);
 const draftChallengeModeSchema = z.enum(["choose", "decide"]);
@@ -29,8 +28,7 @@ const draftChallengeModeSchema = z.enum(["choose", "decide"]);
  * Validates the input to "create a draft" end to end: the difficulty's film
  * count actually matches the random/challenge split, and a challenge mode
  * (Choose My Challenge vs Decide For Me) is present whenever any challenge
- * slots are requested. Freeform is exempt from the split entirely — it has
- * no fixed film count (see difficulty.ts).
+ * slots are requested.
  */
 export const draftConfigInputSchema = z
   .object({
@@ -42,22 +40,15 @@ export const draftConfigInputSchema = z
     chosenChallengeIds: z.array(z.string().min(1)).optional(),
     /** A user-picked genre for Genre Roulette, when it's among chosenChallengeIds (see "Choose My Challenge"). */
     manualGenre: z.string().min(1).optional(),
-    /** Pre-picked films for the "diy" ("Pick Your Own") challenge — see docs/updates, v1.1.1, "DIY Challenge Film". */
-    diyFilmEntryIds: z.array(z.string().min(1)).optional(),
   })
   .superRefine((config, ctx) => {
-    if (isFreeform(config.difficulty)) {
-      return;
-    }
-
     if (
       config.randomCount === undefined ||
       config.challengeCount === undefined
     ) {
       ctx.addIssue({
         code: "custom",
-        message:
-          "randomCount and challengeCount are required for non-freeform difficulties",
+        message: "randomCount and challengeCount are required",
         path: ["randomCount"],
       });
       return;
@@ -81,17 +72,6 @@ export const draftConfigInputSchema = z
         code: "custom",
         message: "challengeMode is required when challengeCount > 0",
         path: ["challengeMode"],
-      });
-    }
-
-    if (
-      config.diyFilmEntryIds &&
-      new Set(config.diyFilmEntryIds).size !== config.diyFilmEntryIds.length
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "diyFilmEntryIds must not contain duplicate entries",
-        path: ["diyFilmEntryIds"],
       });
     }
 
@@ -127,22 +107,6 @@ export const draftConfigInputSchema = z
             });
           }
         });
-
-        // Every deliberately-chosen "diy" slot needs its own pre-picked
-        // film before the draft can be created — see docs/updates,
-        // v1.1.1, "DIY Challenge Film": "prevent challenge draft
-        // finalisation until a valid film has been chosen." Unlike every
-        // other chosen challenge, "diy" never resolves a film on its own.
-        const diyCount = config.chosenChallengeIds.filter(
-          (id) => id === "diy",
-        ).length;
-        if (diyCount > (config.diyFilmEntryIds?.length ?? 0)) {
-          ctx.addIssue({
-            code: "custom",
-            message: `diyFilmEntryIds must have at least ${diyCount} entries (one per "Pick Your Own" slot chosen)`,
-            path: ["diyFilmEntryIds"],
-          });
-        }
       }
     }
   });

@@ -19,11 +19,17 @@ export function ActiveDraftFilms({
   onReroll,
   onManualReplace,
   onSlotReroll,
+  filmsProgressIndicatorClassName,
 }: {
   films: DraftFilmCardView[];
   onReroll?: (itemId: string) => Promise<void>;
   onManualReplace?: (itemId: string) => void;
   onSlotReroll?: (itemId: string) => Promise<void>;
+  /** Overrides the FILM progress bar's fill colour — used for a Halloween
+   * Draft's canonical orange (see docs/updates, "HALLOWEEN UI CLEANUP" §6);
+   * omitted (the default `bg-watchlist-green`) for every normal or January
+   * draft, which keep their existing styling unchanged. */
+  filmsProgressIndicatorClassName?: string;
 }) {
   const watchUndo = useWatchUndo();
 
@@ -62,12 +68,14 @@ export function ActiveDraftFilms({
         <Progress
           value={progress.percentWatched}
           aria-label="Films watched"
-          indicatorClassName="bg-watchlist-green"
+          indicatorClassName={
+            filmsProgressIndicatorClassName ?? "bg-watchlist-green"
+          }
         />
       </div>
 
       {toWatch.length > 0 ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
           {toWatch.map((film) => (
             <li key={film.itemId}>
               <DraftFilmCard
@@ -94,7 +102,7 @@ export function ActiveDraftFilms({
           <summary className="text-muted-foreground hover:text-foreground focus-visible:outline-ring w-fit cursor-pointer text-sm font-medium select-none focus-visible:outline-2 focus-visible:outline-offset-2">
             Completed ({completed.length})
           </summary>
-          <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
             {completed.map((film) => (
               <li key={film.itemId}>
                 <DraftFilmCard

@@ -1,5 +1,6 @@
 import { EventArtImage } from "./event-art-image";
 import { HALLOWEEN_ART } from "./halloween-art";
+import { HalloweenCandyBowl } from "./halloween-candy-bowl";
 import type { DecorationAssetRegistry } from "./event-decoration-layer";
 import {
   HalloweenBat,
@@ -49,6 +50,62 @@ export const HALLOWEEN_DECORATION_REGISTRY: DecorationAssetRegistry = {
     <EventArtImage src={HALLOWEEN_ART.ghost} className="size-14" />
   ),
   "ghost-2": () => <HalloweenGhost className="size-8" />,
+
+  /**
+   * The Event page's own supplied-art pieces (see docs/updates,
+   * "HALLOWEEN EVENT ART REWORK + WIDER DESKTOP LAYOUT") — distinct ids
+   * from `ghost-1`/`ghost-2`/`moon` above on purpose: those three stay
+   * exactly as they were for the join modal and the app-wide ambient
+   * surface (out of scope for this pass), while these four are the real
+   * bundled PNGs (`ghost_01.png`, `ghost_02.png`, `moon.png`,
+   * `cyndaquil_halloween.png`) used only by the Event page's own layout
+   * (`halloween-decoration-layout.ts`). Width-only sizing (`h-auto`) keeps
+   * each PNG's real aspect ratio intact rather than force-squaring it.
+   */
+  /**
+   * Deliberately small (only visible from `lg` regardless — see
+   * `HALLOWEEN_HEADER_DECORATION_LAYOUT`) — this renders inside the page
+   * header's own small, near-constant-height `relative` box (see
+   * `HalloweenGhostPeekLayer`'s doc comment), which also clips via
+   * `overflow-hidden` (the shared `EventDecorationLayer` root); much
+   * bigger than this and it would visibly crop top/bottom against that
+   * box rather than reading as a deliberate "peeking from the edge" size.
+   * A fixed (not breakpoint-scaled) size, paired with a fixed left offset
+   * on its own position (`HALLOWEEN_PAGE_SLOT_POSITIONS["edge-peek-left"]`)
+   * that only reveals a small sliver — the heading's own icon/text and the
+   * "Event ends..." subtitle both start flush against this same
+   * container's left edge, so anything wider showing through reads as
+   * covering the title rather than peeking beside it.
+   */
+  "ghost-01": () => (
+    <EventArtImage src={HALLOWEEN_ART.ghostOne} className="h-auto w-16" />
+  ),
+  "ghost-02": () => (
+    <EventArtImage
+      src={HALLOWEEN_ART.ghostTwo}
+      className="h-auto w-20 sm:w-24"
+    />
+  ),
+  // `xl`/`2xl` steps added during the release-hardening pass (see
+  // docs/product-spec.md, "Desktop Layout Width") — previously capped at
+  // `lg:w-24` (96px) with nothing beyond it, so the moon stayed exactly
+  // that same fixed pixel size all the way up to 2560px+ displays, where
+  // it read as noticeably tiny relative to the rest of the page.
+  "full-moon": () => (
+    <EventArtImage
+      src={HALLOWEEN_ART.fullMoon}
+      className="h-auto w-16 sm:w-20 lg:w-24 xl:w-28 2xl:w-32"
+    />
+  ),
+  /** Flipped via `-scale-x-100` (see docs/updates, "CYNDAQUIL FLIPPING") so it faces INTO the page rather than off it — the project's established flip convention (see `cobweb-mirrored` below), never a second mirrored image file. */
+  cyndaquil: () => (
+    <EventArtImage
+      src={HALLOWEEN_ART.cyndaquil}
+      className="h-auto w-20 -scale-x-100 sm:w-24 lg:w-28"
+    />
+  ),
+  /** The Candy Bowl easter egg itself (see `halloween-candy-bowl.tsx`) — a real interactive component, not a static image; a Designed Slot's registry entry can be anything, per `pumpkin-cluster`/`candy-scatter` below already composing multiple pieces. */
+  "candy-bowl": () => <HalloweenCandyBowl />,
   bat: () => <HalloweenBat className="halloween-bat-sway size-6" />,
   moon: () => <HalloweenMoon className="size-8" />,
   star: () => <HalloweenStar className="size-3" />,

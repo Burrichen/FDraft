@@ -101,6 +101,7 @@ export const draftDifficultySchema = z.enum([
   "hard",
   "hardcore",
   "freeform",
+  "one-at-a-time",
 ]);
 export const draftTimeModeSchema = z.enum(["calendar", "timer"]);
 export const draftStatusSchema = z.enum([
@@ -130,6 +131,7 @@ export const pointCurrencySchema = z.enum([
   "signal",
   "bounty",
   "haunted",
+  "festive",
 ]);
 export const freeformRankSchema = z
   .enum(["below_baby", "baby", "easy", "medium", "hard", "hardcore"])
@@ -358,6 +360,11 @@ export const backupDraftSchema = z.object({
   // `null`, the same "use the generated default name" every draft already
   // had (see `src/domain/drafts/draft-name.ts`).
   customName: nullableBoundedString(200).default(null),
+  // A backup exported before this field existed defaults to `null` — the
+  // same legacy fallback `getDraftDisplayName` itself uses (derives the
+  // Halloween title's year from `startedAt` instead; see that field's own
+  // comment on `DraftRecord`).
+  eventOccurrenceYear: z.number().int().nullable().default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -390,6 +397,10 @@ export const backupDraftItemSchema = z.object({
   // backup from letting an already-rewarded item earn its event currency
   // a second time.
   eventRewardGrantedAt: nullableIsoDateTimeSchema.default(null),
+  // A backup exported before this field existed has no such key — `null`
+  // (no category) is the correct, safe default (see docs/updates, "FDRAFT
+  // UPDATE 1 — EVENT ONE AT A TIME DRAFTING").
+  eventCategoryKey: nullableBoundedString(100).default(null),
   createdAt: isoDateTimeSchema,
 });
 

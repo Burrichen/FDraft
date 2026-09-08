@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { dismissEventIntroIfPresent } from "./fixtures/event-intro";
 
 const FIXTURE_CSV = path.join(__dirname, "fixtures", "sample-watchlist.csv");
 const WATCHED_TITLES = ["Paddington 2", "Inception"];
@@ -57,6 +58,9 @@ test("a finalised draft's films are grouped into Watched/Not Watched, its sort c
   await page.clock.setFixedTime(thirtyOneDaysLater);
   await context.setOffline(true);
   await page.reload();
+  // See `dismissEventIntroIfPresent` — the clock jump can land inside
+  // a real Event window and raise the global intro modal.
+  await dismissEventIntroIfPresent(page);
   await expect(
     page.getByRole("heading", { name: /Baby draft — expired/i }),
   ).toBeVisible();

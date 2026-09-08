@@ -1,31 +1,36 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { setJanuaryManifestCuratedFilmIds } from "./january-manifest-overlay";
+import { describe, expect, it } from "vitest";
 import {
+  getCurrentOccurrenceBounds,
+  isEventAvailable,
+} from "./event-availability";
+import {
+  CHRISTMAS_EVENT_ID,
   EVENT_DEFINITIONS,
   F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
   SIGNAL_FROM_BEYOND_EVENT_ID,
   WATCHLIST_FRONTIER_EVENT_ID,
   getEventDefinition,
-  isJanuaryEligibleFilm,
 } from "./event-registry";
 
 describe("event-registry", () => {
-  it("registers F* You, It's January!, Halloween, The Watchlist Frontier, and Signal from Beyond", () => {
-    expect(EVENT_DEFINITIONS).toHaveLength(4);
+  it("registers F* You, It's January!, Halloween, The Watchlist Frontier, Signal from Beyond, and Christmas", () => {
+    expect(EVENT_DEFINITIONS).toHaveLength(5);
     expect(EVENT_DEFINITIONS.map((event) => event.id)).toEqual([
       F_YOU_ITS_JANUARY_EVENT_ID,
       HALLOWEEN_EVENT_ID,
       WATCHLIST_FRONTIER_EVENT_ID,
       SIGNAL_FROM_BEYOND_EVENT_ID,
+      CHRISTMAS_EVENT_ID,
     ]);
     expect(EVENT_DEFINITIONS[0].name).toBe("F* You, It's January!");
     expect(EVENT_DEFINITIONS[1].name).toBe("Halloween");
     expect(EVENT_DEFINITIONS[2].name).toBe("The Watchlist Frontier");
     expect(EVENT_DEFINITIONS[3].name).toBe("Signal from Beyond");
+    expect(EVENT_DEFINITIONS[4].name).toBe("Christmas");
   });
 
-  it("is naturally available 25–31 January every year, manually activatable the rest of the year, and awards Misery Points when normally active", () => {
+  it("is naturally available 25 January 00:00 through 1 February 00:00 exclusive every year, manually activatable the rest of the year, and awards Misery Points when normally active", () => {
     const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
     expect(event?.availability).toEqual({
       startsAt: null,
@@ -34,8 +39,10 @@ describe("event-registry", () => {
       recurringMonthDayRange: {
         startMonth: 1,
         startDay: 25,
-        endMonth: 1,
-        endDay: 31,
+        endMonth: 2,
+        endDay: 1,
+        endHour: 0,
+        endMinute: 0,
       },
     });
     expect(event?.manualActivationAllowed).toBe(true);
@@ -47,15 +54,21 @@ describe("event-registry", () => {
     });
   });
 
-  it("uses normal FDraft drafting rules — only eligibility is restricted", () => {
-    const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
-    expect(event?.draftRules).toEqual({});
+  it("is NOT available on 24 January, and IS available from 25 January through 31 January", () => {
+    const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID)!;
+    const at = (iso: string) =>
+      isEventAvailable(event.availability, new Date(iso), "UTC");
+    expect(at("2027-01-24T23:59:00.000Z")).toBe(false);
+    expect(at("2027-01-25T00:00:00.000Z")).toBe(true);
+    expect(at("2027-01-28T12:00:00.000Z")).toBe(true);
+    expect(at("2027-01-31T23:59:00.000Z")).toBe(true);
+    // 1 February 00:00 is exclusive.
+    expect(at("2027-02-01T00:00:00.000Z")).toBe(false);
   });
 
-  it("is eligible for films rated 3.5 or lower, or on the curated whitelist", () => {
+  it("uses normal FDraft drafting rules — the one-film roll is the whole mechanic", () => {
     const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
-    expect(event?.eligibilityRules.maxAverageRating).toBe(3.5);
-    expect(event?.eligibilityRules.curatedFilmIds).toEqual([]);
+    expect(event?.draftRules).toEqual({});
   });
 
   it("supplies intro content for the generic event introduction modal", () => {
@@ -75,6 +88,20 @@ describe("event-registry", () => {
       route: "/events/january",
       navLabel: "January",
     });
+  });
+
+  it("has a fixed Event deadline pinned to its own occurrence's end, and a real Event-ending experience (FDRAFT UPDATE 1 — JANUARY EVENT-OVER EXPERIENCE)", () => {
+    const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
+    expect(event?.fixedEventDeadline).toBe(true);
+    expect(event?.ending?.enabled).toBe(true);
+    expect(event?.ending?.message).toBe(
+      "The world brightens. The January misery is forgotten as the first sun of the year burns through the clouds. The town of FDraft forgets what that awful phrase and people begin to smile again. They can rebuild.",
+    );
+    expect(event?.ending?.buttonLabel).toBe(
+      "I made it through the worst month.",
+    );
+    // No ordinal "Nth annual" line is required by this event's copy.
+    expect(event?.ending?.secondaryMessageTemplate).toBeUndefined();
   });
 
   it("getEventDefinition returns null for an unknown id", () => {
@@ -232,80 +259,169 @@ describe("event-registry", () => {
       expect(event?.intro.bullets.length).toBeGreaterThan(0);
     });
   });
+
+  describe("Christmas (docs/updates, FDRAFT UPDATE 1 — FESTIVE POINTS + EVENT CURRENCY COMPLETION, EVENT ONE AT A TIME DRAFTING)", () => {
+    it("is naturally available all of December every year (real end instant 1 January 00:00), manually activatable the rest of the year", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.availability).toEqual({
+        startsAt: null,
+        endsAt: null,
+        recurringMonths: null,
+        recurringMonthDayRange: {
+          startMonth: 12,
+          startDay: 1,
+          endMonth: 12,
+          endDay: 31,
+          endHour: 24,
+          endMinute: 0,
+        },
+      });
+      expect(event?.manualActivationAllowed).toBe(true);
+
+      // The real-world instant this resolves to is genuinely 1 January
+      // 00:00 (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME
+      // DRAFTING" §3) — confirmed via the same function `fixedEventDeadline`
+      // draft creation relies on, not just the raw config shape above.
+      const bounds = getCurrentOccurrenceBounds(
+        event!.availability,
+        new Date("2026-12-15T00:00:00.000Z"),
+        "UTC",
+      );
+      expect(bounds?.end.toISOString()).toBe("2027-01-01T00:00:00.000Z");
+      expect(isEventAvailable(event!.availability, bounds!.end, "UTC")).toBe(
+        false,
+      );
+      expect(
+        isEventAvailable(
+          event!.availability,
+          new Date(bounds!.end.getTime() - 1),
+          "UTC",
+        ),
+      ).toBe(true);
+    });
+
+    it("has a fixed Event deadline pinned to its own occurrence's end, and a dedicated temporary Event Page", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.fixedEventDeadline).toBe(true);
+      expect(event?.page).toEqual({
+        route: "/events/christmas",
+        navLabel: "Christmas",
+      });
+    });
+
+    it("has its own Festive Points currency, earned per film watched, and no per-completion currency of its own (see event-currency-earning.test.ts for the earning mechanic itself)", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.pointType).toBe("festive");
+      expect(event?.currency).toEqual({
+        id: "festive",
+        label: "Festive Points",
+        pointsPerFilm: 1,
+      });
+    });
+
+    it("has no curated eligibility data defined yet — uses normal FDraft drafting/eligibility", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.draftRules).toEqual({});
+      expect(event?.eligibilityRules).toEqual({});
+    });
+
+    it("declares its two static content pools (classic/adjacent), matching public/events/christmas/films.json", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.contentPools).toEqual([
+        { key: "classic", label: "Classic" },
+        { key: "adjacent", label: "Adjacent" },
+      ]);
+    });
+
+    it("has a real visual theme, its own red/green/blue/white identity", () => {
+      // Supersedes an earlier `visualTheme: null` assertion from when
+      // Christmas was drafting-mechanics-only (see docs/updates, "FDRAFT
+      // UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES + VISUAL POLISH" §9).
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.visualTheme).toBe(CHRISTMAS_EVENT_ID);
+    });
+
+    it("has a two-stage ending: the Christmas goodbye, then the January stinger", () => {
+      const ending = getEventDefinition(CHRISTMAS_EVENT_ID)?.ending;
+      expect(ending?.enabled).toBe(true);
+      expect(ending?.title).toBe("Have a lovely year!");
+      expect(ending?.message).toContain("From, Burrichen");
+      // §15 — the button is deliberately plain, never festive.
+      expect(ending?.buttonLabel).toBe("Onto next year!");
+      expect(ending?.stinger?.message).toBe("Fuck you, it's January!");
+      expect(ending?.stinger?.delayMs).toBeGreaterThan(0);
+    });
+
+    it("is the only event with a two-stage ending, and January's own event is untouched by the stinger", () => {
+      expect(
+        EVENT_DEFINITIONS.filter((event) => event.ending?.stinger).map(
+          (event) => event.id,
+        ),
+      ).toEqual([CHRISTMAS_EVENT_ID]);
+      // The stinger only alludes to January — it must never be wired to
+      // it (§16, "not activate January early"). January's own window is
+      // the only thing that makes January available.
+      const january = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
+      expect(january?.availability.recurringMonthDayRange?.startDay).toBe(25);
+      expect(january?.availability.recurringMonthDayRange?.startMonth).toBe(1);
+    });
+
+    it("supplies intro content for the generic event introduction modal", () => {
+      const event = getEventDefinition(CHRISTMAS_EVENT_ID);
+      expect(event?.intro.description.length).toBeGreaterThan(0);
+      expect(event?.intro.bullets.length).toBeGreaterThan(0);
+    });
+  });
 });
 
-describe("getEventDefinition — January manifest overlay (docs/updates, GLOBAL CURATED JANUARY LIST)", () => {
-  afterEach(() => {
-    // The overlay is module-level mutable state shared across every test
-    // in the process — never leave a non-empty value behind for a later,
-    // unrelated test to accidentally inherit.
-    setJanuaryManifestCuratedFilmIds([]);
+describe("F* You, It's January! — simple single-film mechanics (docs/updates, FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS)", () => {
+  it("declares singleFilmDraft — its whole Draft is one film rolled at join", () => {
+    expect(
+      getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID)?.singleFilmDraft,
+    ).toBe(true);
   });
 
-  it("with no overlay applied, curatedFilmIds stays the statically-declared empty list", () => {
+  it("is the ONLY event that declares singleFilmDraft", () => {
+    expect(
+      EVENT_DEFINITIONS.filter((event) => event.singleFilmDraft).map(
+        (event) => event.id,
+      ),
+    ).toEqual([F_YOU_ITS_JANUARY_EVENT_ID]);
+  });
+
+  it("declares exactly one content pool — the curated list the roll draws from", () => {
+    expect(
+      getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID)?.contentPools,
+    ).toEqual([{ key: "curated", label: "Curated" }]);
+  });
+
+  it("has NO eligibility rules at all — the old rating ceiling and curated whitelist are both gone", () => {
     const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
-    expect(event?.eligibilityRules.curatedFilmIds).toEqual([]);
+    expect(event?.eligibilityRules).toEqual({});
+    // Average score is irrelevant to what January rolls now, so the old
+    // `maxAverageRating: 3.5` ceiling must not survive anywhere.
+    expect(event?.eligibilityRules.maxAverageRating).toBeUndefined();
+    // Watchlist-membership-based curated eligibility is likewise gone —
+    // the static list itself is the pool, resolved to real films outside
+    // the registry entirely.
+    expect(event?.eligibilityRules.curatedFilmIds).toBeUndefined();
   });
 
-  it("after the manifest overlay is applied, curatedFilmIds reflects it immediately", () => {
-    setJanuaryManifestCuratedFilmIds(["film-a", "film-b"]);
+  it("pins its Draft deadline to the Event occurrence and earns Misery per film watched", () => {
     const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
-    expect(event?.eligibilityRules.curatedFilmIds).toEqual([
-      "film-a",
-      "film-b",
-    ]);
-    // The rating rule and every other field are untouched by the overlay.
-    expect(event?.eligibilityRules.maxAverageRating).toBe(3.5);
+    expect(event?.fixedEventDeadline).toBe(true);
+    expect(event?.currency).toEqual({
+      id: "misery",
+      label: "Misery Points",
+      pointsPerFilm: 1,
+    });
   });
 
-  it("never affects any other registered event", () => {
-    setJanuaryManifestCuratedFilmIds(["film-a"]);
-    expect(
-      getEventDefinition(HALLOWEEN_EVENT_ID)?.eligibilityRules.curatedFilmIds,
-    ).toBeNull();
-  });
-});
-
-describe("isJanuaryEligibleFilm (docs/updates, JANUARY ELIGIBILITY RULES)", () => {
-  afterEach(() => {
-    setJanuaryManifestCuratedFilmIds([]);
-  });
-
-  it("qualifies a film rated 3.5 exactly", () => {
-    expect(
-      isJanuaryEligibleFilm({ filmId: "film-1", averageRating: 3.5 }),
-    ).toBe(true);
-  });
-
-  it("qualifies a film rated below 3.5", () => {
-    expect(
-      isJanuaryEligibleFilm({ filmId: "film-1", averageRating: 1.2 }),
-    ).toBe(true);
-  });
-
-  it("rejects a film rated above 3.5 and not curated", () => {
-    expect(
-      isJanuaryEligibleFilm({ filmId: "film-1", averageRating: 3.6 }),
-    ).toBe(false);
-  });
-
-  it("rejects a film with no average rating and not curated — missing-rating films only qualify if explicitly curated", () => {
-    expect(
-      isJanuaryEligibleFilm({ filmId: "film-1", averageRating: null }),
-    ).toBe(false);
-  });
-
-  it("qualifies a high-rated film that is on the curated whitelist", () => {
-    setJanuaryManifestCuratedFilmIds(["film-1"]);
-    expect(
-      isJanuaryEligibleFilm({ filmId: "film-1", averageRating: 4.8 }),
-    ).toBe(true);
-  });
-
-  it("qualifies a missing-rating film that is on the curated whitelist", () => {
-    setJanuaryManifestCuratedFilmIds(["film-1"]);
-    expect(
-      isJanuaryEligibleFilm({ filmId: "film-1", averageRating: null }),
-    ).toBe(true);
+  it("getEventDefinition returns the registered definition verbatim, with no per-event overlay", () => {
+    // The January-only curated-id overlay this function used to apply is
+    // gone entirely — every event is now a plain registry lookup.
+    for (const event of EVENT_DEFINITIONS) {
+      expect(getEventDefinition(event.id)).toBe(event);
+    }
   });
 });

@@ -106,8 +106,24 @@ export async function listLocalChallengeAvailability(
     history: HistoryRepository;
   },
   profileId: string,
+  options: {
+    /**
+     * Overrides the candidate pool the Challenge Engine's eligibility
+     * checks run against (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE
+     * AT A TIME DRAFTING" §9-§11) — omitted (the normal-flow default)
+     * means the exact existing behavior: the profile's own watchlist via
+     * `fetchLocalChallengeCandidates`. An Event builder passes its own
+     * resolved category-union pool instead, so a challenge that can't be
+     * satisfied from that smaller/sparser pool naturally renders
+     * ineligible through this SAME capability-based messaging below — no
+     * new eligibility logic needed for that.
+     */
+    candidates?: ChallengeCandidateFilm[];
+  } = {},
 ): Promise<{ challenges: ChallengeAvailability[]; availableGenres: string[] }> {
-  const candidates = await fetchLocalChallengeCandidates(repos, profileId);
+  const candidates =
+    options.candidates ??
+    (await fetchLocalChallengeCandidates(repos, profileId));
   const watchedFilms = await fetchLocalChallengeWatchedFilms(repos, profileId);
   const availableCapabilities = computeAvailableCapabilities(
     candidates,

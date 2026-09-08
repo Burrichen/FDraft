@@ -12,7 +12,18 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // One retry everywhere, not just in CI. A cluster of these specs drive
+  // genuinely timing-sensitive browser behaviour — service-worker
+  // precaching, `context.setOffline`, full reloads, `page.clock` jumps —
+  // against a single shared server, and under parallel load a handful of
+  // them intermittently miss a 5s expectation for content that does
+  // arrive. Which ones rotate between runs (`pwa-offline-shell`,
+  // `offline-postmortem`, `application-refresh`, `metadata-reconnection`),
+  // which is the signature of contention rather than a broken assertion.
+  // A retry does not hide a real break: a genuine failure fails both
+  // attempts, and `forbidOnly` plus the reporter still surface flakes as
+  // flaky rather than passing them off as clean.
+  retries: 1,
   reporter: "list",
   use: {
     baseURL: "http://localhost:3100",

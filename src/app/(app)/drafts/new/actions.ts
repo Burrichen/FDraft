@@ -49,10 +49,6 @@ export async function createDraftAction(
     .getAll("chosenChallengeIds")
     .map(String)
     .filter((id) => id.length > 0);
-  const diyFilmEntryIds = formData
-    .getAll("diyFilmEntryIds")
-    .map(String)
-    .filter((id) => id.length > 0);
 
   const parsed = draftConfigInputSchema.safeParse({
     difficulty: formData.get("difficulty"),
@@ -63,7 +59,6 @@ export async function createDraftAction(
     chosenChallengeIds:
       chosenChallengeIds.length > 0 ? chosenChallengeIds : undefined,
     manualGenre: readOptionalString(formData, "manualGenre"),
-    diyFilmEntryIds: diyFilmEntryIds.length > 0 ? diyFilmEntryIds : undefined,
   });
   if (!parsed.success) {
     return {
@@ -92,8 +87,20 @@ export async function createDraftAction(
     profileId: context.profileId,
     timezone: context.timezone,
   });
+  //
+  // A `singleFilmDraft` event (see `EventDefinition.singleFilmDraft`,
+  // docs/updates "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT
+  // MECHANICS" §4/§16) is deliberately SKIPPED here: its Draft slot holds
+  // exactly one film rolled at join time, so a difficulty/slider/Challenge
+  // Draft built through this generic form must never land in it. Such a
+  // Draft is simply a normal, non-event Draft — the Dual Draft
+  // architecture already lets both exist at once, so nothing is lost.
+  // Read off the definition, never by event id.
   const currentEventStatus = discovery.eventsEnabled
-    ? discovery.statuses.find(isOccurrenceActiveNow)
+    ? discovery.statuses.find(
+        (status) =>
+          isOccurrenceActiveNow(status) && !status.event.singleFilmDraft,
+      )
     : undefined;
   const sourceEventId = currentEventStatus?.event.id ?? null;
   // Captured once, now, so a later change to participation/availability

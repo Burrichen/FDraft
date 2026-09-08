@@ -29,18 +29,21 @@ import { RegenerateDraftButton } from "@/components/drafts/regenerate-draft-butt
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { challengeRegistry } from "@/domain/challenges/catalogue";
-import { FREEFORM_BATCH_SIZE, isFreeform } from "@/domain/drafts/difficulty";
 import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
 import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
 import { getCurrentOccurrenceBounds } from "@/domain/events/event-availability";
-import { getEventDefinition } from "@/domain/events/event-registry";
+import {
+  CHRISTMAS_EVENT_ID,
+  F_YOU_ITS_JANUARY_EVENT_ID,
+  getEventDefinition,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import {
   resolveAdminMode,
   resolveFranchiseChronologicalOrder,
 } from "@/domain/profiles/profile";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { GenerateBatchButton } from "@/app/(app)/drafts/generate-batch-button";
 
 /**
  * One Draft's full lifecycle UI (no draft / active / expired-with-
@@ -59,10 +62,40 @@ import { GenerateBatchButton } from "@/app/(app)/drafts/generate-batch-button";
  * scoped `getActiveOrExpiredDraft`/`hasActiveDraft`. Never inferred from a
  * route or page title.
  */
+/**
+ * The progress-bar fill an Event Draft's own bars use, for an Event with a
+ * palette of its own — a plain map rather than a per-event conditional, so
+ * January's icy accent (see docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S
+ * JANUARY: SIMPLE EVENT MECHANICS" §13: "progress bars") is one entry
+ * alongside Halloween's pumpkin rather than a second branch. An Event
+ * absent here (Frontier/Signal), and every normal Draft, keeps the app's
+ * own default fill exactly as before.
+ *
+ * These bars can't simply inherit their Event page's `.theme-*` token
+ * reroute: the shared `Progress` primitive hardcodes its own fill utility
+ * (`bg-watchlist-green`/`bg-watchlist-blue`) rather than reading
+ * `--primary`, so an accent has to be passed in explicitly.
+ */
+const DRAFT_EVENT_PROGRESS_ACCENTS: Record<string, string> = {
+  [HALLOWEEN_EVENT_ID]: "bg-halloween-pumpkin",
+  [F_YOU_ITS_JANUARY_EVENT_ID]: "bg-january-ice",
+  [CHRISTMAS_EVENT_ID]: "bg-christmas-snow",
+};
+
 export interface DraftLifecycleViewProps {
   sourceEventId: string | null;
-  /** Shown instead of the draft UI when this scope has no active/expired draft at all. */
-  emptyState: ReactNode;
+  /**
+   * Shown instead of the draft UI when this scope has no active/expired
+   * draft at all. A plain `ReactNode` for a caller with nothing to refresh
+   * afterward (the normal Drafts page); a render function receiving THIS
+   * view's own `reloadSilently` (see docs/updates, "FDRAFT UPDATE 1 —
+   * EVENT ONE AT A TIME DRAFTING") for a caller whose empty state can
+   * create a new draft and needs this view to pick it up immediately,
+   * without a full page reload — the same "render function, not a plain
+   * node" convention `EventPageView`'s own `renderEmptyState` already
+   * uses, for the identical reason.
+   */
+  emptyState: ReactNode | ((reload: () => void) => ReactNode);
   /** Rendered above `emptyState` — the normal Drafts page's own "draft complete" banner; omitted (the default) shows nothing. */
   justArchivedBanner?: ReactNode;
   /** Rendered above the active-draft header — the normal Drafts page's post-creation challenge-shortfall banner; omitted (the default) shows nothing. */
@@ -213,6 +246,7 @@ export function DraftLifecycleView({
           // elsewhere doesn't require a full reload to take effect here.
           canEdit: false,
           source: item.source,
+          eventCategoryKey: item.eventCategoryKey ?? null,
         };
       });
 
@@ -275,7 +309,9 @@ export function DraftLifecycleView({
     return (
       <div className="space-y-6">
         {justArchivedBanner}
-        {emptyState}
+        {typeof emptyState === "function"
+          ? emptyState(reloadSilently)
+          : emptyState}
       </div>
     );
   }
@@ -288,11 +324,61 @@ export function DraftLifecycleView({
     eventVisualsEnabled,
     effectiveEventNow,
   } = data;
-  const deadlineLabel = new Date(draft.deadlineAt).toLocaleString(undefined, {
+
+  // For a "fixed event deadline" draft (Halloween), the displayed deadline
+  // must always be the CURRENT Event occurrence's own end — never
+  // `draft.deadlineAt` read verbatim (see docs/updates, "HALLOWEEN
+  // COUNTDOWN BUG"): that stored value is only ever CORRECT because
+  // `createHalloweenLocalDraft` happened to compute it the same way at
+  // creation time, so a draft carrying a stale value from an earlier,
+  // buggier Beta (or any future drift between the two calculations) would
+  // silently show the wrong deadline forever. Deriving it fresh here,
+  // exactly like `eventWindow` below already does for the progress bar's
+  // own `startedAt`, is a read-only display fix — it never rewrites
+  // `draft.deadlineAt` itself, which `expireLocalDraftIfDue`/
+  // `finalizeExpiredEventDraftIfNeeded` still intentionally trust as-is
+  // (see that file's own doc comment) for deciding when to actually expire
+  // the draft, and a completed/expired draft's historical timestamps are
+  // never touched.
+  const event = draft.sourceEventId
+    ? getEventDefinition(draft.sourceEventId)
+    : null;
+  // A `fixedEventDeadline` event Draft's naming is canonical ("<Event>
+  // <year> Draft" — see docs/updates, "HALLOWEEN UI CLEANUP" §7-9,
+  // generalized by "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §15 to
+  // every such event, not just Halloween) — the rename control is hidden
+  // entirely for these rather than offered and then silently ignored,
+  // since `getDraftDisplayName` already refuses to show a custom name for
+  // one regardless of what's persisted. A normal draft, or an event with
+  // no fixed deadline (Frontier/Signal), keeps its existing rename
+  // behaviour unchanged.
+  const isCanonicallyNamedEventDraft = Boolean(event?.fixedEventDeadline);
+  const eventProgressAccent = draft.sourceEventId
+    ? DRAFT_EVENT_PROGRESS_ACCENTS[draft.sourceEventId]
+    : undefined;
+  // Admin Mode's "Regenerate Draft" is hidden for a `singleFilmDraft`
+  // Event (January) — see docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S
+  // JANUARY: SIMPLE EVENT MECHANICS" §6, "Do NOT add a new user-facing
+  // reroll feature". That control is Admin-only and predates this
+  // mechanic, so it was never user-facing, but it was nonetheless the one
+  // path in the app that could re-roll January's film — which is exactly
+  // the thing the Event's whole joke depends on being impossible. Every
+  // other Draft (normal, Halloween, Christmas) keeps it unchanged.
+  const isSingleFilmDraft = Boolean(event?.singleFilmDraft);
+  const eventWindow =
+    event?.fixedEventDeadline && effectiveEventNow
+      ? getCurrentOccurrenceBounds(
+          event.availability,
+          effectiveEventNow,
+          draft.timezone,
+        )
+      : null;
+  const deadlineLabel = new Date(
+    eventWindow ? eventWindow.end : draft.deadlineAt,
+  ).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   });
-  const freeform = isFreeform(draft.difficulty);
   const adminModeEnabled = resolveAdminMode(activeProfile.settings.adminMode);
 
   // Recomputed live against the current Admin Mode setting on every render
@@ -418,11 +504,13 @@ export function DraftLifecycleView({
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
             />
-            <DraftNameEditor
-              draftId={draft.id}
-              currentCustomName={draft.customName}
-              onSaved={reloadSilently}
-            />
+            {isCanonicallyNamedEventDraft ? null : (
+              <DraftNameEditor
+                draftId={draft.id}
+                currentCustomName={draft.customName}
+                onSaved={reloadSilently}
+              />
+            )}
           </h1>
           <p className="page-subtitle">
             {watchedFilms.length}/{items.length} films completed · deadline was{" "}
@@ -462,7 +550,7 @@ export function DraftLifecycleView({
             <summary className="text-muted-foreground hover:text-foreground focus-visible:outline-ring w-fit cursor-pointer text-sm font-medium select-none focus-visible:outline-2 focus-visible:outline-offset-2">
               Completed ({watchedFilms.length})
             </summary>
-            <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
               {watchedFilms.map((film) => (
                 <li key={film.itemId}>
                   <DraftFilmCard film={film} />
@@ -481,28 +569,17 @@ export function DraftLifecycleView({
   const unresolvedChallengeCount =
     draft.challengeFilmCount - challengeItemCount;
 
-  // A "fixed event deadline" draft's progress bar shows how far through
+  // `event`/`eventWindow` were already derived above (for `deadlineLabel`)
+  // — a "fixed event deadline" draft's progress bar shows how far through
   // the EVENT's own natural window the profile is (see docs/updates,
-  // "PROMPT B2.2", "EVENT TIME PROGRESS") — anchored to the event's own
-  // start/end instants and the Admin-aware effective date, not this
-  // draft's own creation timestamp and the real wall clock. Falls back to
-  // the normal per-draft window for every other draft, unchanged.
-  const event = draft.sourceEventId
-    ? getEventDefinition(draft.sourceEventId)
-    : null;
-  const eventWindow =
-    event?.fixedEventDeadline && effectiveEventNow
-      ? getCurrentOccurrenceBounds(
-          event.availability,
-          effectiveEventNow,
-          draft.timezone,
-        )
-      : null;
+  // "PROMPT B2.2", "EVENT TIME PROGRESS"), reusing that SAME window rather
+  // than recomputing it, so the progress bar and the deadline text next to
+  // it can never disagree with each other.
   const timeProgress = calculateDraftTimeProgress({
     mode: eventWindow ? "timer" : draft.timeMode,
     now: eventWindow && effectiveEventNow ? effectiveEventNow : new Date(),
     startedAt: eventWindow ? eventWindow.start : new Date(draft.startedAt),
-    deadlineAt: new Date(draft.deadlineAt),
+    deadlineAt: eventWindow ? eventWindow.end : new Date(draft.deadlineAt),
     timezone: draft.timezone,
   });
 
@@ -521,11 +598,13 @@ export function DraftLifecycleView({
               sourceEventId={draft.sourceEventId}
               eventVisualsEnabled={eventVisualsEnabled}
             />
-            <DraftNameEditor
-              draftId={draft.id}
-              currentCustomName={draft.customName}
-              onSaved={reloadSilently}
-            />
+            {isCanonicallyNamedEventDraft ? null : (
+              <DraftNameEditor
+                draftId={draft.id}
+                currentCustomName={draft.customName}
+                onSaved={reloadSilently}
+              />
+            )}
           </h1>
           <p className="page-subtitle">
             {unresolvedChallengeCount > 0
@@ -535,14 +614,9 @@ export function DraftLifecycleView({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {freeform && draft.status === "active" ? (
-            <GenerateBatchButton
-              draftId={draft.id}
-              batchSize={FREEFORM_BATCH_SIZE}
-              onGenerated={reload}
-            />
-          ) : null}
-          {adminModeEnabled && draft.status === "active" ? (
+          {adminModeEnabled &&
+          draft.status === "active" &&
+          !isSingleFilmDraft ? (
             <RegenerateDraftButton
               draftId={draft.id}
               onRegenerated={handleRegenerated}
@@ -551,13 +625,25 @@ export function DraftLifecycleView({
         </div>
       </div>
 
-      <DraftTimeProgress progress={timeProgress} />
+      <DraftTimeProgress
+        progress={timeProgress}
+        indicatorClassName={eventProgressAccent}
+      />
 
       <ActiveDraftFilms
         films={editableFilmCards}
-        onReroll={handleReroll}
+        // A `singleFilmDraft` Event (January) offers NO way to change its
+        // film — see `isSingleFilmDraft`. That includes the
+        // missing-metadata "Re-roll" affordance, which is otherwise
+        // ungated by Admin Mode: for this Event the honest repair for a
+        // film with no metadata yet is to fetch the metadata (Settings'
+        // "Download Missing Metadata"), never to swap the film, and
+        // offline every freshly-created curated film starts with none —
+        // so leaving it wired would have offered a reroll on day one.
+        onReroll={isSingleFilmDraft ? undefined : handleReroll}
         onManualReplace={handleManualReplace}
         onSlotReroll={handleSlotReroll}
+        filmsProgressIndicatorClassName={eventProgressAccent}
       />
       <ManualReplaceSlotSheet
         open={replacingItemId !== null}

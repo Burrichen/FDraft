@@ -502,7 +502,12 @@ describe("importLocalWatchlistCsv — mode: 'replace' (see docs/updates, v1.1.2,
     const created = await createLocalDraft(repos, {
       profileId: PROFILE_ID,
       timezone: "UTC",
-      config: { difficulty: "freeform", timeMode: "timer" },
+      config: {
+        difficulty: "baby",
+        timeMode: "timer",
+        randomCount: 2,
+        challengeCount: 0,
+      },
     });
     expect(created.ok).toBe(true);
     if (!created.ok) return;

@@ -65,7 +65,7 @@ describe("beginEventOptIn / applyEventOptIn", () => {
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: IN_JANUARY },
     );
-    expect(result).toEqual({ eventId: F_YOU_ITS_JANUARY_EVENT_ID });
+    expect(result.eventId).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
 
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(true);
@@ -82,7 +82,7 @@ describe("beginEventOptIn / applyEventOptIn", () => {
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: OUTSIDE_JANUARY },
     );
-    expect(result).toEqual({ eventId: null });
+    expect(result.eventId).toBe(null);
 
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(false);
@@ -110,7 +110,7 @@ describe("beginEventOptIn / applyEventOptIn", () => {
       { profileId: PROFILE_ID, timezone: "UTC" },
       { clock: IN_JANUARY },
     );
-    expect(result).toEqual({ eventId: F_YOU_ITS_JANUARY_EVENT_ID });
+    expect(result.eventId).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
 
     // The normal draft is completely untouched — still active, still a
     // normal (non-event) draft, no rewards granted.
@@ -190,7 +190,7 @@ describe("beginEventOptIn — targeting a specific event by id", () => {
       { clock: OUTSIDE_JANUARY },
     );
 
-    expect(result).toEqual({ eventId: WATCHLIST_FRONTIER_EVENT_ID });
+    expect(result.eventId).toBe(WATCHLIST_FRONTIER_EVENT_ID);
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.activeEvent).toBe(WATCHLIST_FRONTIER_EVENT_ID);
     expect(settings.manuallyEnabledEvents).toEqual([
@@ -212,7 +212,7 @@ describe("beginEventOptIn — targeting a specific event by id", () => {
       { clock: OUTSIDE_JANUARY },
     );
 
-    expect(result).toEqual({ eventId: null });
+    expect(result.eventId).toBe(null);
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(false);
     expect(settings.activeEvent).toBeNull();
@@ -232,7 +232,7 @@ describe("beginEventOptIn — targeting a specific event by id", () => {
       { clock: IN_JANUARY },
     );
 
-    expect(result).toEqual({ eventId: F_YOU_ITS_JANUARY_EVENT_ID });
+    expect(result.eventId).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.manuallyEnabledEvents).toEqual([]);
   });
@@ -263,7 +263,7 @@ describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 
       { clock: IN_HALLOWEEN },
     );
 
-    expect(result).toEqual({ eventId: HALLOWEEN_EVENT_ID });
+    expect(result.eventId).toBe(HALLOWEEN_EVENT_ID);
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
     expect(settings.manuallyEnabledEvents).not.toContain(HALLOWEEN_EVENT_ID);
@@ -287,7 +287,7 @@ describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 
       { clock: OUTSIDE_HALLOWEEN },
     );
 
-    expect(result).toEqual({ eventId: null });
+    expect(result.eventId).toBe(null);
     const settings = await getEventSettings(repos, PROFILE_ID);
     expect(settings.eventsEnabled).toBe(false);
     expect(settings.activeEvent).toBeNull();
@@ -332,7 +332,7 @@ describe("beginEventOptIn — Halloween: manualActivationAllowed: false (PROMPT 
         eventId: HALLOWEEN_EVENT_ID,
       });
 
-      expect(result).toEqual({ eventId: HALLOWEEN_EVENT_ID });
+      expect(result.eventId).toBe(HALLOWEEN_EVENT_ID);
       const settings = await getEventSettings(repos, PROFILE_ID);
       expect(settings.activeEvent).toBe(HALLOWEEN_EVENT_ID);
     } finally {

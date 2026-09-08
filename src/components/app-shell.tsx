@@ -3,8 +3,19 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { refreshHalloweenManifest } from "@/application/events/halloween-manifest-service";
-import { refreshJanuaryManifest } from "@/application/events/january-manifest-service";
+import { loadHalloweenFilmContent } from "@/application/events/halloween-film-content-service";
+import { loadEventCategoryFilmContent } from "@/application/events/load-event-category-film-content";
+import { setEventCategoryFilmIds } from "@/domain/events/event-category-manifest-overlay";
+import {
+  CHRISTMAS_FILM_CONTENT,
+  JANUARY_FILM_CONTENT,
+} from "@/domain/events/event-film-content";
+import { getHalloweenManifestFilmIds } from "@/domain/events/halloween-manifest-overlay";
+import {
+  CHRISTMAS_EVENT_ID,
+  F_YOU_ITS_JANUARY_EVENT_ID,
+  HALLOWEEN_EVENT_ID,
+} from "@/domain/events/event-registry";
 import { EventEndingDialog } from "@/components/events/event-ending-dialog";
 import { EventIntroDialog } from "@/components/events/event-intro-dialog";
 import {
@@ -12,7 +23,6 @@ import {
   useHalloweenAmbientVisible,
 } from "@/components/events/halloween-ambient-decorations";
 import { EventDiscoveryProvider } from "@/components/events/event-discovery-provider";
-import "@/components/events/register-event-art";
 import { Header } from "@/components/layout/header";
 import { FirstRunScreen } from "@/components/profiles/first-run-screen";
 import { ProfilePicker } from "@/components/profiles/profile-picker";
@@ -24,8 +34,6 @@ import { Button } from "@/components/ui/button";
 import { UpdateDialog } from "@/components/updates/update-dialog";
 import { UpdateProvider } from "@/components/updates/update-provider";
 import { WatchUndoProvider } from "@/components/watch-undo/watch-undo-provider";
-import { parseHalloweenManifest } from "@/domain/events/halloween-manifest-schema";
-import { LocalStorageEventManifestCacheStore } from "@/infrastructure/events/event-manifest-cache-store";
 import { BrowserPersistentStorageRequester } from "@/infrastructure/local-db/persistent-storage-requester";
 
 /**
@@ -58,22 +66,58 @@ function AppShellContent({ children }: { children: ReactNode }) {
   // — films/their metadata are installation-wide, not per-profile (see
   // `film-repository.ts`), and re-running this on every profile switch
   // would be wasteful for a question that has nothing to do with which
-  // profile is active (same rationale as the update checker). Never
-  // blocks render and never throws — see `refreshJanuaryManifest`'s own
-  // doc comment (docs/updates, "Remote manifest failure must NEVER
-  // prevent FDraft starting").
+  // profile is active (same rationale as the update checker). Resolves
+  // FDraft's bundled, static curated Event film content (see
+  // docs/updates, "STATIC EVENT FILM CONTENT PACKS") into local film ids
+  // — no network fetch involved at all any more, but still async (a real
+  // IndexedDB round trip) and still never throws, so this can never block
+  // or break app startup.
   useEffect(() => {
-    void refreshJanuaryManifest({
-      cacheStore: new LocalStorageEventManifestCacheStore(),
-      films: repositories.films,
-    });
-    void refreshHalloweenManifest({
-      cacheStore: new LocalStorageEventManifestCacheStore(
-        parseHalloweenManifest,
-      ),
+    // January's curated list goes through the SAME generic resolve-or-
+    // create pipeline Christmas uses (see docs/updates, "FDRAFT UPDATE 1 —
+    // F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §1/§2), replacing the
+    // deleted `loadJanuaryFilmContent`/`resolveManifestFilmIds` pair
+    // entirely. That old pipeline only ever RESOLVED an already-imported
+    // film, because January's list was merely additive eligibility on top
+    // of a profile's own Watchlist; the list is now January's whole
+    // authoritative pool, so — exactly like Halloween's and Christmas's
+    // pools — a listed film that nobody has imported must still be created
+    // locally (title/year only) and enriched by the normal metadata
+    // system, without ever touching anyone's Watchlist.
+    void loadEventCategoryFilmContent(
+      F_YOU_ITS_JANUARY_EVENT_ID,
+      { curated: JANUARY_FILM_CONTENT.curated },
+      {
+        films: repositories.films,
+        unresolvedMetadata: repositories.unresolvedMetadata,
+      },
+    );
+    void loadHalloweenFilmContent({
       films: repositories.films,
       unresolvedMetadata: repositories.unresolvedMetadata,
+    }).then(() => {
+      // Feeds the NEW generic Event category resolver (see docs/updates,
+      // "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING") from Halloween's
+      // already-resolved ids — never a second, redundant resolve-or-create
+      // pass over the same `films.json` (see
+      // `load-event-category-film-content.ts`'s own doc comment).
+      const { horrorFilmIds, kitschFilmIds } = getHalloweenManifestFilmIds();
+      setEventCategoryFilmIds(HALLOWEEN_EVENT_ID, {
+        horror: horrorFilmIds,
+        kitsch: kitschFilmIds,
+      });
     });
+    void loadEventCategoryFilmContent(
+      CHRISTMAS_EVENT_ID,
+      {
+        classic: CHRISTMAS_FILM_CONTENT.classic,
+        adjacent: CHRISTMAS_FILM_CONTENT.adjacent,
+      },
+      {
+        films: repositories.films,
+        unresolvedMetadata: repositories.unresolvedMetadata,
+      },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -139,7 +183,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       {halloweenAmbientVisible ? <HalloweenAmbientDecorations /> : null}
       <div className="flex min-h-full flex-col">
         <Header activeProfile={activeProfile} profiles={profiles} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <main className="app-shell-width flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>

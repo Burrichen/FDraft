@@ -13,8 +13,25 @@
  * the interface.
  */
 
+/**
+ * `"one-at-a-time"` (see docs/updates, "ONE AT A TIME DRAFTING — CORE
+ * SYSTEM") is a distinct creation MODE, not a numeric size — its final
+ * `DraftRecord.totalFilms` is whatever the user actually staged before
+ * pressing Done (1, 3, 17, ...), never a fixed count from `DIFFICULTIES`
+ * (see `getFilmCount`, which deliberately throws for it exactly like it
+ * already does for `"freeform"`). Distinguishing it as its own difficulty
+ * value — rather than e.g. modelling it as "freeform with a count of one"
+ * — is what lets History/Stats keep showing "One At A Time" as the mode a
+ * draft was built with, independent of how many films ended up in it.
+ */
 export type DraftDifficulty =
-  "baby" | "easy" | "medium" | "hard" | "hardcore" | "freeform";
+  | "baby"
+  | "easy"
+  | "medium"
+  | "hard"
+  | "hardcore"
+  | "freeform"
+  | "one-at-a-time";
 export type DraftTimeMode = "calendar" | "timer";
 /**
  * `"discarded"`: the profile let go of this draft without completing it —
@@ -71,7 +88,7 @@ export type WatchlistRemovalReason =
   "watched" | "postmortem_not_interested" | "manual";
 /** See `src/domain/events/point-currency.ts`. */
 export type PointCurrency =
-  "lifetime" | "misery" | "signal" | "bounty" | "haunted";
+  "lifetime" | "misery" | "signal" | "bounty" | "haunted" | "festive";
 export type WatchedHistorySource =
   "app_watchlist_action" | "import_diary" | "import_watched";
 /** See `src/domain/metadata/match-method.ts` — always read through `resolveMatchMethod()`, never trusted raw (a record from before this field existed has no such property at all). */
@@ -260,6 +277,23 @@ export interface DraftRecord {
    * default" behaviour every draft already had.
    */
   customName: string | null;
+  /**
+   * The real-world calendar year of the Event occurrence this draft was
+   * created under, captured ONCE at creation time from the Admin-aware
+   * `getEffectiveEventDate` (see docs/updates, "HALLOWEEN UI CLEANUP" §7) —
+   * `null` for a normal, non-event draft, or for a Halloween draft created
+   * before this field existed. Exists so a Halloween draft's canonical
+   * "Halloween <year> Draft" title (`getDraftDisplayName`) reflects the
+   * occurrence it actually belongs to even when Admin Event Testing is
+   * simulating a year that differs from the real system clock — `startedAt`
+   * always records the REAL creation instant (see `sourceEventManuallyEnabled`'s
+   * own comment on why persisted timestamps never follow the simulated
+   * clock), so it can't be used for this. A legacy record with no such
+   * property normalizes to `null`; `getDraftDisplayName` falls back to
+   * `startedAt`'s own year in that case, which is exactly correct for every
+   * draft that was never created under a simulated Admin date.
+   */
+  eventOccurrenceYear: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -313,6 +347,24 @@ export interface DraftItemRecord {
    * through `LocalDraftRepository`'s normalization, never trusted raw.
    */
   eventRewardGrantedAt?: string | null;
+  /**
+   * Which of an event's curated categories this item came from (matching
+   * `EventDefinition.contentPools[].key`, e.g. `"horror"`/`"kitsch"`/
+   * `"classic"`/`"adjacent"`) — `null` for a normal (non-event) draft item,
+   * an event item from an event with no categories (January), or a
+   * pre-existing item from before this field existed (see docs/updates,
+   * "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING"). Deliberately
+   * SEPARATE from `source`, which keeps its own unchanged meaning — HOW a
+   * film was picked (`"random"`/`"manual"`/`"challenge"`) — so a Draft-So-Far
+   * display can compose both independently ("Horror · Random", "Kitsch ·
+   * Chosen", "Horror · Challenge: <name>") without a combinatorial explosion
+   * of `source` values. Never set by the OLDER Halloween bulk-generation
+   * flow (`createHalloweenLocalDraft`), which still encodes category
+   * directly in `source` (`"halloween-adjacent"`/`"horror"`/`"kitsch"`) —
+   * that flow is untouched by this field. Optional for the same
+   * backward-compatibility reason as `eventRewardGrantedAt`.
+   */
+  eventCategoryKey?: string | null;
   createdAt: string;
 }
 

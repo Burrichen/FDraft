@@ -44,6 +44,7 @@ function halloweenFilm(
     substitution: null,
     canEdit: false,
     source: "horror",
+    eventCategoryKey: null,
     ...overrides,
   };
 }
@@ -57,7 +58,14 @@ function renderCard(film: DraftFilmCardView) {
 }
 
 describe("DraftFilmCard — Halloween pool identification (Prompt 19)", () => {
-  it("shows a Halloween-Adjacent badge for that source", () => {
+  // Halloween-adjacent is no longer a creatable pool (see docs/updates,
+  // "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §1) — Horror
+  // and Kitsch are the only two categories a NEW Halloween Draft can draw
+  // from. This one test stays to cover an OLD, already-persisted Draft
+  // item that still carries the historical `"halloween-adjacent"` source
+  // (see `DraftItemSource`'s own doc comment) — History must keep
+  // rendering it correctly, forever, even though nothing creates a new one.
+  it("shows a Halloween-Adjacent badge for a historical item with that source", () => {
     renderCard(
       halloweenFilm({ source: "halloween-adjacent", entryId: "entry-1" }),
     );
@@ -72,6 +80,32 @@ describe("DraftFilmCard — Halloween pool identification (Prompt 19)", () => {
   it("shows a Kitsch badge for that source", () => {
     renderCard(halloweenFilm({ source: "kitsch" }));
     expect(screen.getByText("Kitsch")).toBeInTheDocument();
+  });
+
+  it("gives Horror and Kitsch badges their own proper high-contrast foreground pairing, distinct from each other and from Halloween-Adjacent (see docs/updates, 'HALLOWEEN UI CLEANUP' §10-12)", () => {
+    renderCard(halloweenFilm({ source: "horror" }));
+    const horrorBadge = screen.getByText("Horror");
+    // Deep plum background + its own proper light-lavender foreground
+    // token — never the old same-color-as-background text, and never a
+    // generic bright red.
+    expect(horrorBadge.className).toContain("bg-halloween-purple/35");
+    expect(horrorBadge.className).toContain("text-halloween-purple-foreground");
+    expect(horrorBadge.className).not.toContain("text-destructive");
+    expect(horrorBadge.className).not.toContain("text-red");
+    cleanup();
+
+    renderCard(halloweenFilm({ source: "kitsch" }));
+    const kitschBadge = screen.getByText("Kitsch");
+    // Warm pumpkin/brown background + pale cream text — never the old
+    // `cream-foreground` (a dark brown meant for an opaque cream
+    // background, unreadably close in lightness to a barely-tinted dark
+    // card), and never Horror's purple.
+    expect(kitschBadge.className).toContain("bg-halloween-pumpkin/30");
+    expect(kitschBadge.className).toContain("text-halloween-cream");
+    expect(kitschBadge.className).not.toContain(
+      "text-halloween-cream-foreground",
+    );
+    expect(kitschBadge.className).not.toContain("purple");
   });
 
   it("shows no pool badge for a normal random item", () => {

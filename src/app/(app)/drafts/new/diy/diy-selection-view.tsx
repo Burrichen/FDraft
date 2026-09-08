@@ -13,8 +13,7 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import {
   getDifficulty,
-  isDraftDifficulty,
-  isFreeform,
+  isCreatableDraftDifficulty,
 } from "@/domain/drafts/difficulty";
 import { useAsyncData } from "@/hooks/use-async-data";
 
@@ -40,7 +39,9 @@ export function DiySelectionView() {
 
   const rawDifficulty = searchParams.get("difficulty");
   const rawTimeMode = searchParams.get("timeMode");
-  const difficulty = isDraftDifficulty(rawDifficulty) ? rawDifficulty : null;
+  const difficulty = isCreatableDraftDifficulty(rawDifficulty)
+    ? rawDifficulty
+    : null;
   const timeMode =
     rawTimeMode === "calendar" || rawTimeMode === "timer" ? rawTimeMode : null;
 
@@ -92,11 +93,8 @@ export function DiySelectionView() {
     return null;
   }
 
-  const freeform = isFreeform(difficulty);
-  const requiredCount = freeform ? null : getDifficulty(difficulty).filmCount!;
-  const isValidSelection = freeform
-    ? selectedEntryIds.size > 0
-    : selectedEntryIds.size === requiredCount;
+  const requiredCount = getDifficulty(difficulty).filmCount!;
+  const isValidSelection = selectedEntryIds.size === requiredCount;
 
   async function handleCreate() {
     if (!activeProfile || !difficulty || !timeMode) return;
@@ -128,9 +126,7 @@ export function DiySelectionView() {
       <div>
         <h1 className="page-heading">Build your own draft</h1>
         <p className="page-subtitle">
-          {freeform
-            ? "Select the films you want in your Freeform draft."
-            : `Select exactly ${requiredCount} films for your ${getDifficulty(difficulty).label} draft.`}
+          {`Select exactly ${requiredCount} films for your ${getDifficulty(difficulty).label} draft.`}
         </p>
       </div>
 
@@ -151,7 +147,7 @@ export function DiySelectionView() {
 
       <div className="border-border bg-card sticky bottom-4 flex items-center justify-between gap-3 rounded-lg border p-4">
         <p className="text-foreground text-sm font-medium">
-          {`${selectedEntryIds.size}${requiredCount !== null ? ` / ${requiredCount}` : ""} selected`}
+          {`${selectedEntryIds.size} / ${requiredCount} selected`}
         </p>
         <div className="flex items-center gap-2">
           <Button

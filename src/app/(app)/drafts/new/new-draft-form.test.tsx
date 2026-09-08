@@ -2,7 +2,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChallengeAvailability } from "@/components/drafts/challenge-browser";
-import type { DiySelectableFilmView } from "@/components/drafts/diy/diy-film-card";
 import { NewDraftForm } from "./new-draft-form";
 
 const push = vi.fn();
@@ -21,9 +20,44 @@ vi.mock("./actions", () => ({
   createDraftAction: vi.fn(async () => ({ error: null })),
 }));
 
+// `NewDraftForm` reads the shared discovery snapshot to resolve the
+// currently active event for its One At A Time hand-off (see docs/updates,
+// "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING") — none of these tests
+// exercise that path, so a fixed "no event active" snapshot is sufficient,
+// matching the same mocking convention `useProfileContext` already uses
+// above rather than rendering under a real `EventDiscoveryProvider`.
+vi.mock("@/components/events/event-discovery-provider", () => ({
+  useEventDiscovery: () => ({
+    result: {
+      statuses: [],
+      eventVisualsEnabled: false,
+      eventsEnabled: false,
+      now: new Date(),
+    },
+    isLoading: false,
+    refresh: vi.fn(),
+  }),
+}));
+
 afterEach(() => {
   cleanup();
   push.mockReset();
+});
+
+describe("NewDraftForm — no Freeform creation option", () => {
+  it("does not offer a Freeform difficulty card", () => {
+    render(
+      <NewDraftForm
+        activeWatchlistCount={10}
+        challenges={[]}
+        availableGenres={[]}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Freeform/ }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("NewDraftForm — Random vs DIY mode", () => {
@@ -34,7 +68,6 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
-        diyEligibleFilms={[]}
       />,
     );
 
@@ -56,7 +89,6 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
-        diyEligibleFilms={[]}
       />,
     );
 
@@ -83,7 +115,6 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
-        diyEligibleFilms={[]}
       />,
     );
 
@@ -103,7 +134,6 @@ describe("NewDraftForm — Random vs DIY mode", () => {
         activeWatchlistCount={10}
         challenges={[]}
         availableGenres={[]}
-        diyEligibleFilms={[]}
       />,
     );
 
@@ -133,38 +163,15 @@ const NUMBER_SEVEN: ChallengeAvailability = {
   eligible: true,
   ineligibleReason: null,
 };
-const DIY_CHALLENGE: ChallengeAvailability = {
-  id: "diy",
-  name: "Pick Your Own",
-  description: "You choose the exact film for this slot yourself.",
-  category: "meta",
-  interactive: false,
-  eligible: true,
-  ineligibleReason: null,
-};
-const DIY_FILMS: DiySelectableFilmView[] = [
-  {
-    entryId: "entry-1",
-    filmId: "film-1",
-    title: "Alpha",
-    releaseYear: 2020,
-    runtimeMinutes: 100,
-    posterUrl: null,
-    averageRating: null,
-    dateAdded: "2024-01-01",
-    genres: null,
-  },
-];
 
-describe("NewDraftForm — DIY Challenge Film gating", () => {
-  it("blocks submission until every chosen 'diy' challenge slot has a pre-picked film", async () => {
+describe("NewDraftForm — Choose My Challenge (normal Challenge behaviour)", () => {
+  it("fills every challenge slot via 'Choose My Challenge' and enables submission", async () => {
     const user = userEvent.setup();
     render(
       <NewDraftForm
         activeWatchlistCount={10}
-        challenges={[NUMBER_SEVEN, DIY_CHALLENGE]}
+        challenges={[NUMBER_SEVEN]}
         availableGenres={[]}
-        diyEligibleFilms={DIY_FILMS}
       />,
     );
 
@@ -173,45 +180,36 @@ describe("NewDraftForm — DIY Challenge Film gating", () => {
     await user.click(
       screen.getByRole("radio", { name: /Choose My Challenge/ }),
     );
-    await user.click(screen.getByRole("button", { name: /^Pick Your Own/ }));
+    await user.click(screen.getByRole("button", { name: /^The Number 7/ }));
     await user.click(screen.getByRole("button", { name: /^The Number 7/ }));
     await user.click(screen.getByRole("button", { name: /^The Number 7/ }));
 
-    // All 3 slots chosen (1 diy + 2 the-number-7), but no film picked yet
-    // for the diy slot — must stay disabled.
     expect(screen.getByText("3 of 3 challenges chosen")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create draft" })).toBeDisabled();
-
-    await user.click(
-      screen.getByRole("button", { name: "Choose a film for slot 1" }),
-    );
-    await user.click(screen.getByRole("button", { name: /Alpha/ }));
-    await user.click(screen.getByRole("button", { name: "Confirm" }));
-
     expect(
       screen.getByRole("button", { name: "Create draft" }),
     ).not.toBeDisabled();
   });
 
-  it("shows an optional backup-film picker under 'Decide For Me', never blocking submission", async () => {
+  it("no longer offers 'Pick Your Own' as a challenge to choose", async () => {
     const user = userEvent.setup();
     render(
       <NewDraftForm
         activeWatchlistCount={10}
-        challenges={[NUMBER_SEVEN, DIY_CHALLENGE]}
+        challenges={[NUMBER_SEVEN]}
         availableGenres={[]}
-        diyEligibleFilms={DIY_FILMS}
       />,
     );
 
     await user.click(screen.getByRole("button", { name: /Baby/ }));
+    await user.click(
+      screen.getByRole("radio", { name: /Choose My Challenge/ }),
+    );
+
     expect(
-      screen.getByText(
-        'Want a chance at a "Pick Your Own" challenge slot? (optional)',
-      ),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /^Pick Your Own/ }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create draft" }),
-    ).not.toBeDisabled();
+      screen.queryByText(/Want a chance at.*Pick Your Own/),
+    ).not.toBeInTheDocument();
   });
 });

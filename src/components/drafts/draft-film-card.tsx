@@ -3,6 +3,7 @@
 import { Check, Film, Pencil, RefreshCw, Shuffle } from "lucide-react";
 import { useState } from "react";
 import { formatChallengeDisplayValue } from "@/domain/challenges/format-display-value";
+import { formatOneAtATimeSourceLabel } from "@/domain/drafts/format-one-at-a-time-source-label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,17 +41,37 @@ const HALLOWEEN_SOURCE_LABELS: Partial<Record<DraftItemSource, string>> = {
 
 /**
  * Pool-specific badge colors (see docs/updates, "PROMPT 20 — HIGH-EFFORT
- * HALLOWEEN UI + APPROVED EASTER EGGS" §6) — pumpkin/purple/cream, never
- * the generic "outline" badge or a blood-red. Shared with
+ * HALLOWEEN UI + APPROVED EASTER EGGS" §6; contrast revised in "HALLOWEEN
+ * UI CLEANUP" §10-12) — pumpkin/purple/pumpkin-and-cream, never the
+ * generic "outline" badge or a blood-red. Shared with
  * `drafts/history/page.tsx` so both surfaces render identical badges for
  * the same source.
+ *
+ * Horror and Kitsch were both previously a low-opacity tint of their own
+ * color paired with EITHER that same color as text (Horror: purple-on-
+ * near-black purple-tint, too close in lightness to read clearly) OR a
+ * foreground token designed for an opaque background used against a
+ * barely-tinted dark card instead (Kitsch: `cream-foreground`, a dark
+ * brown, meant to sit on solid cream — nearly as dark as the card itself
+ * at 20% opacity). Both now use their color's own proper `-foreground`/
+ * light-text pairing at a richer background opacity instead, the same
+ * high-contrast pattern `--primary`/`--primary-foreground` already
+ * establishes for Halloween's dark palette, and a subtle matching border
+ * for definition — while staying deliberately distinct from each other
+ * AND from `halloween-adjacent` (which keeps its own already-legible
+ * pumpkin-on-near-black treatment unchanged): Horror reads as a deep
+ * plum chip with near-white lavender text; Kitsch a warm pumpkin/brown
+ * chip with pale cream text, never Horror's purple or a copy of
+ * `halloween-adjacent`'s monochrome orange-on-orange.
  */
 export const HALLOWEEN_SOURCE_BADGE_CLASSNAMES: Partial<
   Record<DraftItemSource, string>
 > = {
   "halloween-adjacent": "bg-halloween-pumpkin/15 text-halloween-pumpkin",
-  horror: "bg-halloween-purple/20 text-halloween-purple",
-  kitsch: "bg-halloween-cream/20 text-halloween-cream-foreground",
+  horror:
+    "bg-halloween-purple/35 text-halloween-purple-foreground border-halloween-purple/60",
+  kitsch:
+    "bg-halloween-pumpkin/30 text-halloween-cream border-halloween-cream/40",
 };
 
 export interface DraftFilmChallengeView {
@@ -99,6 +120,8 @@ export interface DraftFilmCardView {
   canEdit: boolean;
   /** See `DraftItemSource` — drives the Halloween pool badge and, for a `null` `entryId` item, which watch-toggle control renders (see docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS"). */
   source: DraftItemSource;
+  /** See `DraftItemRecord.eventCategoryKey` — `null` for a normal draft item, an old-style Halloween pool item (category is already encoded in `source` for those), or a January Event item (no categories). Set for a category-based Event One At A Time item (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §14). */
+  eventCategoryKey: string | null;
 }
 
 /**
@@ -166,12 +189,19 @@ export function DraftFilmCard({
   // undoable (see docs/product-spec.md, "WATCHED FILM UNDO").
   const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const canUndo = film.isCompleted && isWatchedThisSession && film.entryId;
-  // A Horror/Kitsch item is never on the watchlist (`entryId: null` by
-  // design, not decay — see `DraftFilmCardView.source`) — it gets a
-  // separate watch-toggle path, keyed by this draft item's own id instead
-  // of a watchlist entry id (see `halloween-film-watch-toggle.tsx`).
+  // A Horror/Kitsch item (old-style pool source) or a category-based Event
+  // One At A Time item (`eventCategoryKey` set) is never on the watchlist
+  // (`entryId: null` by design, not decay — see `DraftFilmCardView.source`/
+  // `.eventCategoryKey`) — either gets the same separate watch-toggle path,
+  // keyed by this draft item's own id instead of a watchlist entry id (see
+  // `halloween-film-watch-toggle.tsx`, itself already fully generic despite
+  // its name). A genuinely-decayed normal item (`entryId: null` because its
+  // watchlist entry was later deleted, unrelated to any of this) has
+  // neither condition and correctly falls through to hiding watch controls
+  // entirely, exactly as before.
   const isHalloweenPoolItem =
-    !film.entryId && !!HALLOWEEN_SOURCE_LABELS[film.source];
+    !film.entryId &&
+    (!!HALLOWEEN_SOURCE_LABELS[film.source] || film.eventCategoryKey !== null);
   const isWatchedThisSessionHalloween = useIsWatchedThisSessionForItem(
     isHalloweenPoolItem ? film.itemId : null,
   );
@@ -361,6 +391,30 @@ export function DraftFilmCard({
               )}
             >
               {HALLOWEEN_SOURCE_LABELS[film.source]}
+            </Badge>
+          ) : film.eventCategoryKey ? (
+            // A category-based Event One At A Time item (see docs/updates,
+            // "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §14) —
+            // "Horror · Random"/"Kitsch · Chosen"/"Horror · Challenge:
+            // <name>", a single compound badge composing the category with
+            // how this particular film was actually picked (unlike the
+            // OLDER Halloween pool badge above, which only ever meant
+            // "random from this pool" and never needed an origin at all).
+            <Badge variant="secondary" className="w-fit text-[0.65rem]">
+              {formatOneAtATimeSourceLabel({
+                source: film.source as "random" | "manual" | "challenge",
+                challengeId: null,
+                challengeName: film.challenge?.name ?? null,
+                // The category KEY (e.g. "horror") capitalized as a
+                // reasonable display label — this card has no access to
+                // `EventDefinition.contentPools[].label` without threading
+                // a lookup map through every caller; every real category
+                // key today (horror/kitsch/classic/adjacent) already reads
+                // correctly capitalized this way.
+                categoryLabel:
+                  film.eventCategoryKey.charAt(0).toUpperCase() +
+                  film.eventCategoryKey.slice(1),
+              })}
             </Badge>
           ) : null}
           {film.challenge ? (

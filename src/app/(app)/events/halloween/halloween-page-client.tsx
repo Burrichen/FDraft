@@ -4,13 +4,13 @@ import { formatInTimeZone } from "date-fns-tz";
 import { toast } from "sonner";
 import { isOccurrenceActiveNow } from "@/application/events/event-discovery";
 import { DraftLifecycleView } from "@/components/drafts/draft-lifecycle-view";
-import { HalloweenCandyBowl } from "@/components/events/halloween-candy-bowl";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
-import { HalloweenDecorativeLayer } from "@/components/events/halloween-decorative-layer";
+import {
+  HalloweenDecorativeLayer,
+  HalloweenGhostPeekLayer,
+} from "@/components/events/halloween-decorative-layer";
 import { HalloweenDraftCreationView } from "@/components/events/halloween-draft-creation-view";
 import { describeFixedEventDeadline } from "@/components/events/fixed-event-deadline-copy";
-import { HalloweenGravestone } from "@/components/events/halloween-gravestone";
-import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { resolveEventTheme } from "@/components/events/event-visual-themes";
 import { useEventOptInFlow } from "@/components/events/use-event-opt-in-flow";
 import { useProfileContext } from "@/components/profiles/profile-provider";
@@ -54,8 +54,9 @@ import { useAsyncData } from "@/hooks/use-async-data";
  *
  * No `max-w-2xl` wrapper (see docs/updates, "HALLOWEEN PAGE REBUILD" §13)
  * — the normal Drafts page (`/drafts`) has no width constraint of its own
- * beyond the app shell's shared `max-w-6xl`, so a narrower cap here read
- * as a "secondary utility page" rather than a genuine themed counterpart.
+ * beyond the app shell's shared `.app-shell-width` (see `globals.css`), so
+ * a narrower cap here read as a "secondary utility page" rather than a
+ * genuine themed counterpart.
  */
 export function HalloweenPageClient() {
   const { activeProfile, repositories } = useProfileContext();
@@ -114,7 +115,8 @@ export function HalloweenPageClient() {
     <div className="theme-halloween relative">
       <HalloweenDecorativeLayer />
       <div className="relative space-y-6">
-        <div>
+        <div className="relative">
+          <HalloweenGhostPeekLayer />
           <h1 className="page-heading flex flex-wrap items-center gap-2">
             {theme ? (
               <theme.icon aria-hidden="true" className="size-6" />
@@ -130,10 +132,21 @@ export function HalloweenPageClient() {
 
         <DraftLifecycleView
           sourceEventId={HALLOWEEN_EVENT_ID}
-          emptyState={
+          emptyState={(reloadDraft) =>
             isActiveForProfile ? (
               <HalloweenDraftCreationView
-                onCreated={reloadSilently}
+                onCreated={() => {
+                  // Refreshes BOTH this page's own Haunted Points balance
+                  // AND `DraftLifecycleView`'s own internal draft data (see
+                  // docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME
+                  // DRAFTING") — without the latter, a newly created Draft
+                  // never actually replaces this empty state until a full
+                  // page reload, since `DraftLifecycleView` has its own
+                  // separate `useAsyncData` instance this page's own
+                  // `reloadSilently` has no way to touch.
+                  void reloadSilently();
+                  reloadDraft();
+                }}
                 gameplayEnabled={discovery.result.eventsEnabled}
               />
             ) : (
@@ -169,24 +182,23 @@ export function HalloweenPageClient() {
           }
         />
 
-        {isActiveForProfile ? (
-          <>
-            {hauntedPoints !== null && hauntedPoints !== undefined ? (
-              <p className="text-muted-foreground text-sm">
-                Haunted Points:{" "}
-                <strong className="tabular-nums">{hauntedPoints}</strong>
-              </p>
-            ) : null}
-
-            <div
-              key={activeProfile.id}
-              className="border-halloween-purple/20 flex flex-wrap items-end justify-center gap-6 border-t pt-6"
-            >
-              <HalloweenGravestone />
-              <HalloweenPumpkin />
-              <HalloweenCandyBowl />
-            </div>
-          </>
+        {/* No interactive easter egg row here any more (see docs/updates,
+            "HALLOWEEN VISUAL/LAYOUT REPAIR" and "HALLOWEEN UI CLEANUP") —
+            the gravestone left this page first (still reachable via the
+            Event Studio theme system, see `theme-interaction-registry.tsx`),
+            the pumpkin moved to History and then on to Stats
+            (`HalloweenPumpkin`, in `stats-view.tsx`), and the Candy Bowl
+            that used to sit here has been removed from the app entirely
+            (its component/art/registry entries remain in the codebase —
+            see `halloween-decoration-layout.ts`'s top comment — simply
+            with no live slot rendering it any more). */}
+        {isActiveForProfile &&
+        hauntedPoints !== null &&
+        hauntedPoints !== undefined ? (
+          <p className="text-muted-foreground text-sm">
+            Haunted Points:{" "}
+            <strong className="tabular-nums">{hauntedPoints}</strong>
+          </p>
         ) : null}
       </div>
     </div>

@@ -10,24 +10,43 @@ const FIXTURE_CSV = path.join(__dirname, "fixtures", "sample-watchlist.csv");
  * unnecessary metadata calls during ordinary execution."
  *
  * `/api/metadata` is intercepted here rather than hitting the real TMDB
- * API — this test has no `TMDB_API_KEY` configured (correctly — see
- * `.env.example`, nothing in this repo should depend on a real third-party
- * credential to run its test suite) and isn't trying to verify TMDB's
- * behavior anyway. What it verifies is FDraft's OWN contract: enrichment
- * only ever happens on the explicit "Download Missing Metadata" click,
- * never automatically, and never again afterward for the same films —
- * exactly the boundary `src/app/api/metadata/route.ts`'s own doc comment
- * describes ("Nothing about a challenge's normal execution ever reaches
- * this route").
+ * API — this test isn't trying to verify TMDB's behavior. What it verifies
+ * is FDraft's OWN contract: a WATCHLIST film is enriched only on the
+ * explicit "Download Missing Metadata" click, never automatically, and
+ * never again afterward — exactly the boundary
+ * `src/app/api/metadata/route.ts`'s own doc comment describes ("Nothing
+ * about a challenge's normal execution ever reaches this route").
+ *
+ * The count is scoped to the FIXTURE'S OWN five titles rather than being a
+ * global request tally. A global tally silently stopped measuring this
+ * contract once Static Event Film Content Packs began resolve-or-creating
+ * each Event's curated films at app start and enriching whichever ones
+ * were newly created (see `loadEventCategoryFilmContent`) — that is a
+ * separate, deliberate startup activity for curated EVENT content, has
+ * nothing to do with a profile's watchlist, and grows every time a curated
+ * list does, so it swamped the number this test cares about. Scoping by
+ * title measures the real rule again, and the "ordinary execution adds
+ * ZERO further calls" assertion below is now a strict delta rather than an
+ * absolute, which is the part that actually catches a regression.
  */
 test("metadata enriched while online remains available offline, and nothing ever re-fetches it", async ({
   page,
   context,
 }) => {
-  let metadataRequestCount = 0;
+  /** The fixture's own five titles — see `e2e/fixtures/sample-watchlist.csv`. */
+  const WATCHLIST_TITLES = [
+    "Paddington 2",
+    "Inception",
+    "Spirited Away",
+    "Parasite",
+    "The Grand Budapest Hotel",
+  ];
+  let watchlistRequestCount = 0;
   await page.route("**/api/metadata", async (route) => {
-    metadataRequestCount++;
     const body = route.request().postDataJSON() as { title: string };
+    if (WATCHLIST_TITLES.includes(body.title)) {
+      watchlistRequestCount++;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -64,7 +83,8 @@ test("metadata enriched while online remains available offline, and nothing ever
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await page.getByRole("button", { name: "Download Missing Metadata" }).click();
   await expect(page.getByText("5 matched.")).toBeVisible();
-  expect(metadataRequestCount).toBe(5);
+  // Exactly one call per watchlist film, and not one more.
+  expect(watchlistRequestCount).toBe(5);
 
   // --- Go offline: the downloaded metadata must still be there ---
   await context.setOffline(true);
@@ -95,5 +115,11 @@ test("metadata enriched while online remains available offline, and nothing ever
   await page.getByRole("link", { name: "Stats" }).click();
   await expect(page.getByRole("heading", { name: "Stats" })).toBeVisible();
 
-  expect(metadataRequestCount).toBe(5);
+  // Still exactly five — drafting, marking watched and Stats never
+  // re-fetch a film whose metadata is already cached. Deliberately NOT
+  // also asserting on the global request total: the app shell's curated
+  // Event content enrichment is fire-and-forget and unbounded in time, so
+  // a global delta is a race, not a contract. The scoped count IS the
+  // contract this test exists for.
+  expect(watchlistRequestCount).toBe(5);
 });

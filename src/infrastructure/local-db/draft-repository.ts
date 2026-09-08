@@ -9,13 +9,13 @@ import type { FDraftLocalDatabase } from "./database";
 
 /**
  * A draft written before `sourceEventId`/`rewardsGrantedAt`/
- * `sourceEventManuallyEnabled`/`customName` existed has none of those
- * properties at all (Dexie/IndexedDB don't enforce a schema on
- * non-indexed fields — see `schema.ts`'s note on `matchMethod` for the
- * same situation) — normalize to their sensible defaults at the one
- * chokepoint every read passes through, so nothing downstream ever has to
- * treat `undefined` as a third state alongside `string | null`/
- * `boolean | null`.
+ * `sourceEventManuallyEnabled`/`customName`/`eventOccurrenceYear` existed
+ * has none of those properties at all (Dexie/IndexedDB don't enforce a
+ * schema on non-indexed fields — see `schema.ts`'s note on `matchMethod`
+ * for the same situation) — normalize to their sensible defaults at the
+ * one chokepoint every read passes through, so nothing downstream ever
+ * has to treat `undefined` as a third state alongside `string | null`/
+ * `boolean | null`/`number | null`.
  */
 function normalizeDraft(draft: DraftRecord): DraftRecord {
   return {
@@ -24,6 +24,7 @@ function normalizeDraft(draft: DraftRecord): DraftRecord {
     rewardsGrantedAt: draft.rewardsGrantedAt ?? null,
     sourceEventManuallyEnabled: draft.sourceEventManuallyEnabled ?? null,
     customName: draft.customName ?? null,
+    eventOccurrenceYear: draft.eventOccurrenceYear ?? null,
   };
 }
 
@@ -34,6 +35,7 @@ function normalizeDraftItem(item: DraftItemRecord): DraftItemRecord {
     originFilmId: item.originFilmId ?? null,
     substitutionReason: item.substitutionReason ?? null,
     eventRewardGrantedAt: item.eventRewardGrantedAt ?? null,
+    eventCategoryKey: item.eventCategoryKey ?? null,
   };
 }
 
@@ -74,6 +76,19 @@ export class LocalDraftRepository implements DraftRepository {
     const drafts = await this.db.drafts
       .where("[profileId+status]")
       .equals([profileId, "archived"])
+      .toArray();
+    return drafts
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(normalizeDraft);
+  }
+
+  async listHistorical(profileId: string): Promise<DraftRecord[]> {
+    const drafts = await this.db.drafts
+      .where("[profileId+status]")
+      .anyOf([
+        [profileId, "archived"],
+        [profileId, "expired"],
+      ])
       .toArray();
     return drafts
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

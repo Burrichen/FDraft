@@ -24,7 +24,7 @@ describe("draftConfigInputSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("requires randomCount/challengeCount for non-freeform difficulties", () => {
+  it("requires randomCount/challengeCount", () => {
     const result = draftConfigInputSchema.safeParse({
       difficulty: "baby",
       timeMode: "timer",
@@ -32,12 +32,12 @@ describe("draftConfigInputSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("does not require a split for freeform", () => {
+  it("rejects 'freeform' as a difficulty — retired as a creation mode", () => {
     const result = draftConfigInputSchema.safeParse({
       difficulty: "freeform",
       timeMode: "timer",
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it("requires a challengeMode when challengeCount > 0", () => {
@@ -164,69 +164,6 @@ describe("draftConfigInputSchema", () => {
       manualGenre: "Horror",
     });
     expect(result.success).toBe(true);
-  });
-
-  it("accepts a chosen 'diy' slot with its pre-picked film supplied", () => {
-    const result = draftConfigInputSchema.safeParse({
-      difficulty: "baby",
-      timeMode: "calendar",
-      randomCount: 4,
-      challengeCount: 1,
-      challengeMode: "choose",
-      chosenChallengeIds: ["diy"],
-      diyFilmEntryIds: ["entry-1"],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects a chosen 'diy' slot with no pre-picked film supplied", () => {
-    const result = draftConfigInputSchema.safeParse({
-      difficulty: "baby",
-      timeMode: "calendar",
-      randomCount: 4,
-      challengeCount: 1,
-      challengeMode: "choose",
-      chosenChallengeIds: ["diy"],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects two chosen 'diy' slots with only one pre-picked film supplied", () => {
-    const result = draftConfigInputSchema.safeParse({
-      difficulty: "baby",
-      timeMode: "calendar",
-      randomCount: 3,
-      challengeCount: 2,
-      challengeMode: "choose",
-      chosenChallengeIds: ["diy", "diy"],
-      diyFilmEntryIds: ["entry-1"],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts optional diyFilmEntryIds backups under 'decide' mode, with no count requirement", () => {
-    const result = draftConfigInputSchema.safeParse({
-      difficulty: "medium",
-      timeMode: "calendar",
-      randomCount: 4,
-      challengeCount: 6,
-      challengeMode: "decide",
-      diyFilmEntryIds: ["entry-1", "entry-2"],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects duplicate entries in diyFilmEntryIds", () => {
-    const result = draftConfigInputSchema.safeParse({
-      difficulty: "baby",
-      timeMode: "calendar",
-      randomCount: 3,
-      challengeCount: 2,
-      challengeMode: "choose",
-      chosenChallengeIds: ["diy", "diy"],
-      diyFilmEntryIds: ["entry-1", "entry-1"],
-    });
-    expect(result.success).toBe(false);
   });
 });
 

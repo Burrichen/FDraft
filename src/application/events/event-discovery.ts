@@ -4,6 +4,16 @@ import {
   type EventEndingAcknowledgements,
 } from "@/application/events/event-ending-acknowledgement-store";
 import {
+  getEventEndingStingerAcknowledgements,
+  type EventEndingStingerAcknowledgements,
+} from "@/application/events/event-ending-stinger-store";
+import {
+  getEventManualActivations,
+  hasManualActivationEnded,
+  resolvePinnedManualOccurrenceKey,
+  type EventManualActivations,
+} from "@/application/events/event-manual-activation-store";
+import {
   getEventParticipations,
   type EventParticipations,
 } from "@/application/events/event-participation-store";
@@ -91,6 +101,27 @@ export interface EventOccurrenceStatus {
    * need.
    */
   endingAcknowledged: boolean;
+  /**
+   * Whether this profile has already dismissed this occurrence's SECOND
+   * ending modal (see `EventEndingContent.stinger`,
+   * `event-ending-stinger-store.ts`) — `false` for a manual-only event
+   * with no occurrence key, and meaningless for the (majority of) events
+   * that declare no stinger at all. Only ever read alongside
+   * `endingAcknowledged` by `resolveEventEndingStingerCandidate` below.
+   */
+  endingStingerAcknowledged: boolean;
+  /**
+   * Whether a MANUAL activation of this event has run its course as of
+   * `now` — the end of the occurrence it was activated against has passed
+   * (see `event-manual-activation-store.ts`). Always `false` for an event
+   * this profile never manually activated, and for one activated on a
+   * build before that instant was recorded.
+   *
+   * This is what lets a manual activation reach an ending at all, while
+   * still keeping a mid-season opt-in active for the rest of its run —
+   * read by `isOccurrenceActiveNow`/`isOccurrenceExpired` below.
+   */
+  manualActivationEnded: boolean;
 }
 
 export interface EventDiscoveryResult {
@@ -136,12 +167,19 @@ export async function getEventDiscovery(
   const now = await getEffectiveEventDate(repos, params.profileId, {
     clock: deps.clock,
   });
-  const [participations, eventSettings, endingAcknowledgements] =
-    await Promise.all([
-      getEventParticipations(repos, params.profileId),
-      getEventSettings(repos, params.profileId),
-      getEventEndingAcknowledgements(repos, params.profileId),
-    ]);
+  const [
+    participations,
+    eventSettings,
+    endingAcknowledgements,
+    stingerAcknowledgements,
+    manualActivations,
+  ] = await Promise.all([
+    getEventParticipations(repos, params.profileId),
+    getEventSettings(repos, params.profileId),
+    getEventEndingAcknowledgements(repos, params.profileId),
+    getEventEndingStingerAcknowledgements(repos, params.profileId),
+    getEventManualActivations(repos, params.profileId),
+  ]);
 
   const statuses = EVENT_DEFINITIONS.map((event) =>
     resolveOccurrenceStatus(
@@ -150,6 +188,8 @@ export async function getEventDiscovery(
       params.timezone,
       participations,
       endingAcknowledgements,
+      stingerAcknowledgements,
+      manualActivations,
       { manuallyEnabledEvents: eventSettings.manuallyEnabledEvents },
     ),
   );
@@ -168,10 +208,22 @@ function resolveOccurrenceStatus(
   timezone: string,
   participations: EventParticipations,
   endingAcknowledgements: EventEndingAcknowledgements,
+  stingerAcknowledgements: EventEndingStingerAcknowledgements,
+  manualActivations: EventManualActivations,
   eventSettings: { manuallyEnabledEvents: string[] },
 ): EventOccurrenceStatus {
   const available = isEventAvailable(event.availability, now, timezone);
-  const occurrenceKey = computeOccurrenceKeyForEvent(event, now, timezone);
+  // A manual activation PINS this event to the occurrence it was joined
+  // under for as long as that activation still has something outstanding
+  // (see `resolvePinnedManualOccurrenceKey`) — otherwise a run that
+  // crosses a year boundary silently becomes a different, unanswered
+  // occurrence mid-flight, taking the Event page and its ending with it.
+  const occurrenceKey =
+    resolvePinnedManualOccurrenceKey(manualActivations, event.id, {
+      now,
+      available,
+      isEndingAcknowledged: (key) => endingAcknowledgements[key] === true,
+    }) ?? computeOccurrenceKeyForEvent(event, now, timezone);
   const manuallyEnabled = eventSettings.manuallyEnabledEvents.includes(
     event.id,
   );
@@ -185,6 +237,10 @@ function resolveOccurrenceStatus(
     occurrenceKey !== null
       ? (endingAcknowledgements[occurrenceKey] ?? false)
       : false;
+  const endingStingerAcknowledged =
+    occurrenceKey !== null
+      ? (stingerAcknowledgements[occurrenceKey] ?? false)
+      : false;
   return {
     event,
     occurrenceKey,
@@ -192,6 +248,12 @@ function resolveOccurrenceStatus(
     manuallyEnabled,
     participation,
     endingAcknowledged,
+    endingStingerAcknowledged,
+    manualActivationEnded: hasManualActivationEnded(
+      manualActivations,
+      event.id,
+      now,
+    ),
   };
 }
 
@@ -214,7 +276,8 @@ function resolveOccurrenceStatus(
 export function isOccurrenceActiveNow(status: EventOccurrenceStatus): boolean {
   return (
     status.participation === "joined" &&
-    (status.available || status.manuallyEnabled)
+    (status.available ||
+      (status.manuallyEnabled && !status.manualActivationEnded))
   );
 }
 
@@ -271,21 +334,25 @@ export function resolveEventIntroCandidate(
 }
 
 /**
- * A JOINED occurrence whose window has now closed — see docs/updates,
- * "EVENT SYSTEM — EVENT-OVER EXPERIENCE" §1: "ACTIVE -> EXPIRED." The
- * inverse of `isOccurrenceActiveNow`'s own `available || manuallyEnabled`
- * check, deliberately excluding a manual activation the same way that
- * function does: a `manualActivationAllowed` event (January) that was
- * manually enabled stays active indefinitely by design (see
- * `isOccurrenceActiveNow`'s doc comment) — there is no "window closing" to
- * mark as an ending for that kind of join, only for a natural-only one
- * (Halloween) whose window has a real, meaningful close.
+ * A JOINED occurrence that has now concluded — see docs/updates, "EVENT
+ * SYSTEM — EVENT-OVER EXPERIENCE" §1: "ACTIVE -> EXPIRED." The exact
+ * inverse of `isOccurrenceActiveNow`, so an occurrence is never both at
+ * once: a natural join concludes when its window closes, and a manual
+ * activation when its own recorded run ends
+ * (`event-manual-activation-store.ts`).
+ *
+ * Manual activations USED to be excluded outright here, which was the
+ * only way to stop one expiring the instant it was created (it is keyed
+ * to an occurrence whose window has typically already closed). The cost
+ * was that a manually activated event never reached its Event-over
+ * experience at all — now fixed by comparing against the activation's own
+ * recorded end instead of ignoring it.
  */
 export function isOccurrenceExpired(status: EventOccurrenceStatus): boolean {
   return (
     status.participation === "joined" &&
     !status.available &&
-    !status.manuallyEnabled
+    (!status.manuallyEnabled || status.manualActivationEnded)
   );
 }
 
@@ -309,6 +376,38 @@ export function resolveEventEndingCandidate(
       Boolean(status.event.ending?.enabled) &&
       isOccurrenceExpired(status) &&
       !status.endingAcknowledged,
+  );
+  return candidate
+    ? { ...candidate, occurrenceKey: candidate.occurrenceKey! }
+    : null;
+}
+
+/**
+ * Which event's SECOND ending modal should show right now, if any (see
+ * `EventEndingContent.stinger`, docs/updates "FDRAFT UPDATE 1 — CHRISTMAS
+ * DRAFT DIFFICULTIES + VISUAL POLISH" §16) — the exact same eligibility as
+ * `resolveEventEndingCandidate` with two extra conditions: the event must
+ * actually declare a `stinger`, the FIRST stage must already be
+ * acknowledged, and this stage must not be. Registry order, first match
+ * wins, same as every other resolver here.
+ *
+ * Deliberately a separate function rather than extra state threaded
+ * through the first one: the two stages are independently persisted, so
+ * "which goodbye is showing" and "which sting is showing" are genuinely
+ * separate questions, and an event with no stinger can never be a
+ * candidate here at all.
+ */
+export function resolveEventEndingStingerCandidate(
+  statuses: EventOccurrenceStatus[],
+): (EventOccurrenceStatus & { occurrenceKey: string }) | null {
+  const candidate = statuses.find(
+    (status) =>
+      status.occurrenceKey !== null &&
+      Boolean(status.event.ending?.enabled) &&
+      Boolean(status.event.ending?.stinger) &&
+      isOccurrenceExpired(status) &&
+      status.endingAcknowledged &&
+      !status.endingStingerAcknowledged,
   );
   return candidate
     ? { ...candidate, occurrenceKey: candidate.occurrenceKey! }

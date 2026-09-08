@@ -80,6 +80,7 @@ function baseHalloweenDraft(overrides: Partial<DraftRecord> = {}): DraftRecord {
     sourceEventId: HALLOWEEN_EVENT_ID,
     sourceEventManuallyEnabled: false,
     rewardsGrantedAt: null,
+    eventOccurrenceYear: null,
     customName: null,
     createdAt: "2026-10-15T12:00:00.000Z",
     updatedAt: "2026-10-15T12:00:00.000Z",
@@ -228,8 +229,10 @@ describe("HalloweenPageClient — active Draft rendered directly on the page", (
 
     render(<Harness databaseName={databaseName} />);
 
+    // Canonical Halloween naming (see docs/updates, "HALLOWEEN UI CLEANUP"
+    // §7-9) — never the generated `<Month> <Difficulty> Draft` form.
     await waitFor(() =>
-      expect(screen.getByText(/october baby draft/i)).toBeInTheDocument(),
+      expect(screen.getByText(/halloween 2026 draft/i)).toBeInTheDocument(),
     );
     // The film itself renders inline, right on this page.
     expect(screen.getByText("The Exorcist")).toBeInTheDocument();
@@ -242,6 +245,21 @@ describe("HalloweenPageClient — active Draft rendered directly on the page", (
     expect(
       screen.queryByRole("link", { name: /go to your draft/i }),
     ).not.toBeInTheDocument();
+    // Halloween Draft naming is canonical — no rename control offered (see
+    // docs/updates, "HALLOWEEN UI CLEANUP" §9).
+    expect(
+      screen.queryByRole("button", { name: "Rename draft" }),
+    ).not.toBeInTheDocument();
+    // The FILMS progress bar uses Halloween's own orange accent, not the
+    // normal green (§6).
+    const filmsProgress = screen.getByRole("progressbar", {
+      name: "Films watched",
+    });
+    const filmsIndicator = filmsProgress.querySelector(
+      '[data-slot="progress-indicator"]',
+    );
+    expect(filmsIndicator?.className).toContain("bg-halloween-pumpkin");
+    expect(filmsIndicator?.className).not.toContain("watchlist-green");
   });
 
   it("normal Draft and Halloween Draft can be active at the same time without confusing this page", async () => {

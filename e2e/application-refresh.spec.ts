@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { dismissEventIntroIfPresent } from "./fixtures/event-intro";
 
 const FIXTURE_CSV = path.join(__dirname, "fixtures", "sample-watchlist.csv");
 
@@ -104,6 +105,7 @@ test("a partially-answered postmortem survives a refresh — the answered film i
 
   await page.clock.setFixedTime(Date.now() + 31 * 24 * 60 * 60 * 1000);
   await page.reload();
+  await dismissEventIntroIfPresent(page);
   await expect(
     page.getByRole("heading", { name: /Baby draft — expired/i }),
   ).toBeVisible();
@@ -116,6 +118,7 @@ test("a partially-answered postmortem survives a refresh — the answered film i
   await expect(page.getByText("You said: I just didn't")).toBeVisible();
 
   await page.reload();
+  await dismissEventIntroIfPresent(page);
 
   await expect(
     page.getByRole("heading", { name: /Baby draft — expired/i }),
@@ -141,6 +144,7 @@ test("settings survive a refresh", async ({ page }) => {
   await expect(page.getByRole("list").getByText("Alex")).toBeVisible();
 
   await page.reload();
+  await dismissEventIntroIfPresent(page);
 
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("list").getByText("Alex")).toBeVisible();
@@ -167,6 +171,7 @@ test("an unsubmitted draft-creation wizard resets cleanly on refresh, rather tha
   await page.getByRole("button", { name: /^Baby/ }).click();
 
   await page.reload();
+  await dismissEventIntroIfPresent(page);
 
   // Documented, honest behavior (see this file's top comment) — the
   // in-progress wizard selection was never persisted, so a refresh here

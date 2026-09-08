@@ -40,6 +40,7 @@ function halloweenDraft(overrides: Partial<DraftRecord> = {}): DraftRecord {
     sourceEventId: HALLOWEEN_EVENT_ID,
     sourceEventManuallyEnabled: false,
     rewardsGrantedAt: null,
+    eventOccurrenceYear: null,
     customName: null,
     createdAt: "2026-10-15T12:00:00.000Z",
     updatedAt: "2026-10-15T12:00:00.000Z",

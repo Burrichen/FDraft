@@ -4,8 +4,11 @@ import type { DraftTimeProgress as DraftTimeProgressValue } from "@/domain/draft
 /** The Active Draft page's DAYS progress bar (see docs/product-spec.md, "ACTIVE DRAFT PAGE"). Server-rendered — deadlines don't need client-side ticking. */
 export function DraftTimeProgress({
   progress,
+  indicatorClassName,
 }: {
   progress: DraftTimeProgressValue;
+  /** Overrides the bar's own default fill — used by a themed Event Draft so its time bar matches that Event's accent (see `DRAFT_EVENT_PROGRESS_ACCENTS`, `draft-lifecycle-view.tsx`). Omitted keeps the app's default. */
+  indicatorClassName?: string;
 }) {
   const daysLabel =
     progress.daysRemaining === 0 && !progress.isExpired
@@ -29,7 +32,11 @@ export function DraftTimeProgress({
           {daysLabel} · {progress.percentElapsed}% elapsed
         </span>
       </div>
-      <Progress value={progress.percentElapsed} aria-label="Time elapsed" />
+      <Progress
+        value={progress.percentElapsed}
+        aria-label="Time elapsed"
+        indicatorClassName={indicatorClassName}
+      />
     </div>
   );
 }

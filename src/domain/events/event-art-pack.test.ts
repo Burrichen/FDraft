@@ -112,9 +112,23 @@ describe("the real, bundled art packs", () => {
         `/events/halloween/${pack.interactives[slot]}`,
       );
     }
+    // "ghost" now points at the real `ghost_01.png` asset (see
+    // docs/updates, "HALLOWEEN EVENT ART REWORK") — the old `ghost.png`
+    // file no longer exists on disk since it was replaced by the two
+    // supplied `ghost_01`/`ghost_02` illustrations.
     expect(resolveEventArtPath(pack, "modal", "ghost")).toBe(
-      "/events/halloween/modal/ghost.png",
+      "/events/halloween/modal/ghost_01.png",
     );
+    for (const [slot, file] of [
+      ["ghost-01", "ghost_01.png"],
+      ["ghost-02", "ghost_02.png"],
+      ["full-moon", "moon.png"],
+      ["cyndaquil", "cyndaquil_halloween.png"],
+    ] as const) {
+      expect(resolveEventArtPath(pack, "modal", slot)).toBe(
+        `/events/halloween/modal/${file}`,
+      );
+    }
   });
 
   it("Christmas's scaffold manifest.json parses and its placeholder slots resolve, proving the same system works for a second event with zero code branches", () => {

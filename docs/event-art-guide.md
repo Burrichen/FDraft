@@ -19,8 +19,7 @@ public/events/
 ```
 
 - **Halloween assets** → `public/events/halloween/`
-- **Christmas assets** → `public/events/christmas/` (Christmas isn't a real
-  event yet — this is scaffolding/placeholder art only, see §8)
+- **Christmas assets** → `public/events/christmas/`
 - **Manifests (the config that lists which files exist)** →
   `public/events/<event>/manifest.json`
 - **Slot configs (what appears where, and how often)** → in code, under
@@ -100,20 +99,7 @@ Two options:
    (see §4). This last step needs a tiny bit of code — ask an engineer if
    you're not sure.
 
-## 8. How to preview Christmas (or another future event)
-
-Christmas isn't turned on for real users — it's a scaffold used to prove
-the art system works for more than Halloween. To see it:
-
-1. Open the app → **Settings**.
-2. Scroll to **Developer** → turn on **Admin Mode**.
-3. Scroll down to **"Event art system (dev preview)"**.
-
-This lists every event that has art registered (Halloween, Christmas, and
-any future ones) with its icon, a count of its assets, and a live preview
-of its decorations — all in one place, dev-only, no gameplay involved.
-
-## 9. Tips for good assets
+## 8. Tips for good assets
 
 - Use a **transparent background** (PNG or WebP).
 - Keep filenames **simple and lowercase-with-dashes** (`pumpkin-lit.png`,
@@ -133,7 +119,6 @@ of its decorations — all in one place, dev-only, no gameplay involved.
 | Change what shows in a spot      | Edit that slot's `variants` list (§4)           |
 | Make something rarer/more common | Change its `weight` number (§5)                 |
 | Turn a spot off                  | Set it to `{ assetId: null, weight: 1 }` (§6)   |
-| See Christmas's placeholder art  | Settings → Developer → Admin Mode (§8)          |
 
 See also `public/events/README.md` for a shorter, folder-level version of
 this same info.

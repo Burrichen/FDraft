@@ -38,6 +38,25 @@ real illustration instead of today's placeholder:
 That's it — no code change, no rebuild step beyond the app's normal
 build. The app always reads whatever file currently sits at that path.
 
+### The Haunted button's skeleton
+
+The one asset most likely to get swapped by hand lives at:
+
+```
+public/events/halloween/interactives/haunted-button-skeleton.png
+```
+
+It is the picture the "Haunted" Settings easter egg shows. Replacing it
+is steps 1–3 above and nothing else — drop a new PNG over that exact
+filename, rebuild, done. Two things worth knowing:
+
+- **Don't give it a black background.** The effect draws its own
+  full-window black overlay and centres your image on top, so a
+  transparent-background PNG is what you want.
+- **Any size or shape is fine.** The image is scaled down to fit the
+  window with its aspect ratio preserved (`object-fit: contain`), never
+  stretched or cropped, so a tall, wide, or square replacement all work.
+
 ## How to add a brand-new slot
 
 1. Drop the new file into the right subfolder (e.g.
@@ -75,10 +94,12 @@ meant to appear somewhere it doesn't already.
 
 ## Christmas
 
-`public/events/christmas/` is a **scaffold only** — placeholder-quality
-PNGs proving the same folder/manifest shape works for a second event,
-with no Christmas event logic, page, or nav entry wired up anywhere yet.
-Its nav icon will reuse `lucide-react`'s `Snowflake` when a real
-Christmas Event is built (see the reservation note in
-`src/components/events/event-visual-themes.ts`) — no icon file is
-needed here until that happens.
+Christmas is now a real, fully wired Event (page, nav tab, drafting,
+theme — see docs/product-spec.md, "CHRISTMAS EVENT"), and its art pack is
+live: `decorations/fairy-lights.png` and the `interactives/` set are
+picked up by its Designed Slot layouts, and its ending modal renders one
+of them. The PNGs themselves are still placeholder-quality, so they are
+prime candidates for the "just overwrite the file" workflow above.
+
+Its nav-tab and theme icon is `lucide-react`'s `Snowflake` — the long-held
+reservation, now cashed in — so no icon file is needed in `icons/`.

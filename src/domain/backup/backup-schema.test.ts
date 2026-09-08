@@ -65,6 +65,27 @@ describe("backupV1Schema", () => {
     expect(backupV1Schema.safeParse(backup).success).toBe(false);
   });
 
+  it("accepts a backup with a Festive Points balance (docs/updates, FDRAFT UPDATE 1 — FESTIVE POINTS + EVENT CURRENCY COMPLETION)", () => {
+    const backup = minimalBackup();
+    backup.pointBalances.push({
+      currency: "festive",
+      total: 21,
+      updatedAt: "2026-12-26T00:00:00.000Z",
+    });
+    expect(backupV1Schema.safeParse(backup).success).toBe(true);
+  });
+
+  it("rejects an unknown point currency", () => {
+    const backup = minimalBackup();
+    backup.pointBalances.push({
+      // @ts-expect-error — deliberately invalid, this is what we're testing
+      currency: "candy-cane",
+      total: 1,
+      updatedAt: "2026-12-26T00:00:00.000Z",
+    });
+    expect(backupV1Schema.safeParse(backup).success).toBe(false);
+  });
+
   it("accepts a fully-populated backup with one row in every collection", () => {
     const backup = minimalBackup();
     backup.films.push({
@@ -153,6 +174,7 @@ describe("backupV1Schema", () => {
       sourceEventId: null,
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
+      eventOccurrenceYear: null,
       customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",

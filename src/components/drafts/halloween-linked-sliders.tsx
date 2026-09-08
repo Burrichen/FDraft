@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  setHalloweenAdjacentCount,
   setHorrorCount,
   setKitschCount,
   type HalloweenSplit,
@@ -10,7 +9,6 @@ import {
   HalloweenBat,
   HalloweenCandy,
 } from "@/components/events/halloween-decorations";
-import { HalloweenNavIcon } from "@/components/layout/nav-icons";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
@@ -25,20 +23,23 @@ interface HalloweenLinkedSlidersProps {
   totalFilms: number;
   split: HalloweenSplit;
   onChange: (split: HalloweenSplit) => void;
-  /** Advisory per-pool caps from `computeHalloweenPoolCapacity` — clamps each slider's max so the UI can't request more than a pool actually has available (see docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS" §9, "prevent impossible slider allocations where practical"). The real, authoritative check still happens at generation time. */
+  /** Advisory per-pool caps from `computeHalloweenPoolCapacity` — clamps each slider's max so the UI can't request more than a pool actually has available. The real, authoritative check still happens at generation time. */
   availability: {
-    halloweenAdjacentAvailable: number;
     horrorAvailable: number;
     kitschAvailable: number;
   };
 }
 
 /**
- * The three-way sibling of `linked-sliders.tsx` — three sliders whose
- * values always sum to `totalFilms`. Same base `Slider` UI primitive (full
- * mouse/keyboard/touch support), same "derive the next state from a pure,
- * tested domain function" pattern (`halloween-split.ts`'s setters), so an
- * invalid intermediate allocation is structurally impossible here too.
+ * The two-way sibling of `ChristmasLinkedSliders` — two sliders whose
+ * values always sum to `totalFilms` (see docs/updates, "FDRAFT UPDATE 1 —
+ * EVENT WATCHLIST PREFERENCE CLEANUP" §1/§2). Halloween-adjacent, the
+ * third slider this used to also render, is gone — Halloween now uses
+ * only its two purely-curated categories, exactly like Christmas's own
+ * two. Same base `Slider` UI primitive (full mouse/keyboard/touch
+ * support), same "derive the next state from a pure, tested domain
+ * function" pattern (`halloween-split.ts`'s setters), so an invalid
+ * intermediate allocation is structurally impossible here too.
  */
 export function HalloweenLinkedSliders({
   totalFilms,
@@ -48,42 +49,6 @@ export function HalloweenLinkedSliders({
 }: HalloweenLinkedSlidersProps) {
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label
-            htmlFor="halloween-adjacent-slider"
-            className="flex items-center gap-2"
-          >
-            <span
-              aria-hidden="true"
-              className="bg-halloween-pumpkin/15 text-halloween-pumpkin flex size-6 items-center justify-center rounded-full"
-            >
-              <HalloweenNavIcon className="size-3.5" />
-            </span>
-            Halloween-adjacent
-          </Label>
-          <span className="text-foreground text-sm font-semibold tabular-nums">
-            {split.halloweenAdjacentCount}
-          </span>
-        </div>
-        <Slider
-          id="halloween-adjacent-slider"
-          aria-label="Halloween-adjacent films"
-          value={split.halloweenAdjacentCount}
-          onValueChange={(value) =>
-            onChange(
-              setHalloweenAdjacentCount(
-                split,
-                toSingleValue(value),
-                totalFilms,
-              ),
-            )
-          }
-          min={0}
-          max={Math.min(totalFilms, availability.halloweenAdjacentAvailable)}
-          step={1}
-        />
-      </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="horror-slider" className="flex items-center gap-2">
@@ -104,7 +69,7 @@ export function HalloweenLinkedSliders({
           aria-label="Horror films"
           value={split.horrorCount}
           onValueChange={(value) =>
-            onChange(setHorrorCount(split, toSingleValue(value), totalFilms))
+            onChange(setHorrorCount(totalFilms, toSingleValue(value)))
           }
           min={0}
           max={Math.min(totalFilms, availability.horrorAvailable)}
@@ -131,7 +96,7 @@ export function HalloweenLinkedSliders({
           aria-label="Kitsch films"
           value={split.kitschCount}
           onValueChange={(value) =>
-            onChange(setKitschCount(split, toSingleValue(value), totalFilms))
+            onChange(setKitschCount(totalFilms, toSingleValue(value)))
           }
           min={0}
           max={Math.min(totalFilms, availability.kitschAvailable)}
@@ -139,14 +104,14 @@ export function HalloweenLinkedSliders({
         />
       </div>
       <p className="text-muted-foreground text-xs">
-        {split.halloweenAdjacentCount} Halloween-adjacent + {split.horrorCount}{" "}
-        Horror + {split.kitschCount} Kitsch = {totalFilms} films
+        Horror + Kitsch always adds up to{" "}
+        <strong className="text-foreground tabular-nums">{totalFilms}</strong>{" "}
+        films.
       </p>
       <p className="text-foreground flex items-center justify-between border-t pt-3 text-sm font-bold tracking-wide uppercase">
         <span>Total</span>
         <span className="tabular-nums">
-          {split.halloweenAdjacentCount + split.horrorCount + split.kitschCount}{" "}
-          / {totalFilms}
+          {split.horrorCount + split.kitschCount} / {totalFilms}
         </span>
       </p>
     </div>

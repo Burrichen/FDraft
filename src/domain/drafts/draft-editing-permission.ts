@@ -1,3 +1,4 @@
+import { getEventDefinition } from "@/domain/events/event-registry";
 import type { DraftItemSource } from "@/repositories/records";
 
 /**
@@ -16,6 +17,16 @@ import type { DraftItemSource } from "@/repositories/records";
  * | challenge | any | any   | no  |
  * | manual    | any | any   | no  |
  *
+ * ONE exception overrides the whole table: a draft owned by a
+ * `EventDefinition.singleFilmDraft` event (January) is NEVER editable, not
+ * even under Admin Mode. That Event's entire mechanic is "one join, one
+ * roll — you get what January gives you" (see docs/updates, "FDRAFT
+ * UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §6, "Do NOT
+ * add a new user-facing reroll feature"), and the pen/reroll slot icons
+ * were the one pair of controls in the app that could quietly defeat it.
+ * Enforced HERE rather than in the page so `replaceDraftSlot`'s own
+ * mutation guard is covered by the same rule, not just the icons.
+ *
  * `draftSourceEventId` is `DraftRecord.sourceEventId` — deliberately the
  * per-draft, persisted-at-creation-time value, not the profile's current
  * (mutable) `EventSettings`. A draft born under an event stays locked from
@@ -31,8 +42,11 @@ export function canEditDraftSlot(params: {
   if (params.itemSource !== "random") {
     return false;
   }
-  if (params.draftSourceEventId !== null && !params.adminModeEnabled) {
+  if (params.draftSourceEventId === null) {
+    return true;
+  }
+  if (getEventDefinition(params.draftSourceEventId)?.singleFilmDraft) {
     return false;
   }
-  return true;
+  return params.adminModeEnabled;
 }

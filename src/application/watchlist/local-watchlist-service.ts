@@ -543,9 +543,10 @@ export async function undoLocalFilmWatched(
  * EVERY currently active draft, not just one — since a normal Draft and
  * an event's own Draft are fully independent and can both be active at
  * once (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE"), the
- * SAME watchlist entry can legitimately be drafted into both (e.g. a
- * Halloween-adjacent pick is a real Watchlist entry too). Usually resolves
- * to 0 or 1 completions; 2 only in that genuine cross-draft overlap case.
+ * SAME watchlist entry can legitimately be drafted into both (e.g. an
+ * Event Draft pick drawn via "Prefer items from my Watchlist" is a real
+ * Watchlist entry too). Usually resolves to 0 or 1 completions; 2 only in
+ * that genuine cross-draft overlap case.
  *
  * Scoped directly via `listItemsForDraft(draft.id)` for each active draft
  * — never a blind cross-draft scan by `watchlistEntryId` alone. That

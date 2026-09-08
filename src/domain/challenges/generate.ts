@@ -68,13 +68,6 @@ export function generateChallengeFilms({
   maxAttemptsPerSlot = DEFAULT_MAX_ATTEMPTS_PER_SLOT,
 }: GenerateChallengeFilmsParams): GenerateChallengeFilmsResult {
   const remainingCandidates = [...baseContext.candidates];
-  // Tracked in parallel, shrunk on every successful pick — see
-  // docs/updates, v1.1.2, "Fix DIY Draft missing watchlist films": keeps a
-  // franchise-excluded film the "diy" challenge resolves via this pool
-  // from ever being handed to a second slot too.
-  const remainingDiyEligibleCandidates = baseContext.diyEligibleCandidates
-    ? [...baseContext.diyEligibleCandidates]
-    : undefined;
   const previousPicks: ChallengeCandidateFilm[] = [];
   const usedChallengeIds = new Set<string>();
   const slots: ChallengeSlotResult[] = [];
@@ -89,9 +82,6 @@ export function generateChallengeFilms({
       ...baseContext,
       candidates: remainingCandidates,
       previousPicks,
-      ...(remainingDiyEligibleCandidates
-        ? { diyEligibleCandidates: remainingDiyEligibleCandidates }
-        : {}),
     };
     const eligible = registry.listEligible(context);
     if (eligible.length === 0) {
@@ -138,12 +128,6 @@ export function generateChallengeFilms({
           remainingCandidates,
           result.film.watchlistEntryId,
         );
-        if (remainingDiyEligibleCandidates) {
-          removeConsumedCandidate(
-            remainingDiyEligibleCandidates,
-            result.film.watchlistEntryId,
-          );
-        }
         filled = true;
         break;
       }

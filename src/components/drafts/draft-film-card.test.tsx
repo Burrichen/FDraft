@@ -29,6 +29,7 @@ function baseFilm(
     substitution: null,
     canEdit: false,
     source: "random",
+    eventCategoryKey: null,
     ...overrides,
   };
 }

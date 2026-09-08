@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "event": "christmas",
+  "classic": [
+    {
+      "title": "It's a Wonderful Life",
+      "year": 1946
+    },
+    {
+      "title": "Miracle on 34th Street",
+      "year": 1947
+    },
+    {
+      "title": "White Christmas",
+      "year": 1954
+    },
+    {
+      "title": "A Christmas Carol",
+      "year": 1951
+    },
+    {
+      "title": "Scrooge",
+      "year": 1970
+    },
+    {
+      "title": "The Muppet Christmas Carol",
+      "year": 1992
+    },
+    {
+      "title": "Scrooged",
+      "year": 1988
+    },
+    {
+      "title": "National Lampoon's Christmas Vacation",
+      "year": 1989
+    },
+    {
+      "title": "Home Alone",
+      "year": 1990
+    },
+    {
+      "title": "Home Alone 2: Lost in New York",
+      "year": 1992
+    },
+    {
+      "title": "The Santa Clause",
+      "year": 1994
+    },
+    {
+      "title": "Jingle All the Way",
+      "year": 1996
+    },
+    {
+      "title": "Elf",
+      "year": 2003
+    },
+    {
+      "title": "Love Actually",
+      "year": 2003
+    },
+    {
+      "title": "The Polar Express",
+      "year": 2004
+    },
+    {
+      "title": "Bad Santa",
+      "year": 2003
+    },
+    {
+      "title": "The Holiday",
+      "year": 2006
+    },
+    {
+      "title": "Arthur Christmas",
+      "year": 2011
+    },
+    {
+      "title": "How the Grinch Stole Christmas",
+      "year": 2000
+    },
+    {
+      "title": "The Nightmare Before Christmas",
+      "year": 1993
+    },
+    {
+      "title": "A Charlie Brown Christmas",
+      "year": 1965
+    },
+    {
+      "title": "The Bishop's Wife",
+      "year": 1947
+    },
+    {
+      "title": "Christmas in Connecticut",
+      "year": 1945
+    },
+    {
+      "title": "Meet Me in St. Louis",
+      "year": 1944
+    },
+    {
+      "title": "A Christmas Story",
+      "year": 1983
+    },
+    {
+      "title": "Klaus",
+      "year": 2019
+    },
+    {
+      "title": "The Man Who Invented Christmas",
+      "year": 2017
+    },
+    {
+      "title": "Last Christmas",
+      "year": 2019
+    }
+  ],
+  "adjacent": [
+    {
+      "title": "Die Hard",
+      "year": 1988
+    },
+    {
+      "title": "Die Hard 2",
+      "year": 1990
+    },
+    {
+      "title": "Lethal Weapon",
+      "year": 1987
+    },
+    {
+      "title": "Batman Returns",
+      "year": 1992
+    },
+    {
+      "title": "Gremlins",
+      "year": 1984
+    },
+    {
+      "title": "Edward Scissorhands",
+      "year": 1990
+    },
+    {
+      "title": "Eyes Wide Shut",
+      "year": 1999
+    },
+    {
+      "title": "In Bruges",
+      "year": 2008
+    },
+    {
+      "title": "Kiss Kiss Bang Bang",
+      "year": 2005
+    },
+    {
+      "title": "The Apartment",
+      "year": 1960
+    },
+    {
+      "title": "Trading Places",
+      "year": 1983
+    },
+    {
+      "title": "Brazil",
+      "year": 1985
+    },
+    {
+      "title": "The Long Kiss Goodnight",
+      "year": 1996
+    },
+    {
+      "title": "Rare Exports: A Christmas Tale",
+      "year": 2010
+    },
+    {
+      "title": "Black Christmas",
+      "year": 1974
+    },
+    {
+      "title": "Krampus",
+      "year": 2015
+    },
+    {
+      "title": "Anna and the Apocalypse",
+      "year": 2017
+    },
+    {
+      "title": "Tokyo Godfathers",
+      "year": 2003
+    },
+    {
+      "title": "Carol",
+      "year": 2015
+    },
+    {
+      "title": "Little Women",
+      "year": 2019
+    },
+    {
+      "title": "The Lion in Winter",
+      "year": 1968
+    },
+    {
+      "title": "Fanny and Alexander",
+      "year": 1982
+    },
+    {
+      "title": "Frozen",
+      "year": 2013
+    },
+    {
+      "title": "The Shop Around the Corner",
+      "year": 1940
+    }
+  ]
+}

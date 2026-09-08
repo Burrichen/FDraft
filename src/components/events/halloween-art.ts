@@ -32,6 +32,10 @@ const HALLOWEEN_ART_PACK = parseEventArtPack(halloweenManifest);
 
 export const HALLOWEEN_ART = {
   ghost: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "ghost"),
+  ghostOne: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "ghost-01"),
+  ghostTwo: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "ghost-02"),
+  fullMoon: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "full-moon"),
+  cyndaquil: resolveEventArtPath(HALLOWEEN_ART_PACK, "modal", "cyndaquil"),
   pumpkinUncarved: resolveEventArtPath(
     HALLOWEEN_ART_PACK,
     "interactives",
@@ -81,5 +85,23 @@ export const HALLOWEEN_ART = {
     HALLOWEEN_ART_PACK,
     "interactives",
     "candy-bowl-empty",
+  ),
+  /**
+   * The skeleton/skull the "Haunted" Settings button's jumpscare shows
+   * (see docs/updates, "FDRAFT UPDATE 1 — REPLACEABLE HAUNTED-BUTTON
+   * SKELETON ASSET") — the ONE image file that effect renders. It used to
+   * be an inline SVG hand-drawn in the overlay component, which meant
+   * changing the artwork required a code edit; it is now an ordinary
+   * bundled PNG like every other piece of Halloween art, replaceable by
+   * overwriting the file at
+   * `public/events/halloween/interactives/haunted-button-skeleton.png`
+   * (see `public/events/README.md`, "How to replace an image"). The
+   * effect supplies its own full-window black background, so the file
+   * itself should be a transparent-background illustration.
+   */
+  hauntedButtonSkeleton: resolveEventArtPath(
+    HALLOWEEN_ART_PACK,
+    "interactives",
+    "haunted-button-skeleton",
   ),
 } as const;

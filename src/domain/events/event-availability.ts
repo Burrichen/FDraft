@@ -136,16 +136,87 @@ export function getAvailabilityCycleId(
   now: Date,
   timezone: string,
 ): string | null {
-  if (
-    availability.recurringMonthDayRange ||
-    (availability.recurringMonths && availability.recurringMonths.length > 0)
-  ) {
+  if (availability.recurringMonthDayRange) {
+    return resolveMonthDayRangeCycleId(
+      availability.recurringMonthDayRange,
+      now,
+      timezone,
+    );
+  }
+  if (availability.recurringMonths && availability.recurringMonths.length > 0) {
     return formatInTimeZone(now, timezone, "yyyy");
   }
   if (availability.startsAt !== null) {
     return availability.startsAt;
   }
   return null;
+}
+
+/**
+ * Which occurrence YEAR an instant belongs to for a
+ * `recurringMonthDayRange` event — the calendar year, EXCEPT for a window
+ * whose real end instant lands in the following calendar year (today only
+ * Christmas: 1 December through `endHour: 24` on 31 December, i.e. 1
+ * January 00:00). For such an event the naive calendar year is wrong the
+ * moment the window closes: one second past the end it is already
+ * "next year", so the occurrence a profile actually joined (`christmas:
+ * 2027`) stops being the occurrence the app computes (`christmas:2028`).
+ *
+ * That silently broke two things for a year-boundary event, both latent
+ * until Christmas gained a real ending (see docs/updates, "FDRAFT UPDATE 1
+ * — CHRISTMAS DRAFT DIFFICULTIES + VISUAL POLISH" §14): its
+ * Event-over experience could never fire at all, because
+ * `isOccurrenceExpired` was asking about a brand-new, unanswered
+ * occurrence key rather than the one that had just closed; and a manual
+ * activation lost its `"joined"` participation the instant the calendar
+ * ticked over.
+ *
+ * So: for a boundary-crossing window only, an instant BEFORE this
+ * calendar year's start belongs to the previous year's occurrence — the
+ * one that most recently ended. Every other event is provably untouched,
+ * because their windows begin and end inside one calendar year and this
+ * branch is never taken (asserted in `event-availability.test.ts`).
+ * Deliberately derived from the declared range rather than a
+ * `christmas`-shaped special case, so a future year-boundary event needs
+ * no changes here.
+ */
+function resolveMonthDayRangeCycleId(
+  range: NonNullable<EventAvailability["recurringMonthDayRange"]>,
+  now: Date,
+  timezone: string,
+): string {
+  const year = Number(formatInTimeZone(now, timezone, "yyyy"));
+  const bounds = buildMonthDayRangeBounds(range, year, timezone);
+  const crossesCalendarYear =
+    Number(formatInTimeZone(bounds.end, timezone, "yyyy")) > year;
+  if (crossesCalendarYear && now.getTime() < bounds.start.getTime()) {
+    return String(year - 1);
+  }
+  return String(year);
+}
+
+/** The real start/end instants of `range` within one specific calendar year — shared by `getCurrentOccurrenceBounds` and `resolveMonthDayRangeCycleId`. */
+function buildMonthDayRangeBounds(
+  range: NonNullable<EventAvailability["recurringMonthDayRange"]>,
+  year: number,
+  timezone: string,
+): { start: Date; end: Date } {
+  const build = (month: number, day: number, hour: number, minute: number) =>
+    fromZonedTime(new Date(year, month - 1, day, hour, minute), timezone);
+  return {
+    start: build(
+      range.startMonth,
+      range.startDay,
+      range.startHour ?? 0,
+      range.startMinute ?? 0,
+    ),
+    end: build(
+      range.endMonth,
+      range.endDay,
+      range.endHour ?? 0,
+      range.endMinute ?? 0,
+    ),
+  };
 }
 
 /**
@@ -217,21 +288,58 @@ export function getCurrentOccurrenceBounds(
   if (!range) {
     return null;
   }
-  const year = Number(formatInTimeZone(now, timezone, "yyyy"));
-  const build = (month: number, day: number, hour: number, minute: number) =>
-    fromZonedTime(new Date(year, month - 1, day, hour, minute), timezone);
-  return {
-    start: build(
-      range.startMonth,
-      range.startDay,
-      range.startHour ?? 0,
-      range.startMinute ?? 0,
-    ),
-    end: build(
-      range.endMonth,
-      range.endDay,
-      range.endHour ?? 0,
-      range.endMinute ?? 0,
-    ),
-  };
+  return buildMonthDayRangeBounds(
+    range,
+    Number(formatInTimeZone(now, timezone, "yyyy")),
+    timezone,
+  );
+}
+
+/**
+ * The end instant of whichever occurrence a Draft created "now" should
+ * actually be due by — `getCurrentOccurrenceBounds().end` when that is
+ * still in the future, and otherwise the SAME window one calendar year
+ * later (see docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY:
+ * SIMPLE EVENT MECHANICS" §12).
+ *
+ * `getCurrentOccurrenceBounds` deliberately answers a different question:
+ * "where are this calendar year's boundaries," which is exactly right for
+ * a Draft created INSIDE the window (every `fixedEventDeadline` event's
+ * normal case) and for `finalizeExpiredEventDraftIfNeeded`'s "has the
+ * occurrence this Draft was created during closed yet." It is wrong for
+ * the one remaining case: a `manualActivationAllowed` event joined
+ * OUTSIDE its natural window later in the same year (a June January
+ * opt-in — a real, deliberate, pre-existing feature, see
+ * `isOccurrenceActiveNow`), where this year's end has already passed and
+ * using it verbatim would hand the profile a Draft that was already
+ * expired the instant it was created. Rolling forward a year gives such a
+ * Draft a real, future deadline instead, without changing ANY in-window
+ * Draft's deadline by a millisecond.
+ *
+ * `null` for an availability shape with no `recurringMonthDayRange` (the
+ * only shape occurrence bounds exist for at all) — the same contract
+ * `getCurrentOccurrenceBounds` already has.
+ */
+export function resolveUpcomingOccurrenceEnd(
+  availability: EventAvailability,
+  now: Date,
+  timezone: string,
+): Date | null {
+  const bounds = getCurrentOccurrenceBounds(availability, now, timezone);
+  if (!bounds) {
+    return null;
+  }
+  if (bounds.end.getTime() > now.getTime()) {
+    return bounds.end;
+  }
+  // `getCurrentOccurrenceBounds` reads only the YEAR out of the instant it
+  // is given, so any instant that lands in next year in this timezone
+  // works — 1 July at midday, deliberately far from both a year boundary
+  // and any DST transition, so no rounding/offset edge case can shift
+  // which year it resolves to.
+  const nextYear = fromZonedTime(
+    new Date(Number(formatInTimeZone(now, timezone, "yyyy")) + 1, 6, 1, 12, 0),
+    timezone,
+  );
+  return getCurrentOccurrenceBounds(availability, nextYear, timezone)!.end;
 }

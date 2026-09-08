@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { EventPageView } from "@/components/events/event-page-view";
-import { F_YOU_ITS_JANUARY_EVENT_ID } from "@/domain/events/event-registry";
+import { JanuaryPageClient } from "./january-page-client";
 
 export const metadata: Metadata = { title: "January" };
 
+/**
+ * A `"use client"` boundary is required in `JanuaryPageClient` — this
+ * route stays a thin static Server Component, the same split Halloween's
+ * and Christmas's own pages already use.
+ */
 export default function JanuaryPage() {
-  return <EventPageView eventId={F_YOU_ITS_JANUARY_EVENT_ID} />;
+  return <JanuaryPageClient />;
 }

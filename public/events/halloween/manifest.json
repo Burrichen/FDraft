@@ -4,7 +4,11 @@
   "icons": {},
   "decorations": {},
   "modal": {
-    "ghost": "modal/ghost.png"
+    "ghost": "modal/ghost_01.png",
+    "ghost-01": "modal/ghost_01.png",
+    "ghost-02": "modal/ghost_02.png",
+    "full-moon": "modal/moon.png",
+    "cyndaquil": "modal/cyndaquil_halloween.png"
   },
   "interactives": {
     "pumpkin-uncarved": "interactives/pumpkin-uncarved.png",
@@ -16,7 +20,8 @@
     "candy-bowl-full": "interactives/candy-bowl-full.png",
     "candy-bowl-medium": "interactives/candy-bowl-medium.png",
     "candy-bowl-low": "interactives/candy-bowl-low.png",
-    "candy-bowl-empty": "interactives/candy-bowl-empty.png"
+    "candy-bowl-empty": "interactives/candy-bowl-empty.png",
+    "haunted-button-skeleton": "interactives/haunted-button-skeleton.png"
   },
   "backgrounds": {}
 }

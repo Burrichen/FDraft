@@ -22,148 +22,15 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
-    version: "1.2.0-beta.9",
-    nickname: "Trick or Treat (Beta 9)",
-    sections: [
-      {
-        heading: "Fixed",
-        items: [
-          "Fixed a test that only ran correctly on macOS/Linux, breaking Windows CI — again nothing to do with app behaviour.",
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.8",
-    nickname: "Trick or Treat (Beta 8)",
-    sections: [
-      {
-        heading: "Fixed",
-        items: [
-          "Fixed a code-formatting check failure in the last build that had nothing to do with app behaviour — this release exists purely to get the pipeline green again.",
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.7",
-    nickname: "Trick or Treat (Beta 7)",
-    sections: [
-      {
-        heading: "Added",
-        items: [
-          'A Developer-only "FDraft Theme Preview" tool (Settings → Developer → Admin Mode) for trying out an exported seasonal theme file before it ships for real — no effect on ordinary use.',
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.6",
-    nickname: "Trick or Treat (Beta 6)",
-    sections: [
-      {
-        heading: "Added",
-        items: [
-          "Watching a film in a Halloween Draft now earns a permanent Haunted Point, and watching one in a January Draft now earns a permanent Misery Point — on top of the usual Lifetime Point, for every film, in any of Halloween's three pools.",
-          'Halloween now has its own end-of-event moment: once the season closes for a profile who joined, a quiet goodbye screen appears (however FDraft is currently being used) with a "See you next year." button, and the year is tracked automatically (2026 is the 1st annual event).',
-        ],
-      },
-      {
-        heading: "Changed",
-        items: [
-          "A finished Halloween Draft is now safely wrapped up the moment the season ends, whether or not it was fully watched — nothing is lost, and it stays visible in Draft History afterward.",
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.5",
-    nickname: "Trick or Treat (Beta 5)",
+    version: "1.2.0",
+    nickname: "The Event Season",
     sections: [
       {
         heading: "Changed",
         items: [
-          'Halloween\'s gravestone, pumpkin, and candy bowl now use real bundled artwork instead of hand-drawn shapes, including a new, genuinely-emptier "low" candy bowl state between medium and empty.',
-          "Halloween's decorations — on its own page, in the join popup, and lightly on other pages — now vary a little from session to session instead of always looking exactly the same.",
-          'Beta builds are now named "FDraft (Beta)" with a pale blue icon, so a beta install is never mistaken for a real release sitting next to it.',
-        ],
-      },
-      {
-        heading: "Added",
-        items: [
-          'Added a Developer-only "Event art system" preview (Settings → Developer → Admin Mode) for checking future seasonal art, like an early Christmas placeholder, without turning it on for real.',
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.4",
-    nickname: "Trick or Treat (Beta 4)",
-    sections: [
-      {
-        heading: "Changed",
-        items: [
-          "Settings has been reorganised into clear sections — Profile, General, Events, Watchlist & Metadata, Data & Backups, Updates, and Developer — and now uses the available screen width on desktop instead of a single narrow column.",
-          "Events in Settings is now much simpler: it only ever lists events that are actually running right now, each with its dates and a Join button, or a plain message when nothing is currently running.",
-          "Testing-only tools (the simulated event date, and the two event-data refresh buttons) now live under Settings → Developer, and only appear once Admin Mode is turned on.",
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.3",
-    nickname: "Trick or Treat (Beta 3)",
-    sections: [
-      {
-        heading: "Fixed",
-        items: [
-          "Joining Halloween (or January) now reliably shows its navigation tab and page right away — previously it sometimes only appeared after reloading the app.",
-          "The seasonal join invitation now reliably appears the moment an event first becomes available, instead of sometimes never appearing at all for a profile that had never joined anything before.",
-          "An event's page and navigation tab no longer disappear early just because a Draft was created, completed, or the event's visual/gameplay settings were toggled — only actually leaving the event, or the season ending, removes them.",
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.2",
-    nickname: "Trick or Treat (Beta 2)",
-    sections: [
-      {
-        heading: "Added",
-        items: [
-          "You can now run a normal Draft and a Halloween Draft at the same time — joining Halloween no longer affects any Draft already in progress.",
-          "The Halloween join invitation has been completely redesigned: much larger, with richer seasonal copy and decoration spread across the whole card.",
-          "Stats now has a Points section showing your lifetime, misery, and haunted point totals with their own icons.",
-          "Substantially improved seasonal artwork throughout Halloween: the gravestone, carve-able pumpkin (now with a genuinely decayed fourth state), and candy bowl all got a full redesign, plus more scattered decorations on the Halloween page and light seasonal touches elsewhere in the app.",
-        ],
-      },
-      {
-        heading: "Changed",
-        items: [
-          "The Halloween page now shows your active Draft directly, the same way the normal Draft page does, instead of pointing you elsewhere.",
-          "Halloween's deadline is now a single, clearly-shown date — 1 November at midnight in your own timezone — no matter when during the event you start your Draft.",
-          "Event Settings now only lets you opt into events that are currently live, rather than listing every event whether or not it's running.",
-          '"F* You, It\'s January!" now uses a trash can icon in navigation; the snowflake is being saved for a future event.',
-        ],
-      },
-      {
-        heading: "Fixed",
-        items: [
-          '"F* You, It\'s January!" could sometimes still look active while you were on the Halloween page.',
-        ],
-      },
-    ],
-  },
-  {
-    version: "1.2.0-beta.1",
-    nickname: "Trick or Treat (Beta)",
-    sections: [
-      {
-        heading: "Added",
-        items: [
-          "A beta build for hands-on testing of the new Halloween Event, live 30 September – 31 October. Opt in from the header, or via a one-time invitation when the window opens.",
-          "Halloween Draft: a new Draft type split across three linked pools — Halloween-adjacent films from your own Watchlist, plus a curated Horror list and a curated Kitsch list — with three sliders to choose how many films come from each.",
-          "The Halloween page, its Draft, and the opt-in invitation get a seasonal pumpkin/purple theme, plus three small clickable extras to find: an old gravestone, a carve-able pumpkin, and a candy bowl.",
+          "FDraft's three seasonal Events — Halloween, Christmas, and \"F* You, It's January!\" — are now fully realized. Each gets its own themed page, join flow, and dedicated Draft type: Halloween draws from curated Horror and Kitsch film lists, Christmas splits between Classic and Christmas Adjacent, and January simply rolls one film from its own built-in list the instant you join, with no further Draft-building at all. Every Event now earns its own permanent point currency — Haunted, Festive, and Misery Points — on top of the usual Lifetime Point every Draft already earns, and every Event now closes properly: a themed goodbye screen and message once its season ends, tracked automatically year over year, with Draft History and a new Stats section keeping a permanent record of how you did. A normal Draft and an Event Draft can now run side by side — joining an Event never disturbs whatever you were already drafting.",
+          '"One At A Time" is a brand new way to build any Draft, Event or normal — add films one by one via Random, Choose My Own, or (for normal Drafts) a Challenge, reviewing and confirming each one before it\'s added, with no fixed film count required. Freeform is retired as a way to start a new Draft (old Freeform Drafts still show fine in History), and Halloween\'s own Draft simplifies from three linked pools down to two — Horror and Kitsch — matching Christmas\'s shape exactly. Every non-January Event Draft flow, fixed-size or One At A Time, now offers the same "Prefer items from my Watchlist" option: turn it on and FDraft fills as many slots as it can from films already on your watchlist before topping up from the full curated pool, never as a requirement.',
+          "Settings has been reorganised into clear, focused sections — Profile, General, Events, Watchlist & Metadata, Data & Backups, Updates, and Developer — and, along with the rest of the app, now makes far better use of the screen on large and ultra-wide desktop displays. A couple of Developer-only preview tools used while building this release — an Event art preview and a theme-file importer — have been removed now that they've served their purpose.",
         ],
       },
     ],

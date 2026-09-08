@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useProfileContext } from "@/components/profiles/profile-provider";
+import { parseEventOccurrenceYear } from "@/domain/events/event-participation";
 import { useEventDiscovery } from "./event-discovery-provider";
 import {
   resolveEventPresentationTheme,
@@ -111,7 +112,7 @@ export function EventIntroDialog() {
                     />
                   ) : null;
                 })()}
-                {candidate.event.name}
+                {candidate.event.intro.title ?? candidate.event.name}
               </AlertDialogTitle>
               {presentationTheme?.renderIntroContent ? null : (
                 <AlertDialogDescription>
@@ -121,7 +122,12 @@ export function EventIntroDialog() {
             </AlertDialogHeader>
 
             {presentationTheme?.renderIntroContent ? (
-              presentationTheme.renderIntroContent()
+              presentationTheme.renderIntroContent({
+                event: candidate.event,
+                occurrenceYear: parseEventOccurrenceYear(
+                  candidate.occurrenceKey,
+                ),
+              })
             ) : (
               <>
                 <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">

@@ -6,14 +6,19 @@ import { toast } from "sonner";
 import { computeHalloweenPoolCapacity } from "@/application/drafts/halloween-fetch-context";
 import { createHalloweenLocalDraft } from "@/application/drafts/halloween-draft-service";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
+import { ensureHalloweenFilmContentLoaded } from "@/application/events/halloween-film-content-service";
+import {
+  getPreferWatchlistPreference,
+  setPreferWatchlistPreference,
+} from "@/application/events/prefer-watchlist-preference";
 import { DraftTimeProgress } from "@/components/drafts/draft-time-progress";
-import { HalloweenDifficultyPicker } from "@/components/drafts/halloween-difficulty-picker";
+import { EventDifficultyPicker } from "@/components/drafts/event-difficulty-picker";
 import { HalloweenLinkedSliders } from "@/components/drafts/halloween-linked-sliders";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
-import { getFilmCount } from "@/domain/drafts/difficulty";
+import { getFilmCount, isOneAtATime } from "@/domain/drafts/difficulty";
 import {
   createDefaultHalloweenSplit,
   type HalloweenSplit,
@@ -27,19 +32,26 @@ import {
   getEventDefinition,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
+import { EVENT_ONE_AT_A_TIME_CATEGORIES } from "@/domain/events/one-at-a-time-categories";
 import { useAsyncData } from "@/hooks/use-async-data";
 import type { DraftDifficulty } from "@/repositories";
 import { describeFixedEventDeadline } from "./fixed-event-deadline-copy";
+import { EventOneAtATimeBuilderView } from "./event-one-at-a-time-builder-view";
 
 /**
  * "Create Halloween Draft" — the Halloween Event page's empty state (see
  * docs/updates, "PROMPT 19 — HALLOWEEN DRAFT MECHANICS" §1/§2/§9;
  * deadline/layout revised by "PROMPT B2.2 — HALLOWEEN PAGE REBUILD +
  * DEADLINE + STATS"; restructured again by "HALLOWEEN PAGE REBUILD" §4/§5/
- * §10). Rendered directly by `HalloweenPageClient` — this flow is
- * genuinely Halloween-specific (a three-pool allocation, no Freeform, its
- * own generation function, ONE fixed event-end deadline with no Calendar/
- * Timer choice) rather than living in the generic Event page shell.
+ * §10; reduced from three pools to two and given a "Prefer items from my
+ * Watchlist" toggle by "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE
+ * CLEANUP" §1/§2/§6). Rendered directly by `HalloweenPageClient` — this
+ * flow is genuinely Halloween-specific (its own generation function, ONE
+ * fixed event-end deadline with no Calendar/Timer choice) rather than
+ * living in the generic Event page shell. Structure now deliberately
+ * mirrors `ChristmasDraftCreationView` step for step — same two-pool
+ * shape, same shared `events.preferWatchlist` preference — since the two
+ * Events are genuinely the same flow with different pools.
  *
  * Two-step disclosure, matching the normal Draft page's own restraint
  * about not front-loading every control before the user has asked for
@@ -79,21 +91,52 @@ export function HalloweenDraftCreationView({
     "freeform"
   > | null>(null);
   const [split, setSplit] = useState<HalloweenSplit | null>(null);
+  const [preferWatchlist, setPreferWatchlist] = useState(true);
+  const [preferWatchlistLoaded, setPreferWatchlistLoaded] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data } = useAsyncData(async () => {
     if (!activeProfile) return null;
-    const [availability, effectiveNow] = await Promise.all([
-      computeHalloweenPoolCapacity(repositories, activeProfile.id),
-      getEffectiveEventDate(repositories, activeProfile.id),
-    ]);
-    return { availability, effectiveNow };
+    // This form reads Halloween's curated pools IMMEDIATELY on mount — to
+    // show each pool's availability and cap its sliders — so unlike every
+    // other consumer it can genuinely race the app-shell's fire-and-forget
+    // content load. Awaiting the idempotent ensure first is what stops it
+    // rendering "Horror 0 available" with both sliders pinned to 0 (see
+    // `ensureHalloweenFilmContentLoaded`'s own doc comment).
+    await ensureHalloweenFilmContentLoaded({
+      films: repositories.films,
+      unresolvedMetadata: repositories.unresolvedMetadata,
+    });
+    const [availability, effectiveNow, storedPreferWatchlist] =
+      await Promise.all([
+        computeHalloweenPoolCapacity(repositories, activeProfile.id),
+        getEffectiveEventDate(repositories, activeProfile.id),
+        getPreferWatchlistPreference(repositories, activeProfile.id),
+      ]);
+    return { availability, effectiveNow, storedPreferWatchlist };
   }, [activeProfile?.id, repositories]);
+
+  if (data && !preferWatchlistLoaded) {
+    setPreferWatchlistLoaded(true);
+    setPreferWatchlist(data.storedPreferWatchlist);
+  }
+
+  function handleTogglePreferWatchlist(next: boolean) {
+    setPreferWatchlist(next);
+    if (!activeProfile) return;
+    void setPreferWatchlistPreference(repositories, activeProfile.id, next);
+  }
 
   function handleSelectDifficulty(id: Exclude<DraftDifficulty, "freeform">) {
     setDifficulty(id);
-    setSplit(createDefaultHalloweenSplit(getFilmCount(id)));
+    // One At A Time has no fixed film count (see docs/updates, "FDRAFT
+    // UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §1) — `getFilmCount` throws
+    // for it, so there's no split to seed; `EventOneAtATimeBuilderView`
+    // renders instead of the split sliders below for this difficulty.
+    setSplit(
+      isOneAtATime(id) ? null : createDefaultHalloweenSplit(getFilmCount(id)),
+    );
   }
 
   async function handleCreate() {
@@ -106,6 +149,7 @@ export function HalloweenDraftCreationView({
         timezone: activeProfile.timezone,
         difficulty,
         split,
+        preferWatchlist,
         effectiveNow: data.effectiveNow,
       });
       if (outcome.ok) {
@@ -232,47 +276,95 @@ export function HalloweenDraftCreationView({
               </p>
             </section>
 
-            <section className="space-y-3">
-              <h3 className="text-foreground text-sm font-bold">
-                Choose a difficulty
-              </h3>
-              <HalloweenDifficultyPicker
-                selected={difficulty}
-                onSelect={handleSelectDifficulty}
-              />
-            </section>
-
-            {difficulty && split && availability ? (
+            {difficulty && isOneAtATime(difficulty) ? null : (
               <section className="space-y-3">
                 <h3 className="text-foreground text-sm font-bold">
-                  Halloween-adjacent / Horror / Kitsch
+                  Choose a difficulty
                 </h3>
-                <p className="text-muted-foreground text-xs">
-                  Halloween-adjacent {availability.halloweenAdjacentAvailable}{" "}
-                  available / Horror {availability.horrorAvailable} available /
-                  Kitsch {availability.kitschAvailable} available.
-                </p>
-                <HalloweenLinkedSliders
-                  totalFilms={getFilmCount(difficulty)}
-                  split={split}
-                  onChange={setSplit}
-                  availability={availability}
+                <EventDifficultyPicker
+                  selected={difficulty}
+                  onSelect={handleSelectDifficulty}
                 />
               </section>
+            )}
+
+            {difficulty && split && availability ? (
+              <>
+                <section className="space-y-3">
+                  <h3 className="text-foreground text-sm font-bold">
+                    Horror / Kitsch
+                  </h3>
+                  <p className="text-muted-foreground text-xs">
+                    Horror {availability.horrorAvailable} available (
+                    {availability.horrorOnWatchlist} on your watchlist) / Kitsch{" "}
+                    {availability.kitschAvailable} available (
+                    {availability.kitschOnWatchlist} on your watchlist).
+                  </p>
+                  <HalloweenLinkedSliders
+                    totalFilms={getFilmCount(difficulty)}
+                    split={split}
+                    onChange={setSplit}
+                    availability={availability}
+                  />
+                </section>
+
+                <section className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={preferWatchlist}
+                      onChange={(event) =>
+                        handleTogglePreferWatchlist(event.target.checked)
+                      }
+                      className="border-border accent-halloween-purple focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
+                    />
+                    Prefer items from my Watchlist
+                  </label>
+                  <p className="text-muted-foreground text-xs">
+                    Fills as many slots as it can from Halloween films you
+                    already have on your watchlist, then tops the rest up from
+                    the full curated lists. Never a requirement — an empty
+                    watchlist drafts exactly the same.
+                  </p>
+                </section>
+              </>
             ) : null}
 
             {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
-            <Button
-              type="button"
-              disabled={!difficulty || !split || isCreating}
-              onClick={() => void handleCreate()}
-            >
-              {isCreating ? "Creating…" : "Create Halloween Draft"}
-            </Button>
+            {difficulty && !isOneAtATime(difficulty) ? (
+              <Button
+                type="button"
+                disabled={!difficulty || !split || isCreating}
+                onClick={() => void handleCreate()}
+              >
+                {isCreating ? "Creating…" : "Create Halloween Draft"}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       )}
+
+      {/* One At A Time (see docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT
+          A TIME DRAFTING") — a fully separate builder, not a branch inside
+          the card above, since its own bottom bar/Cancel/Done already
+          replace everything that card's difficulty picker/slider/Create
+          button would otherwise show. Halloween can never be manually
+          enabled (`manualActivationAllowed: false`), so
+          `sourceEventManuallyEnabled` is always `false` here. */}
+      {gameplayEnabled && formOpen && difficulty && isOneAtATime(difficulty) ? (
+        <EventOneAtATimeBuilderView
+          eventId={HALLOWEEN_EVENT_ID}
+          eventName="Halloween"
+          categories={EVENT_ONE_AT_A_TIME_CATEGORIES[HALLOWEEN_EVENT_ID]!}
+          sourceEventManuallyEnabled={false}
+          onDone={() => {
+            toast.success("Halloween Draft created");
+            onCreated();
+          }}
+          onCancel={() => setDifficulty(null)}
+        />
+      ) : null}
     </div>
   );
 }

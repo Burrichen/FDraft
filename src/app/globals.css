@@ -58,6 +58,22 @@
   --color-halloween-rot: var(--halloween-rot);
   --color-halloween-mould: var(--halloween-mould);
   --color-halloween-glow: var(--halloween-glow);
+  --color-january-ice: var(--january-ice);
+  --color-january-ice-foreground: var(--january-ice-foreground);
+  --color-january-ice-muted: var(--january-ice-muted);
+  --color-january-frost: var(--january-frost);
+  --color-january-slate: var(--january-slate);
+  --color-january-slate-foreground: var(--january-slate-foreground);
+  --color-christmas-snow: var(--christmas-snow);
+  --color-christmas-snow-foreground: var(--christmas-snow-foreground);
+  --color-christmas-red: var(--christmas-red);
+  --color-christmas-red-foreground: var(--christmas-red-foreground);
+  --color-christmas-green: var(--christmas-green);
+  --color-christmas-green-foreground: var(--christmas-green-foreground);
+  --color-christmas-winter: var(--christmas-winter);
+  --color-christmas-winter-foreground: var(--christmas-winter-foreground);
+  --color-christmas-surface: var(--christmas-surface);
+  --color-christmas-border: var(--christmas-border);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -148,6 +164,71 @@
      different once carved (see docs/updates, "PROMPT B2.4" §2, live QA
      finding: the two states looked nearly identical without this). */
   --halloween-glow: oklch(0.88 0.15 85);
+
+  /* January palette — "F* You, It's January!" (see docs/updates, "FDRAFT
+     UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §13-§15).
+     Deliberately its own token family, NOT a reuse of `--watchlist-blue`
+     (already "primary interactive" everywhere else, and a good deal more
+     saturated than this): the brief is COLD WINTER LIGHT — pale, icy,
+     low-chroma blue over FDraft's own dark grey — never a bright, cheerful
+     summer blue. Higher lightness and roughly half the chroma of
+     `--watchlist-blue` is what separates the two on screen. Applied
+     scopedly through `.theme-january` below, at Halloween's intensity:
+     subtle but clear, never flooding the app.
+
+     - `--january-ice`          the accent itself (buttons, active nav, progress)
+     - `--january-ice-muted`    a dimmer accent, for borders/rings/inactive fills
+     - `--january-frost`        near-white icy tint, for accented TEXT on dark
+     - `--january-slate`        the cold grey companion the accent sits on */
+  --january-ice: oklch(0.83 0.068 228);
+  --january-ice-foreground: oklch(0.19 0.02 240);
+  --january-ice-muted: oklch(0.62 0.045 230);
+  --january-frost: oklch(0.94 0.02 225);
+  --january-slate: oklch(0.28 0.014 245);
+  --january-slate-foreground: oklch(0.93 0.008 245);
+
+  /* Christmas palette (see docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS
+     DRAFT DIFFICULTIES + VISUAL POLISH" §9-§11). Four colours with FOUR
+     DELIBERATE, UNEQUAL ROLES (§10) — never all four applied evenly to
+     everything, which is what separates "festive, cozy, clean, slightly
+     magical" from "saturated colours scattered around":
+
+     - `--christmas-snow`   PRIMARY accent. Headings, the main interactive
+                            accent, snow, important neutral emphasis. A
+                            warm off-white, NOT pure #fff — pure white
+                            blooms badly on this dark base (§18).
+     - `--christmas-red`    WARM emphasis and selected festive details.
+                            Used sparingly, and deliberately lightened
+                            well past a "dark red on dark background"
+                            contrast trap (§18) — it is a readable text/
+                            icon red, never a large saturated fill.
+     - `--christmas-green`  SECONDARY festive/success accent. Kept close
+                            in lightness to the red so neither dominates.
+     - `--christmas-winter` COOL winter contrast and secondary accents.
+                            Lifted well above a murky navy (§18: "blue
+                            isn't too dark").
+     - `--christmas-surface`/`--christmas-border` the cozy card ground and
+                            its faint frosted edge — a TINT of FDraft's own
+                            card colour, never a replacement for the dark
+                            base. */
+  --christmas-snow: oklch(0.95 0.012 85);
+  --christmas-snow-foreground: oklch(0.2 0.015 260);
+  --christmas-red: oklch(0.68 0.18 25);
+  --christmas-red-foreground: oklch(0.16 0.03 25);
+  --christmas-green: oklch(0.7 0.15 150);
+  --christmas-green-foreground: oklch(0.15 0.03 150);
+  --christmas-winter: oklch(0.74 0.11 235);
+  --christmas-winter-foreground: oklch(0.16 0.02 235);
+  --christmas-surface: color-mix(
+    in oklch,
+    var(--christmas-winter) 8%,
+    var(--card)
+  );
+  --christmas-border: color-mix(
+    in oklch,
+    var(--christmas-snow) 22%,
+    transparent
+  );
 }
 
 /**
@@ -158,12 +239,72 @@
  * Halloween orange" (see docs/updates, PROMPT 20 §2).
  */
 .theme-halloween {
+  --page-heading-accent: var(--halloween-pumpkin);
   --primary: var(--halloween-pumpkin);
   --primary-foreground: var(--halloween-pumpkin-foreground);
   --ring: oklch(0.68 0.16 45 / 50%);
   --accent: var(--halloween-purple);
   --accent-foreground: var(--halloween-purple-foreground);
   --secondary: color-mix(in oklch, var(--halloween-purple) 30%, var(--card));
+}
+
+/**
+ * Scoped January re-skin — the exact same mechanism (and the exact same
+ * restraint) as `.theme-halloween` above: wrap a subtree in this class and
+ * the app's own semantic tokens reroute to January's pale icy palette,
+ * without touching a single shared UI primitive. That is what gives the
+ * January Event page's heading, buttons, focus rings, borders, badges and
+ * Draft progress bar their cold-winter-light accent from ONE declaration
+ * rather than scattered per-component hex values (see docs/updates,
+ * "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §15).
+ *
+ * FDraft's dark base is deliberately preserved: `--background`/`--card`
+ * are untouched, and `--secondary` only tints the existing card colour
+ * rather than replacing it — January should read as a cold grey month with
+ * icy light in it, not a blue application.
+ */
+/**
+ * Scoped Christmas re-skin — the same mechanism and restraint as
+ * `.theme-halloween`/`.theme-january`: one class, one token reroute, no
+ * shared UI primitive touched and no hex values scattered through JSX
+ * (see docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES +
+ * VISUAL POLISH" §11).
+ *
+ * `--primary` is SNOW, not red or green (§10): the primary accent role is
+ * the important-neutral one, so buttons, focus rings, the active nav
+ * accent and progress bars all read as clean winter white, and red/green/
+ * blue stay available for the selective, unequal emphasis §10/§13 ask
+ * for. `--accent` takes the cool winter blue and `--secondary` a faint
+ * red-warmed card tint, so a selected control reads festive without any
+ * large saturated fill.
+ *
+ * NOT applied to the Christmas ending modal — see
+ * `event-visual-themes.ts`: that modal's "Onto next year!" button must
+ * stay standard FDraft (§15), and rerouting `--primary` here would
+ * repaint it. The ending styles its title/body with explicit
+ * `text-christmas-*` classes instead, leaving the button alone.
+ */
+.theme-christmas {
+  --page-heading-accent: var(--christmas-snow);
+  --primary: var(--christmas-snow);
+  --primary-foreground: var(--christmas-snow-foreground);
+  --ring: oklch(0.95 0.012 85 / 40%);
+  --accent: var(--christmas-winter);
+  --accent-foreground: var(--christmas-winter-foreground);
+  --secondary: color-mix(in oklch, var(--christmas-red) 16%, var(--card));
+  --border: var(--christmas-border);
+  --card: var(--christmas-surface);
+}
+
+.theme-january {
+  --page-heading-accent: var(--january-ice);
+  --primary: var(--january-ice);
+  --primary-foreground: var(--january-ice-foreground);
+  --ring: oklch(0.83 0.068 228 / 45%);
+  --accent: var(--january-slate);
+  --accent-foreground: var(--january-slate-foreground);
+  --secondary: color-mix(in oklch, var(--january-ice) 14%, var(--card));
+  --border: color-mix(in oklch, var(--january-ice) 26%, transparent);
 }
 
 @layer base {
@@ -194,6 +335,33 @@
  */
 @layer utilities {
   /*
+   * The shared desktop-width strategy for the app shell's header and main
+   * content region (see docs/updates, "WIDER DESKTOP LAYOUT" and the
+   * "FINAL QA FOR LAYOUT + HALLOWEEN + ONE AT A TIME" release-hardening
+   * pass) — one place both `Header` and `AppShell`'s `<main>` read from,
+   * so the nav bar and the page content it sits above always agree on
+   * where the centred column starts/ends. A prior pass raised this from a
+   * flat `max-w-6xl` (72rem/1152px) to 100rem (1600px), which fixed
+   * 1920×1080 (≈80% of viewport used, after the `px-8` content padding
+   * below) but was re-measured during the release-hardening pass as still
+   * only ≈60% of a 2560×1440 display — short of this app's own ≥75%
+   * desktop-width bar (see docs/product-spec.md, "Desktop Layout Width").
+   * 128rem (2048px) clears that bar with real margin at 2560 (≈77.5% of
+   * viewport after padding) while still comfortably exceeding every
+   * width tested up to and including 1920×1080 (the cap no longer binds
+   * there at all, so those viewports simply fill the viewport minus
+   * padding, same as every laptop/tablet size below the cap always has).
+   * A display wider than ~2048px logical pixels still gets a deliberate,
+   * centred margin (auto side-margins from `mx-auto` grow past this
+   * point) rather than the shell ever stretching fully edge-to-edge.
+   */
+  .app-shell-width {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 128rem;
+  }
+
+  /*
    * The small green tick beside every page title reuses the nav's own
    * active-link accent (see nav-links.tsx's underline indicator) so page
    * headings read as part of the same visual language as the nav, rather
@@ -217,7 +385,13 @@
     width: 3px;
     height: 1em;
     border-radius: 9999px;
-    background: var(--watchlist-green);
+    /* `--page-heading-accent` defaults to FDraft's own green everywhere,
+       and a `.theme-*` subtree overrides it so a themed Event page's
+       heading bar matches that event's accent instead of reading as the
+       app's generic "watched" green (see docs/updates, "FDRAFT UPDATE 1 —
+       CHRISTMAS DRAFT DIFFICULTIES + VISUAL POLISH" §17, "Christmas Event
+       page"). One indirection rather than a per-page override. */
+    background: var(--page-heading-accent, var(--watchlist-green));
   }
   .page-subtitle {
     padding-left: 0.875rem;
@@ -551,6 +725,37 @@
     50% {
       transform: translate(0.3rem, -0.4rem);
       opacity: 0.4;
+    }
+  }
+
+  /* January's own Event-ending scene (see docs/updates, "FDRAFT UPDATE 1 —
+     JANUARY EVENT-OVER EXPERIENCE") — the same restrained, slow-and-small
+     convention as Halloween's ending motion above: "the miserable spell
+     has finally broken," never a celebration. One cloud drifting apart and
+     one soft, slowly breathing light — nothing else moves. */
+  .january-cloud-drift {
+    animation: january-cloud-drift 10s ease-in-out infinite;
+  }
+  @keyframes january-cloud-drift {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(0.5rem);
+    }
+  }
+
+  .january-sun-glow {
+    animation: january-sun-glow 6s ease-in-out infinite;
+  }
+  @keyframes january-sun-glow {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.75;
     }
   }
 }

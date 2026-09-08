@@ -60,12 +60,11 @@ export interface CandidateEligibilityContext {
    * earlier one. Defaults to `true` — every GENERATED/random draft path
    * wants this ("Franchise Debt" and friends, and just not handing someone
    * "Toy Story 3" before "Toy Story"). DIY/manual selection (the DIY Draft
-   * grid, and the "Pick Your Own" Challenge Film picker) explicitly sets
-   * this `false`: a user manually picking their own films must be able to
-   * pick ANY sequel directly — see docs/updates, v1.1.2, "Fix DIY Draft
-   * missing watchlist films". Being a later entry in a franchise must never
-   * make a film unselectable for manual/DIY picking, only for the engine's
-   * own automatic picks.
+   * grid) explicitly sets this `false`: a user manually picking their own
+   * films must be able to pick ANY sequel directly — see docs/updates,
+   * v1.1.2, "Fix DIY Draft missing watchlist films". Being a later entry
+   * in a franchise must never make a film unselectable for manual/DIY
+   * picking, only for the engine's own automatic picks.
    */
   applyFranchiseOrderingRule?: boolean;
 }

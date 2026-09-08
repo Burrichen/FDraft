@@ -37,6 +37,17 @@ export interface DraftRepository {
   ): Promise<DraftRecord | null>;
   getById(profileId: string, draftId: string): Promise<DraftRecord | null>;
   listArchived(profileId: string): Promise<DraftRecord[]>;
+  /**
+   * Every past (non-active, non-discarded) draft — `"archived"` (completed:
+   * every item resolved) AND `"expired"` (the deadline/Event occurrence
+   * passed with some items unresolved) — for the History page (see
+   * docs/updates, "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE
+   * AUDIT" §3/§6: History must distinguish Completed from Expired/
+   * unfinished, which the existing `status`/`completedAt` fields already
+   * support with zero new persistence). Excludes `"discarded"` — a
+   * profile's deliberate "Say Goodbye" — same as `listArchived` always has.
+   */
+  listHistorical(profileId: string): Promise<DraftRecord[]>;
   /** Every draft this profile owns, regardless of status — active, expired, and archived. Used by full-profile operations (backup export) that need the complete picture, unlike the history page's `listArchived`. */
   listAllForProfile(profileId: string): Promise<DraftRecord[]>;
   /** Every currently `"active"` draft this profile owns, across every scope at once — used only where a normal Draft and an event Draft genuinely need to be considered together (see `completeMatchingActiveDraftItem` in `local-watchlist-service.ts`, "a film can theoretically appear in both active Drafts"). Everywhere else, prefer the scoped `getActiveOrExpiredDraft`/`hasActiveDraft`. */

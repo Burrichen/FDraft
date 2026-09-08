@@ -12,13 +12,12 @@ import { DiyFilmPickerSheet } from "./diy/diy-film-picker-sheet";
  * The pen-icon "manual replace" flow for an editable random draft slot
  * (see docs/updates, v1.1.3 "Editable random draft slots") — a thin
  * controller around `DiyFilmPickerSheet`, the same large poster-grid
- * picker "Pick Your Own" Challenge Films already use, fed by the same
- * canonical `getDiyEligibleFilms` pool. No new film-browser implementation.
+ * picker fed by the same canonical `getDiyEligibleFilms` pool. No new
+ * film-browser implementation.
  *
- * `excludedEntryIds` must include the slot's OWN current watchlist entry
- * (unlike the Challenge Film picker's use of this sheet, where the current
- * pick is deliberately kept selectable) — replacing a slot with the film
- * already occupying it isn't a meaningful action here.
+ * `excludedEntryIds` must include the slot's OWN current watchlist entry —
+ * replacing a slot with the film already occupying it isn't a meaningful
+ * action here.
  *
  * The eligible pool is only fetched while `open`, refetched every time the
  * sheet opens so a film watched or removed elsewhere since the last open
