@@ -237,6 +237,11 @@ export function EventOneAtATimeBuilderView({
     }
   }
 
+  function handleTogglePreferWatchlist(next: boolean) {
+    setPreferWatchlistState(next);
+    void setPreferWatchlistPreference(repositories, activeProfile!.id, next);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -290,25 +295,17 @@ export function EventOneAtATimeBuilderView({
               ? "Which category should we draw from?"
               : "Which category do you want to choose from?"}
           </h2>
-          {step.for === "random" ? (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={preferWatchlist}
-                onChange={(event) => {
-                  const value = event.target.checked;
-                  setPreferWatchlistState(value);
-                  void setPreferWatchlistPreference(
-                    repositories,
-                    activeProfile!.id,
-                    value,
-                  );
-                }}
-                className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-              Prefer films already on my watchlist
-            </label>
-          ) : null}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={preferWatchlist}
+              onChange={(event) =>
+                handleTogglePreferWatchlist(event.target.checked)
+              }
+              className="border-border accent-primary focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
+            />
+            Prefer items from my Watchlist
+          </label>
           <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
               <Button
@@ -404,6 +401,7 @@ export function EventOneAtATimeBuilderView({
             categoryLabelByKey[step.categoryKey] ?? step.categoryKey
           }
           films={pickerCandidates ?? []}
+          preferWatchlist={preferWatchlist}
           onConfirm={(filmId) => {
             const film = (pickerCandidates ?? []).find(
               (f) => f.filmId === filmId,

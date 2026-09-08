@@ -9,6 +9,7 @@ import {
   isValidChristmasSplit,
   type ChristmasSplit,
 } from "@/domain/drafts/christmas-split";
+import { drawPreferringWatchlist } from "@/domain/drafts/prefer-watchlist-draw";
 import {
   getCurrentOccurrenceBounds,
   isEventAvailable,
@@ -20,7 +21,6 @@ import {
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { createDefaultRng, type Rng } from "@/domain/shared/rng";
 import { SystemClock, type Clock } from "@/domain/time/clock";
-import { pickRandomFilms } from "@/domain/watchlist/random-pick";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type { FilmRepository } from "@/repositories/film-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
@@ -60,22 +60,24 @@ export type CreateChristmasDraftOutcome =
  * cross-pool draw so a film curated into BOTH categories can never appear
  * twice in one Draft.
  *
- * TWO pools instead of Halloween's three (Classic, then Christmas Adjacent
- * excluding whatever Classic already took), allocated by `ChristmasSplit`
- * — itself a thin adapter over the app's existing two-way split
- * primitives, not a reimplementation (see `christmas-split.ts`).
+ * TWO pools (Classic, then Christmas Adjacent excluding whatever Classic
+ * already took), allocated by `ChristmasSplit` — itself a thin adapter
+ * over the app's existing two-way split primitives, not a reimplementation
+ * (see `christmas-split.ts`).
  *
- * `preferWatchlist` (§5) is the one genuinely new selection rule. When on,
- * each pool draws in TWO passes: first from the intersection of that
- * curated category and the profile's ACTIVE watchlist — weighted by each
- * entry's real `selectionWeight`, since those are real watchlist rows —
- * and then, only if that intersection couldn't fill the requested count,
- * tops up from the rest of the curated category, weighted flat. So it is
- * a genuine PREFERENCE and never a requirement: a profile with an empty
- * watchlist gets exactly the same Draft they would with the toggle off.
- * When off, the whole pool is drawn in one flat-weighted pass, matching
- * the off-watchlist convention `createHalloweenLocalDraft` already uses
- * for Horror/Kitsch.
+ * `preferWatchlist` draws through the shared, generic
+ * `drawPreferringWatchlist` (`prefer-watchlist-draw.ts`) — the SAME rule
+ * `createHalloweenLocalDraft` now uses for Horror/Kitsch, not a
+ * Christmas-only copy (see docs/updates, "FDRAFT UPDATE 1 — EVENT
+ * WATCHLIST PREFERENCE CLEANUP" §10). When on, each pool draws in TWO
+ * passes: first from the intersection of that curated category and the
+ * profile's ACTIVE watchlist — weighted by each entry's real
+ * `selectionWeight`, since those are real watchlist rows — and then, only
+ * if that intersection couldn't fill the requested count, tops up from the
+ * rest of the curated category, weighted flat. So it is a genuine
+ * PREFERENCE and never a requirement: a profile with an empty watchlist
+ * gets exactly the same Draft they would with the toggle off. When off,
+ * the whole pool is drawn in one flat-weighted pass.
  *
  * `DraftItemRecord.watchlistEntryId` is populated whenever the drawn film
  * happens to be on the watchlist and left `null` otherwise — the same
@@ -164,7 +166,7 @@ export async function createChristmasLocalDraft(
         message: `Not enough ${label} films available (need ${requested}, have ${available.length}).`,
       };
     }
-    for (const candidate of drawFromPool(
+    for (const candidate of drawPreferringWatchlist(
       available,
       requested,
       params.preferWatchlist,
@@ -241,63 +243,4 @@ export async function createChristmasLocalDraft(
   await repos.drafts.createItems(items);
 
   return { ok: true, draftId };
-}
-
-/**
- * Draws exactly `count` candidates from one already-cross-pool-filtered
- * category, honouring "Prefer Watchlist" (see
- * `createChristmasLocalDraft`'s doc comment for the rule this implements).
- * Caller has already verified `pool.length >= count`, so this always
- * returns exactly `count` candidates.
- */
-function drawFromPool(
-  pool: ChristmasPoolCandidate[],
-  count: number,
-  preferWatchlist: boolean,
-  rng: Rng,
-): ChristmasPoolCandidate[] {
-  if (count === 0) {
-    return [];
-  }
-  const byFilmId = new Map(
-    pool.map((candidate) => [candidate.filmId, candidate]),
-  );
-  const take = (
-    candidates: ChristmasPoolCandidate[],
-    howMany: number,
-    weighted: boolean,
-  ) =>
-    pickRandomFilms(
-      candidates.map((candidate) => ({
-        id: candidate.filmId,
-        weight: weighted ? (candidate.watchlistSelectionWeight ?? 1) : 1,
-      })),
-      howMany,
-      rng,
-    ).map((filmId) => byFilmId.get(filmId)!);
-
-  if (!preferWatchlist) {
-    return take(pool, count, false);
-  }
-
-  // Pass one: the curated category ∩ the active watchlist, weighted by
-  // each entry's real `selectionWeight`.
-  const onWatchlist = pool.filter(
-    (candidate) => candidate.watchlistEntryId !== null,
-  );
-  const preferred = take(
-    onWatchlist,
-    Math.min(count, onWatchlist.length),
-    true,
-  );
-  if (preferred.length >= count) {
-    return preferred;
-  }
-
-  // Pass two: top up the remaining slots from the rest of the curated
-  // category, flat-weighted — this is what keeps the toggle a preference
-  // rather than a requirement (§5, "No Watchlist requirement").
-  const chosenFilmIds = new Set(preferred.map((candidate) => candidate.filmId));
-  const rest = pool.filter((candidate) => !chosenFilmIds.has(candidate.filmId));
-  return [...preferred, ...take(rest, count - preferred.length, false)];
 }

@@ -68,16 +68,14 @@ type FixedChristmasDifficulty = Exclude<
  * generic Event builder Halloween uses, which offers only Random and
  * Choose My Own and never a Challenge (§7).
  *
- * Two genuine differences from Halloween, both required by Christmas's own
- * shape rather than by preference:
- *  - TWO pools (Classic / Christmas Adjacent) instead of three.
- *  - A "Prefer Watchlist" toggle (§5). Halloween's bulk flow has no such
- *    toggle because its Halloween-adjacent pool is watchlist-derived by
- *    definition; Christmas's two pools are purely curated, so the shared
- *    `events.preferWatchlist` preference — the SAME key and default the
- *    One At A Time Random step already reads — becomes meaningful here and
- *    is surfaced. Persisted on change, so the choice carries between the
- *    two flows.
+ * One genuine difference from Halloween: Classic / Christmas Adjacent vs
+ * Horror / Kitsch — different pool names, identical two-pool shape and
+ * identical "Prefer items from my Watchlist" toggle (see docs/updates,
+ * "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §1/§2/§6/§10) —
+ * the shared `events.preferWatchlist` preference, the SAME key and default
+ * the One At A Time Random/Choose My Own steps already read, persisted on
+ * change so the choice carries between every non-January Event Draft
+ * creation flow.
  *
  * Christmas CAN be manually enabled (`manualActivationAllowed: true`,
  * unlike Halloween), so `sourceEventManuallyEnabled` is read from the
@@ -352,7 +350,7 @@ export function ChristmasDraftCreationView({
                       }
                       className="border-border accent-christmas-green focus-visible:outline-ring size-4 rounded border focus-visible:outline-2 focus-visible:outline-offset-2"
                     />
-                    Prefer films already on my watchlist
+                    Prefer items from my Watchlist
                   </label>
                   <p className="text-muted-foreground text-xs">
                     Fills as many slots as it can from Christmas films you

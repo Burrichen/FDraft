@@ -58,7 +58,14 @@ function renderCard(film: DraftFilmCardView) {
 }
 
 describe("DraftFilmCard — Halloween pool identification (Prompt 19)", () => {
-  it("shows a Halloween-Adjacent badge for that source", () => {
+  // Halloween-adjacent is no longer a creatable pool (see docs/updates,
+  // "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §1) — Horror
+  // and Kitsch are the only two categories a NEW Halloween Draft can draw
+  // from. This one test stays to cover an OLD, already-persisted Draft
+  // item that still carries the historical `"halloween-adjacent"` source
+  // (see `DraftItemSource`'s own doc comment) — History must keep
+  // rendering it correctly, forever, even though nothing creates a new one.
+  it("shows a Halloween-Adjacent badge for a historical item with that source", () => {
     renderCard(
       halloweenFilm({ source: "halloween-adjacent", entryId: "entry-1" }),
     );

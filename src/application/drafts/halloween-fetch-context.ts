@@ -1,6 +1,4 @@
-import { fetchLocalChallengeCandidates } from "@/application/drafts/local-fetch-context";
 import { getHalloweenManifestFilmIds } from "@/domain/events/halloween-manifest-overlay";
-import type { ChallengeCandidateFilm } from "@/domain/challenges/types";
 import type { FilmRepository } from "@/repositories/film-repository";
 import type { HistoryRepository } from "@/repositories/history-repository";
 import type { WatchlistRepository } from "@/repositories/watchlist-repository";
@@ -11,95 +9,99 @@ type HalloweenFetchRepos = {
   history: HistoryRepository;
 };
 
-/**
- * The Halloween-adjacent pool (see docs/updates, "PROMPT 19 — HALLOWEEN
- * DRAFT MECHANICS" §3): a film must exist on the profile's ACTIVE
- * watchlist AND carry "Horror" as a genre tag in its real metadata.
- * Reuses `fetchLocalChallengeCandidates` unchanged — every existing
- * eligibility check (unreleased/franchise-order/identity-mismatch/already
- * watched) still applies for free — and simply filters to a case-
- * insensitive genre match. A film with no metadata at all has
- * `genres: null`, which never matches, satisfying "missing genre metadata
- * means it does not qualify" with no extra code.
- */
-export async function fetchHalloweenAdjacentCandidates(
-  repos: HalloweenFetchRepos,
-  profileId: string,
-): Promise<ChallengeCandidateFilm[]> {
-  const candidates = await fetchLocalChallengeCandidates(repos, profileId);
-  return candidates.filter((candidate) =>
-    (candidate.genres ?? []).some((genre) => genre.toLowerCase() === "horror"),
-  );
-}
-
-export interface HalloweenManifestCandidate {
+export interface HalloweenPoolCandidate {
   filmId: string;
   title: string;
   releaseYear: number | null;
+  /** The film's own active-watchlist `selectionWeight`, or `null` when it isn't on this profile's watchlist at all — see `preferWatchlist` in `createHalloweenLocalDraft`. */
+  watchlistSelectionWeight: number | null;
+  /** The profile's active watchlist entry id, or `null` for a curated film that isn't on it — persisted onto the Draft item so both watch paths work (see `createHalloweenLocalDraft`). */
+  watchlistEntryId: string | null;
 }
 
 /**
- * The Horror or Kitsch pool (see §4/§5): every film the global manifest
- * has resolved-or-created locally (see `halloween-manifest-overlay.ts`),
+ * The Horror or Kitsch pool (see docs/updates, "FDRAFT UPDATE 1 — EVENT
+ * WATCHLIST PREFERENCE CLEANUP" §1): every film the global manifest has
+ * resolved-or-created locally (see `halloween-manifest-overlay.ts`),
  * excluding anything the profile has already watched — the one universal
  * FDraft invariant worth preserving here. Deliberately does NOT run the
  * richer `evaluateCandidateEligibility` checks (unreleased/franchise-order/
  * identity-mismatch) — those exist for watchlist pool integrity; Horror/
  * Kitsch are curator-maintained one-off picks, not a franchise-ordered
  * watchlist, and don't need them.
+ *
+ * Also decorates each candidate with its active-watchlist context (the
+ * same shape `fetchChristmasCategoryPool` already returns) — watchlist
+ * membership is decoration here, never a filter: a curated film nobody has
+ * imported is still a perfectly drawable candidate. This is what lets
+ * `createHalloweenLocalDraft` honour "Prefer items from my Watchlist"
+ * through the same shared `drawPreferringWatchlist` rule Christmas uses.
  */
 export async function fetchHalloweenManifestCandidates(
-  repos: { films: FilmRepository; history: HistoryRepository },
+  repos: HalloweenFetchRepos,
   profileId: string,
   filmIds: string[],
-): Promise<HalloweenManifestCandidate[]> {
+): Promise<HalloweenPoolCandidate[]> {
   if (filmIds.length === 0) {
     return [];
   }
-  const [films, watchedHistory] = await Promise.all([
+  const [films, watchedHistory, activeEntries] = await Promise.all([
     Promise.all(filmIds.map((id) => repos.films.getById(id))),
     repos.history.listWatchedHistory(profileId),
+    repos.watchlist.listActiveEntries(profileId),
   ]);
   const watchedFilmIds = new Set(watchedHistory.map((entry) => entry.filmId));
+  const entryByFilmId = new Map(
+    activeEntries.map((entry) => [entry.filmId, entry]),
+  );
 
   return films
     .filter((film): film is NonNullable<typeof film> => film !== null)
     .filter((film) => !watchedFilmIds.has(film.id))
-    .map((film) => ({
-      filmId: film.id,
-      title: film.title,
-      releaseYear: film.releaseYear,
-    }));
+    .map((film) => {
+      const entry = entryByFilmId.get(film.id);
+      return {
+        filmId: film.id,
+        title: film.title,
+        releaseYear: film.releaseYear,
+        watchlistSelectionWeight: entry?.selectionWeight ?? null,
+        watchlistEntryId: entry?.id ?? null,
+      };
+    });
 }
 
 export interface HalloweenPoolCapacity {
-  halloweenAdjacentAvailable: number;
   horrorAvailable: number;
   kitschAvailable: number;
+  /** How many of each pool are ALSO on the profile's active watchlist — shown alongside the totals so "Prefer items from my Watchlist" has a visible meaning before generating (matching `ChristmasPoolCapacity`). */
+  horrorOnWatchlist: number;
+  kitschOnWatchlist: number;
 }
 
 /**
- * "Halloween-adjacent 12 available / Horror 58 available / Kitsch 37
- * available" (see §9). Each number is computed INDEPENDENTLY — not
- * cross-pool-deduplicated against the other two — a deliberate,
- * documented simplification: a film that happens to qualify for more than
- * one pool is counted in each pool's display total, but true
- * non-duplication is only guaranteed at actual generation time, via the
- * sequential draw in `createHalloweenLocalDraft`.
+ * "Horror 58 available (4 on your watchlist) / Kitsch 37 available (2 on
+ * your watchlist)" — the Halloween counterpart of
+ * `computeChristmasPoolCapacity`, and the same documented simplification:
+ * each number is computed INDEPENDENTLY, not cross-pool-deduplicated, so a
+ * film curated into both pools counts once in each display total. True
+ * non-duplication is guaranteed only at generation time, by
+ * `createHalloweenLocalDraft`'s sequential draw.
  */
 export async function computeHalloweenPoolCapacity(
   repos: HalloweenFetchRepos,
   profileId: string,
 ): Promise<HalloweenPoolCapacity> {
   const { horrorFilmIds, kitschFilmIds } = getHalloweenManifestFilmIds();
-  const [adjacent, horror, kitsch] = await Promise.all([
-    fetchHalloweenAdjacentCandidates(repos, profileId),
+  const [horror, kitsch] = await Promise.all([
     fetchHalloweenManifestCandidates(repos, profileId, horrorFilmIds),
     fetchHalloweenManifestCandidates(repos, profileId, kitschFilmIds),
   ]);
+  const onWatchlist = (pool: HalloweenPoolCandidate[]) =>
+    pool.filter((candidate) => candidate.watchlistEntryId !== null).length;
   return {
-    halloweenAdjacentAvailable: adjacent.length,
     horrorAvailable: horror.length,
     kitschAvailable: kitsch.length,
+    horrorOnWatchlist: onWatchlist(horror),
+    kitschOnWatchlist: onWatchlist(kitsch),
   };
 }

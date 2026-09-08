@@ -11,103 +11,53 @@ import type { DraftDifficulty, Repositories } from "@/repositories";
 
 const PROFILE_ID = "alex";
 // Inside Halloween's real natural window (30 Sep 19:00 – 1 Nov 00:00) —
-// `createHalloweenLocalDraft` now gates on availability (see docs/updates,
+// `createHalloweenLocalDraft` gates on availability (see docs/updates,
 // "PROMPT 21 — HALLOWEEN RELEASE HARDENING", §"HALLOWEEN EXPIRY"), so
 // every test exercising pool/allocation logic needs a real in-window
 // `effectiveNow` to reach that logic at all.
 const IN_HALLOWEEN_WINDOW = new Date("2026-10-15T12:00:00.000Z");
 
-async function seedAdjacentFilm(
+/**
+ * `count` curated films in one Halloween pool, optionally also on the
+ * profile's active watchlist — the same shape as Christmas's own
+ * `seedCategory` test helper, since the two Events now share the exact
+ * same "Prefer items from my Watchlist" draw rule (see docs/updates,
+ * "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §6/§10).
+ */
+async function seedPool(
   repos: Repositories,
-  params: { filmId: string; entryId: string },
-) {
-  await repos.films.create({
-    id: params.filmId,
-    title: params.filmId,
-    releaseYear: 2000,
-    letterboxdSlug: params.filmId,
-    letterboxdUri: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-  await repos.watchlist.createEntry({
-    id: params.entryId,
-    profileId: PROFILE_ID,
-    filmId: params.filmId,
-    dateAdded: "2026-01-01",
-    position: 0,
-    isActive: true,
-    selectionWeight: 1,
-    importSource: null,
-    importId: null,
-    removedAt: null,
-    removedReason: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-  await repos.films.upsertMetadata({
-    id: `${params.filmId}-meta`,
-    filmId: params.filmId,
-    provider: "tmdb",
-    posterUrl: null,
-    runtimeMinutes: null,
-    genres: ["Horror"],
-    directors: null,
-    countries: null,
-    languages: null,
-    collectionId: null,
-    collectionName: null,
-    collectionOrder: null,
-    averageRating: null,
-    popularity: null,
-    watchCount: null,
-    fansCount: null,
-    listAppearances: null,
-    externalIds: null,
-    releaseDate: null,
-    releaseStatus: "Released",
-    providerTitle: null,
-    raw: null,
-    matchMethod: "automatic",
-    lastEnrichedAt: "2026-01-01T00:00:00.000Z",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-}
-
-async function seedOffWatchlistFilm(repos: Repositories, filmId: string) {
-  await repos.films.create({
-    id: filmId,
-    title: filmId,
-    releaseYear: 2000,
-    letterboxdSlug: null,
-    letterboxdUri: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-}
-
-async function seedManyAdjacent(repos: Repositories, count: number) {
-  const entryIds: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const filmId = `adj-${i}`;
-    const entryId = `adj-entry-${i}`;
-    await seedAdjacentFilm(repos, { filmId, entryId });
-    entryIds.push(entryId);
-  }
-  return entryIds;
-}
-
-async function seedManyOffWatchlist(
-  repos: Repositories,
-  prefix: string,
-  count: number,
+  params: { prefix: string; count: number; onWatchlist?: boolean },
 ) {
   const filmIds: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const filmId = `${prefix}-${i}`;
-    await seedOffWatchlistFilm(repos, filmId);
+  for (let index = 0; index < params.count; index++) {
+    const filmId = `${params.prefix}-${index}`;
     filmIds.push(filmId);
+    await repos.films.create({
+      id: filmId,
+      title: `${params.prefix} film ${index}`,
+      releaseYear: 2000 + index,
+      letterboxdSlug: null,
+      letterboxdUri: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    if (params.onWatchlist) {
+      await repos.watchlist.createEntry({
+        id: `entry-${filmId}`,
+        profileId: PROFILE_ID,
+        filmId,
+        dateAdded: "2026-01-01",
+        position: index,
+        isActive: true,
+        selectionWeight: 1,
+        importSource: null,
+        importId: null,
+        removedAt: null,
+        removedReason: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      });
+    }
   }
   return filmIds;
 }
@@ -126,9 +76,8 @@ describe("createHalloweenLocalDraft", () => {
 
   it("generates exactly the configured allocation, tagging each item's pool", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
-    const horrorIds = await seedManyOffWatchlist(repos, "horror", 5);
-    const kitschIds = await seedManyOffWatchlist(repos, "kitsch", 5);
+    const horrorIds = await seedPool(repos, { prefix: "horror", count: 6 });
+    const kitschIds = await seedPool(repos, { prefix: "kitsch", count: 4 });
     setHalloweenManifestFilmIds({
       horrorFilmIds: horrorIds,
       kitschFilmIds: kitschIds,
@@ -141,7 +90,8 @@ describe("createHalloweenLocalDraft", () => {
         timezone: "UTC",
         difficulty: "medium",
         effectiveNow: IN_HALLOWEEN_WINDOW,
-        split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
+        split: { horrorCount: 6, kitschCount: 4 },
+        preferWatchlist: false,
       },
       { rng: createSeededRng(1) },
     );
@@ -152,25 +102,13 @@ describe("createHalloweenLocalDraft", () => {
     const items = await repos.drafts.listItemsForDraft(outcome.draftId);
     expect(items).toHaveLength(10);
     const bySource = {
-      "halloween-adjacent": items.filter(
-        (i) => i.source === "halloween-adjacent",
-      ),
       horror: items.filter((i) => i.source === "horror"),
       kitsch: items.filter((i) => i.source === "kitsch"),
     };
-    expect(bySource["halloween-adjacent"]).toHaveLength(4);
-    expect(bySource.horror).toHaveLength(4);
-    expect(bySource.kitsch).toHaveLength(2);
-    // Adjacent items keep a real watchlist entry; horror/kitsch don't.
-    expect(
-      bySource["halloween-adjacent"].every((i) => i.watchlistEntryId !== null),
-    ).toBe(true);
-    expect(bySource.horror.every((i) => i.watchlistEntryId === null)).toBe(
-      true,
-    );
-    expect(bySource.kitsch.every((i) => i.watchlistEntryId === null)).toBe(
-      true,
-    );
+    expect(bySource.horror).toHaveLength(6);
+    expect(bySource.kitsch).toHaveLength(4);
+    // Off-watchlist films never carry a watchlist entry.
+    expect(items.every((i) => i.watchlistEntryId === null)).toBe(true);
 
     const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
     expect(draft?.sourceEventId).toBe(HALLOWEEN_EVENT_ID);
@@ -179,17 +117,12 @@ describe("createHalloweenLocalDraft", () => {
     expect(draft?.challengeFilmCount).toBe(0);
   });
 
-  it("never duplicates a film that qualifies for more than one pool", async () => {
+  it("never duplicates a film that's curated into both Horror and Kitsch", async () => {
     const repos = setup();
-    // Same film exists on the watchlist (Horror-tagged) AND in the global
-    // Horror manifest list — must appear only once in the draft.
-    await seedAdjacentFilm(repos, {
-      filmId: "shared-film",
-      entryId: "shared-entry",
-    });
+    await seedPool(repos, { prefix: "shared", count: 1 });
     setHalloweenManifestFilmIds({
-      horrorFilmIds: ["shared-film"],
-      kitschFilmIds: [],
+      horrorFilmIds: ["shared-0"],
+      kitschFilmIds: ["shared-0"],
     });
 
     const outcome = await createHalloweenLocalDraft(
@@ -199,18 +132,18 @@ describe("createHalloweenLocalDraft", () => {
         timezone: "UTC",
         difficulty: "baby",
         effectiveNow: IN_HALLOWEEN_WINDOW,
-        split: { halloweenAdjacentCount: 1, horrorCount: 1, kitschCount: 3 },
+        split: { horrorCount: 1, kitschCount: 4 },
+        preferWatchlist: false,
       },
       { rng: createSeededRng(1) },
     );
 
-    // Only one candidate exists for Horror once Halloween-adjacent claims
-    // it — "not enough Horror films" is the correct, honest outcome, not
-    // a silent duplicate.
+    // Horror already claimed the one shared film — "not enough Kitsch
+    // films" is the correct, honest outcome, not a silent duplicate.
     expect(outcome).toEqual({
       ok: false,
       error: "not_enough_films",
-      message: expect.stringContaining("Horror"),
+      message: expect.stringContaining("Kitsch"),
     });
   });
 
@@ -221,7 +154,8 @@ describe("createHalloweenLocalDraft", () => {
       timezone: "UTC",
       difficulty: "medium",
       effectiveNow: IN_HALLOWEEN_WINDOW,
-      split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 1 },
+      split: { horrorCount: 4, kitschCount: 1 },
+      preferWatchlist: false,
     });
     expect(outcome).toEqual({
       ok: false,
@@ -230,32 +164,31 @@ describe("createHalloweenLocalDraft", () => {
     });
   });
 
-  it("reports not_enough_films for a Halloween-adjacent shortfall", async () => {
+  it("reports not_enough_films for a Horror shortfall", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 1);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
-      kitschFilmIds: await seedManyOffWatchlist(repos, "kitsch", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 1 }),
+      kitschFilmIds: await seedPool(repos, { prefix: "kitsch", count: 5 }),
     });
     const outcome = await createHalloweenLocalDraft(repos, {
       profileId: PROFILE_ID,
       timezone: "UTC",
       difficulty: "baby",
       effectiveNow: IN_HALLOWEEN_WINDOW,
-      split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
+      split: { horrorCount: 3, kitschCount: 2 },
+      preferWatchlist: false,
     });
     expect(outcome).toEqual({
       ok: false,
       error: "not_enough_films",
-      message: expect.stringContaining("Halloween-adjacent"),
+      message: expect.stringContaining("Horror"),
     });
   });
 
   it("reports not_enough_films for a Kitsch shortfall", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 5 }),
       kitschFilmIds: [],
     });
     const outcome = await createHalloweenLocalDraft(repos, {
@@ -263,7 +196,8 @@ describe("createHalloweenLocalDraft", () => {
       timezone: "UTC",
       difficulty: "baby",
       effectiveNow: IN_HALLOWEEN_WINDOW,
-      split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
+      split: { horrorCount: 3, kitschCount: 2 },
+      preferWatchlist: false,
     });
     expect(outcome).toEqual({
       ok: false,
@@ -274,17 +208,17 @@ describe("createHalloweenLocalDraft", () => {
 
   it("refuses to create a second draft while one is already active", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
-      kitschFilmIds: await seedManyOffWatchlist(repos, "kitsch", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 5 }),
+      kitschFilmIds: await seedPool(repos, { prefix: "kitsch", count: 5 }),
     });
     const params = {
       profileId: PROFILE_ID,
       timezone: "UTC",
       difficulty: "baby" as const,
       effectiveNow: IN_HALLOWEEN_WINDOW,
-      split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
+      split: { horrorCount: 3, kitschCount: 2 },
+      preferWatchlist: false,
     };
     const first = await createHalloweenLocalDraft(repos, params, {
       rng: createSeededRng(1),
@@ -299,6 +233,166 @@ describe("createHalloweenLocalDraft", () => {
       error: "already_active",
       message: expect.any(String),
     });
+  });
+});
+
+describe("createHalloweenLocalDraft — Prefer items from my Watchlist (FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP §6)", () => {
+  let db: FDraftLocalDatabase;
+  afterEach(async () => {
+    await db?.delete();
+    setHalloweenManifestFilmIds({ horrorFilmIds: [], kitschFilmIds: [] });
+  });
+
+  function setup() {
+    db = new FDraftLocalDatabase(
+      `halloween-prefer-watchlist-${crypto.randomUUID()}`,
+    );
+    return createLocalRepositories(db) as Repositories;
+  }
+
+  it("ON fills from the watchlist intersection first, then tops up from the full pool", async () => {
+    const repos = setup();
+    // 2 Horror films on the watchlist, 20 more that aren't. Asking for
+    // baby's 5 Horror films must take both watchlist films, then 3 others.
+    const onList = await seedPool(repos, {
+      prefix: "horror-on-list",
+      count: 2,
+      onWatchlist: true,
+    });
+    const offList = await seedPool(repos, {
+      prefix: "horror-off-list",
+      count: 20,
+    });
+    setHalloweenManifestFilmIds({
+      horrorFilmIds: [...onList, ...offList],
+      kitschFilmIds: [],
+    });
+
+    const outcome = await createHalloweenLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        difficulty: "baby",
+        effectiveNow: IN_HALLOWEEN_WINDOW,
+        split: { horrorCount: 5, kitschCount: 0 },
+        preferWatchlist: true,
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(5);
+    const drawnFilmIds = items.map((item) => item.filmId);
+    // Both watchlist films made it in — the preference is honoured...
+    for (const filmId of onList) {
+      expect(drawnFilmIds).toContain(filmId);
+    }
+    // ...and the remaining three came from the rest of the pool, so it
+    // stayed a preference and never a requirement.
+    expect(
+      drawnFilmIds.filter((filmId) => offList.includes(filmId)),
+    ).toHaveLength(3);
+    // A watchlist-backed item carries its entry id; a curated-only one
+    // doesn't — so both watch paths work.
+    const watchlistItems = items.filter(
+      (item) => item.watchlistEntryId !== null,
+    );
+    expect(watchlistItems).toHaveLength(2);
+  });
+
+  it("partial overlap never fails the Draft — tops up from the full category to reach the requested count", async () => {
+    const repos = setup();
+    const onList = await seedPool(repos, {
+      prefix: "horror-on-list",
+      count: 2,
+      onWatchlist: true,
+    });
+    const offList = await seedPool(repos, {
+      prefix: "horror-off-list",
+      count: 10,
+    });
+    setHalloweenManifestFilmIds({
+      horrorFilmIds: [...onList, ...offList],
+      kitschFilmIds: [],
+    });
+
+    const outcome = await createHalloweenLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        difficulty: "easy",
+        effectiveNow: IN_HALLOWEEN_WINDOW,
+        split: { horrorCount: 8, kitschCount: 0 },
+        preferWatchlist: true,
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(8);
+  });
+
+  it("zero overlap never fails the Draft — draws entirely from the full category", async () => {
+    const repos = setup();
+    const offList = await seedPool(repos, {
+      prefix: "horror-off-list",
+      count: 10,
+    });
+    setHalloweenManifestFilmIds({
+      horrorFilmIds: offList,
+      kitschFilmIds: [],
+    });
+
+    const outcome = await createHalloweenLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        difficulty: "baby",
+        effectiveNow: IN_HALLOWEEN_WINDOW,
+        split: { horrorCount: 5, kitschCount: 0 },
+        preferWatchlist: true,
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(5);
+    expect(items.every((item) => item.watchlistEntryId === null)).toBe(true);
+  });
+
+  it("is never a requirement — an empty watchlist drafts exactly the same count as the toggle off", async () => {
+    const repos = setup();
+    const horrorIds = await seedPool(repos, { prefix: "horror", count: 15 });
+    setHalloweenManifestFilmIds({
+      horrorFilmIds: horrorIds,
+      kitschFilmIds: [],
+    });
+
+    const outcome = await createHalloweenLocalDraft(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        difficulty: "easy",
+        effectiveNow: IN_HALLOWEEN_WINDOW,
+        split: { horrorCount: 8, kitschCount: 0 },
+        preferWatchlist: true,
+      },
+      { rng: createSeededRng(1) },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const items = await repos.drafts.listItemsForDraft(outcome.draftId);
+    expect(items).toHaveLength(8);
   });
 });
 
@@ -328,7 +422,10 @@ describe("createHalloweenLocalDraft — fixed Event deadline, no Calendar/Timer 
     "created %s always gets a deadline of exactly 1 November 00:00 UTC",
     async (_label, effectiveNowIso) => {
       const repos = setup();
-      await seedManyAdjacent(repos, 5);
+      setHalloweenManifestFilmIds({
+        horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 5 }),
+        kitschFilmIds: [],
+      });
 
       const outcome = await createHalloweenLocalDraft(
         repos,
@@ -337,7 +434,8 @@ describe("createHalloweenLocalDraft — fixed Event deadline, no Calendar/Timer 
           timezone: "UTC",
           difficulty: "baby",
           effectiveNow: new Date(effectiveNowIso),
-          split: { halloweenAdjacentCount: 5, horrorCount: 0, kitschCount: 0 },
+          split: { horrorCount: 5, kitschCount: 0 },
+          preferWatchlist: false,
         },
         { rng: createSeededRng(1) },
       );
@@ -351,7 +449,10 @@ describe("createHalloweenLocalDraft — fixed Event deadline, no Calendar/Timer 
 
   it("the deadline is evaluated in the profile's OWN timezone, not UTC", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
+    setHalloweenManifestFilmIds({
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 5 }),
+      kitschFilmIds: [],
+    });
 
     const outcome = await createHalloweenLocalDraft(
       repos,
@@ -361,7 +462,8 @@ describe("createHalloweenLocalDraft — fixed Event deadline, no Calendar/Timer 
         difficulty: "baby",
         // 15 Oct, mid-afternoon America/New_York.
         effectiveNow: new Date("2026-10-15T16:00:00.000Z"),
-        split: { halloweenAdjacentCount: 5, horrorCount: 0, kitschCount: 0 },
+        split: { horrorCount: 5, kitschCount: 0 },
+        preferWatchlist: false,
       },
       { rng: createSeededRng(1) },
     );
@@ -392,7 +494,7 @@ describe("createHalloweenLocalDraft — every difficulty (PROMPT 21)", () => {
   ];
 
   it.each(NON_FREEFORM_DIFFICULTIES)(
-    "generates exactly %s's film count, split across the three pools with no duplicates",
+    "generates exactly %s's film count, split across the two pools with no duplicates",
     async (difficulty) => {
       db = new FDraftLocalDatabase(
         `halloween-difficulty-${difficulty}-${crypto.randomUUID()}`,
@@ -400,9 +502,14 @@ describe("createHalloweenLocalDraft — every difficulty (PROMPT 21)", () => {
       const repos = createLocalRepositories(db) as Repositories;
       const totalFilms = DIFFICULTIES[difficulty].filmCount!;
 
-      await seedManyAdjacent(repos, totalFilms);
-      const horrorIds = await seedManyOffWatchlist(repos, "horror", totalFilms);
-      const kitschIds = await seedManyOffWatchlist(repos, "kitsch", totalFilms);
+      const horrorIds = await seedPool(repos, {
+        prefix: "horror",
+        count: totalFilms,
+      });
+      const kitschIds = await seedPool(repos, {
+        prefix: "kitsch",
+        count: totalFilms,
+      });
       setHalloweenManifestFilmIds({
         horrorFilmIds: horrorIds,
         kitschFilmIds: kitschIds,
@@ -417,6 +524,7 @@ describe("createHalloweenLocalDraft — every difficulty (PROMPT 21)", () => {
           difficulty,
           effectiveNow: IN_HALLOWEEN_WINDOW,
           split,
+          preferWatchlist: false,
         },
         { rng: createSeededRng(1) },
       );
@@ -426,20 +534,12 @@ describe("createHalloweenLocalDraft — every difficulty (PROMPT 21)", () => {
 
       const items = await repos.drafts.listItemsForDraft(outcome.draftId);
       expect(items).toHaveLength(totalFilms);
-      expect(
-        split.halloweenAdjacentCount + split.horrorCount + split.kitschCount,
-      ).toBe(totalFilms);
+      expect(split.horrorCount + split.kitschCount).toBe(totalFilms);
 
       const bySource = {
-        "halloween-adjacent": items.filter(
-          (i) => i.source === "halloween-adjacent",
-        ),
         horror: items.filter((i) => i.source === "horror"),
         kitsch: items.filter((i) => i.source === "kitsch"),
       };
-      expect(bySource["halloween-adjacent"]).toHaveLength(
-        split.halloweenAdjacentCount,
-      );
       expect(bySource.horror).toHaveLength(split.horrorCount);
       expect(bySource.kitsch).toHaveLength(split.kitschCount);
 
@@ -464,10 +564,9 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
 
   it("refuses to create a new draft once Halloween's window has closed (1 November, profile timezone)", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
-      kitschFilmIds: await seedManyOffWatchlist(repos, "kitsch", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 6 }),
+      kitschFilmIds: await seedPool(repos, { prefix: "kitsch", count: 4 }),
     });
 
     const outcome = await createHalloweenLocalDraft(
@@ -476,7 +575,8 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
+        split: { horrorCount: 6, kitschCount: 4 },
+        preferWatchlist: false,
         effectiveNow: new Date("2026-11-01T00:00:00.000Z"),
       },
       { rng: createSeededRng(1) },
@@ -490,10 +590,9 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
 
   it("refuses before the window opens (30 September, just before 19:00)", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
-      kitschFilmIds: await seedManyOffWatchlist(repos, "kitsch", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 6 }),
+      kitschFilmIds: await seedPool(repos, { prefix: "kitsch", count: 4 }),
     });
 
     const outcome = await createHalloweenLocalDraft(
@@ -502,7 +601,8 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
+        split: { horrorCount: 6, kitschCount: 4 },
+        preferWatchlist: false,
         effectiveNow: new Date("2026-09-30T18:59:00.000Z"),
       },
       { rng: createSeededRng(1) },
@@ -516,10 +616,9 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
 
   it("succeeds at the exact moment the window opens (30 September 19:00) and remains open through 31 October 23:59", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
-      kitschFilmIds: await seedManyOffWatchlist(repos, "kitsch", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 6 }),
+      kitschFilmIds: await seedPool(repos, { prefix: "kitsch", count: 4 }),
     });
 
     const atOpen = await createHalloweenLocalDraft(
@@ -528,7 +627,8 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
+        split: { horrorCount: 6, kitschCount: 4 },
+        preferWatchlist: false,
         effectiveNow: new Date("2026-09-30T19:00:00.000Z"),
       },
       { rng: createSeededRng(1) },
@@ -538,10 +638,9 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
 
   it("defaults to the real wall clock when effectiveNow is omitted (never silently permissive)", async () => {
     const repos = setup();
-    await seedManyAdjacent(repos, 5);
     setHalloweenManifestFilmIds({
-      horrorFilmIds: await seedManyOffWatchlist(repos, "horror", 5),
-      kitschFilmIds: await seedManyOffWatchlist(repos, "kitsch", 5),
+      horrorFilmIds: await seedPool(repos, { prefix: "horror", count: 6 }),
+      kitschFilmIds: await seedPool(repos, { prefix: "kitsch", count: 4 }),
     });
 
     // No `effectiveNow` passed — falls back to the real `new Date()`. This
@@ -554,7 +653,8 @@ describe("createHalloweenLocalDraft — expiry (PROMPT 21)", () => {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "medium",
-        split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
+        split: { horrorCount: 6, kitschCount: 4 },
+        preferWatchlist: false,
       },
       { rng: createSeededRng(1) },
     );
@@ -576,15 +676,15 @@ describe("createHalloweenLocalDraft — off-watchlist films are never added to t
       `halloween-no-side-effect-${crypto.randomUUID()}`,
     );
     const repos = createLocalRepositories(db) as Repositories;
-    await seedManyAdjacent(repos, 5);
-    const horrorIds = await seedManyOffWatchlist(repos, "horror", 5);
-    const kitschIds = await seedManyOffWatchlist(repos, "kitsch", 5);
+    const horrorIds = await seedPool(repos, { prefix: "horror", count: 6 });
+    const kitschIds = await seedPool(repos, { prefix: "kitsch", count: 4 });
     setHalloweenManifestFilmIds({
       horrorFilmIds: horrorIds,
       kitschFilmIds: kitschIds,
     });
 
     const entriesBefore = await repos.watchlist.listAllEntries(PROFILE_ID);
+    expect(entriesBefore).toHaveLength(0);
 
     const outcome = await createHalloweenLocalDraft(
       repos,
@@ -593,21 +693,14 @@ describe("createHalloweenLocalDraft — off-watchlist films are never added to t
         timezone: "UTC",
         difficulty: "medium",
         effectiveNow: IN_HALLOWEEN_WINDOW,
-        split: { halloweenAdjacentCount: 4, horrorCount: 4, kitschCount: 2 },
+        split: { horrorCount: 6, kitschCount: 4 },
+        preferWatchlist: false,
       },
       { rng: createSeededRng(1) },
     );
     expect(outcome.ok).toBe(true);
 
     const entriesAfter = await repos.watchlist.listAllEntries(PROFILE_ID);
-    // Exactly the 5 Halloween-adjacent entries seeded up front — nothing
-    // new was inserted for the drafted Horror/Kitsch films.
-    expect(entriesAfter).toHaveLength(entriesBefore.length);
-    expect(entriesAfter.map((e) => e.filmId).sort()).toEqual(
-      entriesBefore.map((e) => e.filmId).sort(),
-    );
-    for (const filmId of [...horrorIds, ...kitschIds]) {
-      expect(entriesAfter.some((e) => e.filmId === filmId)).toBe(false);
-    }
+    expect(entriesAfter).toHaveLength(0);
   });
 });

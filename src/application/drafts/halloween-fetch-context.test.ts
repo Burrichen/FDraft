@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   computeHalloweenPoolCapacity,
-  fetchHalloweenAdjacentCandidates,
   fetchHalloweenManifestCandidates,
 } from "./halloween-fetch-context";
 import { setHalloweenManifestFilmIds } from "@/domain/events/halloween-manifest-overlay";
@@ -13,11 +12,7 @@ const PROFILE_ID = "alex";
 
 async function seedWatchlistFilm(
   repos: Repositories,
-  params: {
-    filmId: string;
-    entryId: string;
-    genres?: string[] | null;
-  },
+  params: { filmId: string; entryId: string; selectionWeight?: number },
 ) {
   await repos.films.create({
     id: params.filmId,
@@ -35,7 +30,7 @@ async function seedWatchlistFilm(
     dateAdded: "2026-01-01",
     position: 0,
     isActive: true,
-    selectionWeight: 1,
+    selectionWeight: params.selectionWeight ?? 1,
     importSource: null,
     importId: null,
     removedAt: null,
@@ -43,36 +38,6 @@ async function seedWatchlistFilm(
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   });
-  if (params.genres !== undefined) {
-    await repos.films.upsertMetadata({
-      id: `${params.filmId}-meta`,
-      filmId: params.filmId,
-      provider: "tmdb",
-      posterUrl: null,
-      runtimeMinutes: null,
-      genres: params.genres,
-      directors: null,
-      countries: null,
-      languages: null,
-      collectionId: null,
-      collectionName: null,
-      collectionOrder: null,
-      averageRating: null,
-      popularity: null,
-      watchCount: null,
-      fansCount: null,
-      listAppearances: null,
-      externalIds: null,
-      releaseDate: null,
-      releaseStatus: "Released",
-      providerTitle: null,
-      raw: null,
-      matchMethod: "automatic",
-      lastEnrichedAt: "2026-01-01T00:00:00.000Z",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-  }
 }
 
 async function seedOffWatchlistFilm(repos: Repositories, filmId: string) {
@@ -86,104 +51,6 @@ async function seedOffWatchlistFilm(repos: Repositories, filmId: string) {
     updatedAt: "2026-01-01T00:00:00.000Z",
   });
 }
-
-describe("fetchHalloweenAdjacentCandidates", () => {
-  let db: FDraftLocalDatabase;
-  afterEach(async () => {
-    await db?.delete();
-  });
-
-  function setup() {
-    db = new FDraftLocalDatabase(`halloween-adjacent-${crypto.randomUUID()}`);
-    return createLocalRepositories(db) as Repositories;
-  }
-
-  it("qualifies a watchlist film tagged Horror", async () => {
-    const repos = setup();
-    await seedWatchlistFilm(repos, {
-      filmId: "film-1",
-      entryId: "entry-1",
-      genres: ["Horror"],
-    });
-    const candidates = await fetchHalloweenAdjacentCandidates(
-      repos,
-      PROFILE_ID,
-    );
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0].filmId).toBe("film-1");
-  });
-
-  it("matches Horror case-insensitively", async () => {
-    const repos = setup();
-    await seedWatchlistFilm(repos, {
-      filmId: "film-1",
-      entryId: "entry-1",
-      genres: ["horror"],
-    });
-    const candidates = await fetchHalloweenAdjacentCandidates(
-      repos,
-      PROFILE_ID,
-    );
-    expect(candidates).toHaveLength(1);
-  });
-
-  it("rejects a watchlist film with no Horror genre", async () => {
-    const repos = setup();
-    await seedWatchlistFilm(repos, {
-      filmId: "film-1",
-      entryId: "entry-1",
-      genres: ["Comedy", "Drama"],
-    });
-    const candidates = await fetchHalloweenAdjacentCandidates(
-      repos,
-      PROFILE_ID,
-    );
-    expect(candidates).toHaveLength(0);
-  });
-
-  it("rejects a watchlist film with no metadata at all — missing genre never qualifies", async () => {
-    const repos = setup();
-    await seedWatchlistFilm(repos, { filmId: "film-1", entryId: "entry-1" });
-    const candidates = await fetchHalloweenAdjacentCandidates(
-      repos,
-      PROFILE_ID,
-    );
-    expect(candidates).toHaveLength(0);
-  });
-
-  it("never infers Horror from title alone", async () => {
-    const repos = setup();
-    await repos.films.create({
-      id: "film-1",
-      title: "A Very Scary Horror Movie",
-      releaseYear: 2000,
-      letterboxdSlug: "film-1",
-      letterboxdUri: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-    await repos.watchlist.createEntry({
-      id: "entry-1",
-      profileId: PROFILE_ID,
-      filmId: "film-1",
-      dateAdded: "2026-01-01",
-      position: 0,
-      isActive: true,
-      selectionWeight: 1,
-      importSource: null,
-      importId: null,
-      removedAt: null,
-      removedReason: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-    const candidates = await fetchHalloweenAdjacentCandidates(
-      repos,
-      PROFILE_ID,
-    );
-    expect(candidates).toHaveLength(0);
-  });
-});
 
 describe("fetchHalloweenManifestCandidates", () => {
   let db: FDraftLocalDatabase;
@@ -207,7 +74,36 @@ describe("fetchHalloweenManifestCandidates", () => {
       ["horror-film-1"],
     );
     expect(candidates).toEqual([
-      { filmId: "horror-film-1", title: "horror-film-1", releaseYear: 2000 },
+      {
+        filmId: "horror-film-1",
+        title: "horror-film-1",
+        releaseYear: 2000,
+        watchlistSelectionWeight: null,
+        watchlistEntryId: null,
+      },
+    ]);
+  });
+
+  it("decorates a film that IS on the watchlist with its entry id and selection weight — see Prefer items from my Watchlist", async () => {
+    const repos = setup();
+    await seedWatchlistFilm(repos, {
+      filmId: "horror-film-1",
+      entryId: "entry-1",
+      selectionWeight: 3,
+    });
+    const candidates = await fetchHalloweenManifestCandidates(
+      repos,
+      PROFILE_ID,
+      ["horror-film-1"],
+    );
+    expect(candidates).toEqual([
+      {
+        filmId: "horror-film-1",
+        title: "horror-film-1",
+        releaseYear: 2000,
+        watchlistSelectionWeight: 3,
+        watchlistEntryId: "entry-1",
+      },
     ]);
   });
 
@@ -249,15 +145,10 @@ describe("computeHalloweenPoolCapacity", () => {
     setHalloweenManifestFilmIds({ horrorFilmIds: [], kitschFilmIds: [] });
   });
 
-  it("reports independent counts per pool", async () => {
+  it("reports independent counts per pool, including how many are on the watchlist", async () => {
     db = new FDraftLocalDatabase(`halloween-capacity-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db) as Repositories;
-    await seedWatchlistFilm(repos, {
-      filmId: "adj-1",
-      entryId: "entry-1",
-      genres: ["Horror"],
-    });
-    await seedOffWatchlistFilm(repos, "horror-1");
+    await seedWatchlistFilm(repos, { filmId: "horror-1", entryId: "entry-1" });
     await seedOffWatchlistFilm(repos, "horror-2");
     await seedOffWatchlistFilm(repos, "kitsch-1");
     setHalloweenManifestFilmIds({
@@ -267,9 +158,10 @@ describe("computeHalloweenPoolCapacity", () => {
 
     const capacity = await computeHalloweenPoolCapacity(repos, PROFILE_ID);
     expect(capacity).toEqual({
-      halloweenAdjacentAvailable: 1,
       horrorAvailable: 2,
       kitschAvailable: 1,
+      horrorOnWatchlist: 1,
+      kitschOnWatchlist: 0,
     });
   });
 });

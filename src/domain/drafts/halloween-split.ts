@@ -1,125 +1,81 @@
-/**
- * The three-way linked allocation for a Halloween Draft (see docs/updates,
- * "PROMPT 19 — HALLOWEEN DRAFT MECHANICS"). Halloween does not use the
- * normal Random/Challenge split (`split.ts`) — instead a fixed difficulty
- * film count is divided across three pools: Halloween-adjacent, Horror, and
- * Kitsch. Generalizes `split.ts`'s "derive the other value from a
- * subtraction" invariant to three dimensions: changing one count clamps it
- * to `[0, totalFilms]`, then redistributes the REMAINING TWO proportionally
- * to their current ratio over the leftover total, so the three values can
- * never leave `totalFilms` in sum, no matter which one the user drags.
- */
+import {
+  createDefaultSplit,
+  isValidSplit,
+  setChallengeCount,
+  setRandomCount,
+} from "./split";
 
+/**
+ * The two-way linked allocation for a fixed-size Halloween Draft (see
+ * docs/updates, "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §1/
+ * §2): a difficulty's film count divided across Halloween's two curated
+ * categories, Horror and Kitsch, always summing to exactly that count.
+ *
+ * Halloween-adjacent (a third, watchlist-derived pool) is gone — every
+ * Halloween Draft now draws from exactly the same two curated categories
+ * Christmas draws from its own two, so this is now a thin ADAPTER over
+ * `split.ts`'s already-tested two-way primitives, exactly like
+ * `christmas-split.ts` — never a second implementation of the same
+ * arithmetic. The field names are Halloween's own, though, never
+ * `randomCount`/`challengeCount`: Halloween has no Challenge source at all,
+ * so surfacing that vocabulary here would be actively misleading.
+ *
+ * A film already on an old Halloween Draft may still carry the historical
+ * `"halloween-adjacent"` source (see `DraftItemSource`'s own doc comment)
+ * — that's read-only History data, untouched by this file, which only
+ * governs NEW Draft creation.
+ */
 export interface HalloweenSplit {
-  halloweenAdjacentCount: number;
   horrorCount: number;
   kitschCount: number;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
+function toHalloweenSplit(split: {
+  randomCount: number;
+  challengeCount: number;
+}): HalloweenSplit {
+  return {
+    horrorCount: split.randomCount,
+    kitschCount: split.challengeCount,
+  };
 }
 
-/**
- * Redistributes `remainder` across two current values, preserving their
- * existing ratio. An even 50/50 split (rounded down, remainder to `a`) is
- * used when both are currently 0 — there's no ratio to preserve. Always
- * sums to exactly `remainder`: any rounding remainder from the
- * proportional split is resolved onto `a`.
- */
-function redistributePair(
-  currentA: number,
-  currentB: number,
-  remainder: number,
-): { a: number; b: number } {
-  const currentTotal = currentA + currentB;
-  if (currentTotal <= 0) {
-    const a = Math.floor(remainder / 2);
-    return { a, b: remainder - a };
-  }
-  const a = Math.round((remainder * currentA) / currentTotal);
-  return { a, b: remainder - a };
-}
-
-/**
- * The default starting allocation for a given difficulty's total film
- * count — an even three-way split, with any remainder (0–2 films) added
- * one at a time to Halloween-adjacent, then Horror.
- */
+/** An even split, biased toward one extra Horror film on an odd total (e.g. 8 -> 4/4, 5 -> 3/2). */
 export function createDefaultHalloweenSplit(
   totalFilms: number,
 ): HalloweenSplit {
-  const base = Math.floor(totalFilms / 3);
-  let remainder = totalFilms - base * 3;
-  let halloweenAdjacentCount = base;
-  let horrorCount = base;
-  const kitschCount = base;
-  if (remainder > 0) {
-    halloweenAdjacentCount += 1;
-    remainder -= 1;
-  }
-  if (remainder > 0) {
-    horrorCount += 1;
-    remainder -= 1;
-  }
-  return { halloweenAdjacentCount, horrorCount, kitschCount };
+  // `createDefaultSplit` biases the SECOND value up on an odd total; for
+  // Halloween the extra film belongs to Horror (the headline category), so
+  // the two are swapped on the way out rather than reimplemented.
+  const base = createDefaultSplit(totalFilms);
+  return {
+    horrorCount: base.challengeCount,
+    kitschCount: base.randomCount,
+  };
 }
 
-export function setHalloweenAdjacentCount(
-  split: HalloweenSplit,
-  value: number,
-  totalFilms: number,
-): HalloweenSplit {
-  const halloweenAdjacentCount = clamp(value, 0, totalFilms);
-  const { a: horrorCount, b: kitschCount } = redistributePair(
-    split.horrorCount,
-    split.kitschCount,
-    totalFilms - halloweenAdjacentCount,
-  );
-  return { halloweenAdjacentCount, horrorCount, kitschCount };
-}
-
+/** Sets the Horror count, clamping to `[0, totalFilms]`, and derives Kitsch to match. */
 export function setHorrorCount(
-  split: HalloweenSplit,
-  value: number,
   totalFilms: number,
+  requestedHorrorCount: number,
 ): HalloweenSplit {
-  const horrorCount = clamp(value, 0, totalFilms);
-  const { a: halloweenAdjacentCount, b: kitschCount } = redistributePair(
-    split.halloweenAdjacentCount,
-    split.kitschCount,
-    totalFilms - horrorCount,
-  );
-  return { halloweenAdjacentCount, horrorCount, kitschCount };
+  return toHalloweenSplit(setRandomCount(totalFilms, requestedHorrorCount));
 }
 
+/** Sets the Kitsch count, clamping to `[0, totalFilms]`, and derives Horror to match. */
 export function setKitschCount(
-  split: HalloweenSplit,
-  value: number,
   totalFilms: number,
+  requestedKitschCount: number,
 ): HalloweenSplit {
-  const kitschCount = clamp(value, 0, totalFilms);
-  const { a: halloweenAdjacentCount, b: horrorCount } = redistributePair(
-    split.halloweenAdjacentCount,
-    split.horrorCount,
-    totalFilms - kitschCount,
-  );
-  return { halloweenAdjacentCount, horrorCount, kitschCount };
+  return toHalloweenSplit(setChallengeCount(totalFilms, requestedKitschCount));
 }
 
 export function isValidHalloweenSplit(
-  split: HalloweenSplit,
   totalFilms: number,
+  split: HalloweenSplit,
 ): boolean {
-  if (
-    split.halloweenAdjacentCount < 0 ||
-    split.horrorCount < 0 ||
-    split.kitschCount < 0
-  ) {
-    return false;
-  }
-  return (
-    split.halloweenAdjacentCount + split.horrorCount + split.kitschCount ===
-    totalFilms
-  );
+  return isValidSplit(totalFilms, {
+    randomCount: split.horrorCount,
+    challengeCount: split.kitschCount,
+  });
 }

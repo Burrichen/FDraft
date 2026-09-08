@@ -2349,20 +2349,15 @@ only event with this restriction) — a normal user reaches it only by
 opting in while it's naturally live. Admin Event Testing can simulate
 being inside (or outside) the window for verification purposes.
 
-### Halloween Draft — three linked pools
+### Halloween Draft — two linked pools
 
 A Halloween Draft's total film count always matches its difficulty, using
 the exact same difficulty film counts every other draft uses (Baby 5 /
-Easy 8 / Medium 10 / Hard 12 / Hardcore 20 — no Freeform mode). Unlike a
-normal Random/Challenge draft, a Halloween Draft's films come from three
-linked pools whose counts always sum to exactly the selected difficulty:
+Easy 8 / Medium 10 / Hard 12 / Hardcore 20 — no Freeform mode). A
+fixed-size Halloween Draft divides its difficulty's film count across
+Halloween's **two** curated categories using linked sliders that always
+sum to exactly that count:
 
-- **Halloween-adjacent** — a film already on the profile's own ACTIVE
-  Letterboxd Watchlist that ALSO carries "Horror" as a genre tag in its
-  real, already-enriched metadata (matched case-insensitively). A film
-  with no genre metadata yet, or genres that don't include Horror, does
-  not qualify through this pool — genre is never inferred from title,
-  poster, rating, or keywords.
 - **Horror** — drawn from a single, globally-curated Horror list
   maintained centrally (not the profile's own Watchlist). Intended to
   contain popular, iconic, or otherwise on-brand Horror films suitable
@@ -2373,14 +2368,35 @@ linked pools whose counts always sum to exactly the selected difficulty:
   campy, spooky, gothic, or family Halloween films that are not
   necessarily Horror. Also does not need to be on anyone's Watchlist.
 
-A film that would qualify for more than one pool (e.g. a Watchlist Horror
-film that also appears in the global Horror list) still appears at most
-ONCE in a generated draft — pools are drawn sequentially with cross-pool
-exclusion, never with replacement. Horror/Kitsch films drafted from
-outside a profile's Watchlist are never automatically added to it, and
-marking one watched never creates or removes a Watchlist entry as a side
-effect — every ordinary Draft rule (progress, watched/undo, completion,
-History, sorting, stats) still applies to them.
+Neither category is inferred from genre metadata; both are purely
+editorial (see "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §1
+for why the old third pool, "Halloween-adjacent" — a film already on the
+profile's own active Watchlist that also carried a "Horror" genre tag —
+was removed: it was structurally a different kind of pool from Horror/
+Kitsch, watchlist-derived rather than curated, and was retired once
+"Prefer items from my Watchlist" gave every Event a uniform, genuinely
+curated-category-based way to lean on the Watchlist instead). An OLD,
+already-persisted Draft item can still carry the historical
+`"halloween-adjacent"` `DraftItemSource` value and renders its badge in
+History exactly as before — nothing NEW creates one.
+
+A film that would qualify for both pools still appears at most ONCE in a
+generated draft — pools are drawn sequentially with cross-pool exclusion,
+never with replacement. Horror/Kitsch films drafted from outside a
+profile's Watchlist are never automatically added to it, and marking one
+watched never creates or removes a Watchlist entry as a side effect —
+every ordinary Draft rule (progress, watched/undo, completion, History,
+sorting, stats) still applies to them.
+
+**Prefer items from my Watchlist** (the shared `events.preferWatchlist`
+preference — the same key, default, and exact checkbox wording every
+other non-January Event Draft flow uses, including Christmas's own two
+categories below) is offered here too, identically: when on, each
+category fills as many of its slots as it can from the intersection of
+that curated list and the profile's active Watchlist — weighted by each
+entry's real `selectionWeight` — then tops the remainder up from the rest
+of the curated list. A genuine preference, never a requirement: a profile
+with an empty Watchlist gets exactly the same Draft either way.
 
 Halloween Draft creation itself is gated on the SAME natural window (via
 `getEffectiveEventDate`, so Admin's simulated date works identically for
@@ -2630,8 +2646,7 @@ and applies identically no matter which curated pool/source the film came
 from within that Draft.
 
 **HALLOWEEN**: +1 Haunted Point per Halloween Draft film watched — every
-Halloween-adjacent, Horror, or Kitsch film alike, with no distinction
-between pools.
+Horror or Kitsch film alike, with no distinction between pools.
 
 **JANUARY**: +1 Misery Point per January Event Draft film watched — for
 January that is exactly one film per occurrence (see "F* YOU, IT'S JANUARY

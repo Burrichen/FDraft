@@ -13,24 +13,34 @@ import {
 
 /**
  * The "Choose My Own" browsing UI for a category-based Event (see
- * docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §6/§7) —
- * mirrors `DiyFilmBrowser`'s search-plus-poster-grid shell (reusing the
- * exact same `searchWatchlistFilms` title-search function — search is
- * search regardless of source), but with a simpler, honest default
- * ordering instead of the full Watchlist sort/filter set: watchlist-first
- * (§12's "highlighted/first"), then alphabetical. A curated category is a
+ * docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §6/§7;
+ * ordering made conditional on "Prefer items from my Watchlist" by "FDRAFT
+ * UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §8/§9) — mirrors
+ * `DiyFilmBrowser`'s search-plus-poster-grid shell (reusing the exact same
+ * `searchWatchlistFilms` title-search function — search is search
+ * regardless of source), but with a simpler, honest default ordering
+ * instead of the full Watchlist sort/filter set. A curated category is a
  * short, small, editorially-fixed list — it has no real `dateAdded`/
  * `runtime` distribution worth a sort control, and fabricating a
  * placeholder `dateAdded` for a "Date Added" sort option would be
  * meaningless, dishonest data.
+ *
+ * `preferWatchlist` ON: Watchlist films sort to the top, then alphabetical
+ * within each group. OFF: plain alphabetical throughout. Either way, every
+ * non-Watchlist film stays visible — this only ever reorders, never
+ * filters (§8: "Do not hide non-Watchlist films") — and
+ * `EventCategoryFilmCard`'s "On your watchlist" badge is shown
+ * unconditionally regardless of this toggle.
  */
 export function EventCategoryFilmBrowser({
   films,
   selectedFilmIds,
+  preferWatchlist,
   onToggle,
 }: {
   films: readonly EventCategorySelectableFilmView[];
   selectedFilmIds: ReadonlySet<string>;
+  preferWatchlist: boolean;
   onToggle: (filmId: string) => void;
 }) {
   const [search, setSearch] = useState("");
@@ -38,12 +48,12 @@ export function EventCategoryFilmBrowser({
   const visibleFilms = useMemo(() => {
     const searched = searchWatchlistFilms(films, search);
     return [...searched].sort((a, b) => {
-      if (a.onWatchlist !== b.onWatchlist) {
+      if (preferWatchlist && a.onWatchlist !== b.onWatchlist) {
         return a.onWatchlist ? -1 : 1;
       }
       return a.title.localeCompare(b.title);
     });
-  }, [films, search]);
+  }, [films, search, preferWatchlist]);
 
   return (
     <div className="space-y-4">

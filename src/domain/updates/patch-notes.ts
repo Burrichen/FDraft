@@ -22,6 +22,26 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.18",
+    nickname: "Prefer Watchlist (Beta 18)",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          'Halloween Drafts now use only Horror and Kitsch — the third "Halloween-adjacent" pool is retired. Its fixed automatic builder is down to two linked sliders, exactly like Christmas\'s own two.',
+          'Every non-January Event Draft creation flow — Halloween\'s fixed automatic builder, Christmas\'s fixed automatic builder, and both events\' One At A Time (Random and Choose My Own) — now offers the same "Prefer items from my Watchlist" checkbox, with identical wording throughout. Turning it on fills as many slots as it can from films you already have on your watchlist, then tops the rest up from the full curated pool — never a requirement, and never able to fail a Draft. In "Choose My Own," it also sorts your watchlist films to the top of the picker instead of hiding anything.',
+          "January is unaffected — still Join → one random film, no builder, no checkbox.",
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          "Halloween's fixed automatic builder could occasionally show \"Horror 0 available\" and offer unusable sliders right after starting the app, racing its own content load before it had finished resolving. It now waits for that content the same way Christmas's builder already did.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.17",
     nickname: "Spring Cleaning (Beta 17)",
     sections: [

@@ -98,24 +98,38 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     db = new FDraftLocalDatabase(`halloween-lifecycle-${crypto.randomUUID()}`);
     const repos = createLocalRepositories(db) as Repositories;
 
-    await seedAdjacentFilm(repos, { filmId: "adj-1", entryId: "adj-entry-1" });
-    await seedAdjacentFilm(repos, { filmId: "adj-2", entryId: "adj-entry-2" });
+    // Two Horror films already on the profile's watchlist (drawn first, via
+    // "Prefer items from my Watchlist" — see docs/updates, "FDRAFT UPDATE 1
+    // — EVENT WATCHLIST PREFERENCE CLEANUP" §6), two Horror films that
+    // aren't, and one Kitsch film that isn't — replacing the old, now-gone
+    // Halloween-adjacent pool as the source of watchlist-backed items in
+    // this lifecycle test.
+    await seedAdjacentFilm(repos, {
+      filmId: "horror-on-1",
+      entryId: "horror-on-entry-1",
+    });
+    await seedAdjacentFilm(repos, {
+      filmId: "horror-on-2",
+      entryId: "horror-on-entry-2",
+    });
     await seedOffWatchlistFilm(repos, "horror-1");
     await seedOffWatchlistFilm(repos, "horror-2");
     await seedOffWatchlistFilm(repos, "kitsch-1");
     setHalloweenManifestFilmIds({
-      horrorFilmIds: ["horror-1", "horror-2"],
+      horrorFilmIds: ["horror-on-1", "horror-on-2", "horror-1", "horror-2"],
       kitschFilmIds: ["kitsch-1"],
     });
 
-    // 1. CREATE — baby (5 films): 2 adjacent, 2 horror, 1 kitsch.
+    // 1. CREATE — baby (5 films): 4 Horror (2 watchlist-backed, 2 not), 1
+    // Kitsch, with Prefer items from my Watchlist ON.
     const created = await createHalloweenLocalDraft(
       repos,
       {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "baby",
-        split: { halloweenAdjacentCount: 2, horrorCount: 2, kitschCount: 1 },
+        split: { horrorCount: 4, kitschCount: 1 },
+        preferWatchlist: true,
         effectiveNow: new Date("2026-10-15T12:00:00.000Z"),
       },
       { rng: createSeededRng(1) },
@@ -132,22 +146,30 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     expect(items.every((item) => !item.isCompleted)).toBe(true);
 
     // 3. SORT — original draft position is preserved (orderIndex is stable,
-    // grouped adjacent-then-horror-then-kitsch per `createHalloweenLocalDraft`).
+    // grouped horror-then-kitsch per `createHalloweenLocalDraft`).
     const sortedByOrder = [...items].sort(
       (a, b) => a.orderIndex - b.orderIndex,
     );
     expect(sortedByOrder.map((item) => item.source)).toEqual([
-      "halloween-adjacent",
-      "halloween-adjacent",
+      "horror",
+      "horror",
       "horror",
       "horror",
       "kitsch",
     ]);
+    // Exactly 2 of the 4 Horror items carry a real watchlist entry — the
+    // ones drawn from the watchlist intersection.
+    const horrorItems = items.filter((item) => item.source === "horror");
+    expect(
+      horrorItems.filter((item) => item.watchlistEntryId !== null),
+    ).toHaveLength(2);
 
-    const adjacentItem = items.find(
-      (item) => item.source === "halloween-adjacent",
+    const adjacentItem = horrorItems.find(
+      (item) => item.watchlistEntryId !== null,
     )!;
-    const horrorItem = items.find((item) => item.source === "horror")!;
+    const horrorItem = horrorItems.find(
+      (item) => item.watchlistEntryId === null,
+    )!;
 
     // 4. WATCHED — an Event-only (off-watchlist) Horror film is marked
     // watched via the dedicated no-entry path.
@@ -194,8 +216,8 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     );
     expect(horrorRewatched.ok).toBe(true);
 
-    // Mark the normal (watchlist-backed) Halloween-adjacent film watched
-    // through the ordinary path.
+    // Mark the normal (watchlist-backed) Horror film watched through the
+    // ordinary path.
     const adjacentWatched = await markLocalFilmWatched(
       repos,
       {
@@ -207,15 +229,16 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     );
     expect(adjacentWatched.ok).toBe(true);
 
-    // 7. PROGRESS — 2/5 watched (1 adjacent + the re-watched horror film),
-    // draft still active (3 remain).
+    // 7. PROGRESS — 2/5 watched (1 watchlist-backed Horror + the
+    // re-watched off-watchlist Horror film), draft still active (3 remain).
     items = await repos.drafts.listItemsForDraft(draftId);
     expect(items.filter((item) => item.isCompleted)).toHaveLength(2);
     draft = await repos.drafts.getById(PROFILE_ID, draftId);
     expect(draft?.status).toBe("active");
 
-    // Mark the remaining three (one adjacent, one horror) via their natural
-    // paths, and the one Kitsch item via the no-entry path.
+    // Mark the remaining three (one watchlist-backed Horror, one
+    // off-watchlist Horror) via their natural paths, and the one Kitsch
+    // item via the no-entry path.
     const remaining = items.filter((item) => !item.isCompleted);
     for (const item of remaining) {
       if (item.watchlistEntryId) {
@@ -259,7 +282,7 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     expect(lifetimeBalance).toBeGreaterThan(0);
 
     // Every one of the 5 items earned exactly 1 Haunted Point each, with no
-    // distinction between halloween-adjacent/horror/kitsch pools — the
+    // distinction between Horror/Kitsch or watchlist-backed vs not — the
     // undone-then-rewatched horror item earned exactly once, not twice.
     const hauntedBalance = await repos.points.getBalance(PROFILE_ID, "haunted");
     const completedItems = await repos.drafts.listItemsForDraft(draftId);
@@ -280,13 +303,7 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
       finalItems.map((item) => [item.id, item.source]),
     );
     expect(Object.values(bySource).sort()).toEqual(
-      [
-        "halloween-adjacent",
-        "halloween-adjacent",
-        "horror",
-        "horror",
-        "kitsch",
-      ].sort(),
+      ["horror", "horror", "horror", "horror", "kitsch"].sort(),
     );
 
     const history = await repos.history.listWatchedHistory(PROFILE_ID);
@@ -295,7 +312,7 @@ describe("Halloween Draft — full lifecycle (PROMPT 21)", () => {
     // one per item, never a stray extra from the undone attempt.
     expect(history).toHaveLength(5);
     const entryLessHistory = history.filter((h) => h.watchlistEntryId === null);
-    expect(entryLessHistory).toHaveLength(3); // 2 horror + 1 kitsch
+    expect(entryLessHistory).toHaveLength(3); // 2 off-watchlist horror + 1 kitsch
   });
 });
 

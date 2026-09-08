@@ -27,6 +27,7 @@ export function EventCategoryFilmPickerSheet({
   onOpenChange,
   categoryLabel,
   films,
+  preferWatchlist,
   onConfirm,
 }: {
   open: boolean;
@@ -34,6 +35,8 @@ export function EventCategoryFilmPickerSheet({
   /** e.g. "Horror" / "Kitsch" / "Classic" / "Adjacent" — shown in the sheet title/description. */
   categoryLabel: string;
   films: readonly EventCategorySelectableFilmView[];
+  /** "Prefer items from my Watchlist" (see docs/updates, "FDRAFT UPDATE 1 — EVENT WATCHLIST PREFERENCE CLEANUP" §8/§9) — ON sorts Watchlist films to the top; OFF is plain alphabetical. Never hides non-Watchlist films either way. */
+  preferWatchlist: boolean;
   onConfirm: (filmId: string) => void;
 }) {
   const [pendingFilmId, setPendingFilmId] = useState<string | null>(null);
@@ -72,6 +75,7 @@ export function EventCategoryFilmPickerSheet({
           <EventCategoryFilmBrowser
             films={films}
             selectedFilmIds={new Set(pendingFilmId ? [pendingFilmId] : [])}
+            preferWatchlist={preferWatchlist}
             onToggle={handleToggle}
           />
         </div>

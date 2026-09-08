@@ -141,22 +141,25 @@ describe("Dual Draft Architecture — a normal Draft and a Halloween Draft are f
       },
     ]);
 
-    // Baby difficulty needs exactly 5 films total, so the pool needs 5
-    // eligible Halloween-adjacent entries for an `halloweenAdjacentCount: 5`
-    // split to succeed.
+    // Baby difficulty needs exactly 5 films total, so the Horror pool
+    // needs 5 eligible entries for a `horrorCount: 5` split to succeed.
+    const horrorFilmIds: string[] = [];
     for (let i = 0; i < 5; i++) {
       await seedAdjacentFilm(repos, {
         filmId: `film-b-${i}`,
         entryId: `entry-b-${i}`,
       });
+      horrorFilmIds.push(`film-b-${i}`);
     }
+    setHalloweenManifestFilmIds({ horrorFilmIds, kitschFilmIds: [] });
     const halloweenCreated = await createHalloweenLocalDraft(
       repos,
       {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "baby",
-        split: { halloweenAdjacentCount: 5, horrorCount: 0, kitschCount: 0 },
+        split: { horrorCount: 5, kitschCount: 0 },
+        preferWatchlist: false,
         effectiveNow: new Date("2026-10-15T12:00:00.000Z"),
       },
       { rng: createSeededRng(1) },
@@ -230,19 +233,23 @@ describe("Dual Draft Architecture — a normal Draft and a Halloween Draft are f
       "normal-draft-1",
     );
 
+    const horrorFilmIds: string[] = [];
     for (let i = 0; i < 5; i++) {
       await seedAdjacentFilm(repos, {
         filmId: `film-b-${i}`,
         entryId: `entry-b-${i}`,
       });
+      horrorFilmIds.push(`film-b-${i}`);
     }
+    setHalloweenManifestFilmIds({ horrorFilmIds, kitschFilmIds: [] });
     const halloweenCreated = await createHalloweenLocalDraft(
       repos,
       {
         profileId: PROFILE_ID,
         timezone: "UTC",
         difficulty: "baby",
-        split: { halloweenAdjacentCount: 5, horrorCount: 0, kitschCount: 0 },
+        split: { horrorCount: 5, kitschCount: 0 },
+        preferWatchlist: false,
         effectiveNow: new Date("2026-10-15T12:00:00.000Z"),
       },
       { rng: createSeededRng(1) },

@@ -103,9 +103,7 @@ test("Christmas: the two category sliders always total the selected difficulty, 
   await expect(page.getByText(/always adds up to/)).toBeVisible();
 
   // §5 — the shared Prefer Watchlist control, on by default.
-  const preferWatchlist = page.getByLabel(
-    "Prefer films already on my watchlist",
-  );
+  const preferWatchlist = page.getByLabel("Prefer items from my Watchlist");
   await expect(preferWatchlist).toBeVisible();
   await expect(preferWatchlist).toBeChecked();
   await preferWatchlist.uncheck();
@@ -143,7 +141,7 @@ for (const [label, size] of REQUIRED_VIEWPORTS) {
     for (const control of [
       page.getByRole("slider", { name: "Classic films" }),
       page.getByRole("slider", { name: "Christmas Adjacent films" }),
-      page.getByLabel("Prefer films already on my watchlist"),
+      page.getByLabel("Prefer items from my Watchlist"),
       page.getByRole("button", { name: "Create Christmas Draft" }).last(),
     ]) {
       await expect(control).toBeVisible();

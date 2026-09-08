@@ -168,8 +168,8 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
  *  - `pointType: "haunted"` plus `currency` (see docs/updates, "EVENT
  *    SYSTEM — UNIVERSAL EVENT CURRENCY EARNING") give Halloween its own
  *    real, permanent, per-film-watched currency — every film watched
- *    from a Halloween Draft (Halloween-adjacent, Horror, or Kitsch
- *    alike, no distinction) earns one Haunted Point, in addition to the
+ *    from a Halloween Draft (Horror or Kitsch alike, no distinction)
+ *    earns one Haunted Point, in addition to the
  *    Lifetime Point the draft's own eventual completion still earns like
  *    any other draft. `pointType` itself is no longer read for
  *    Halloween's completion reward (see `resolveDraftCompletionReward`
@@ -217,7 +217,7 @@ const HALLOWEEN: EventDefinition = {
     bullets: [
       "Its own temporary Halloween page, open for the season",
       "A dedicated Halloween Draft, built just for the event",
-      "Three seasonal film pools to draft from",
+      "Two seasonal film pools to draft from",
       "Seasonal styling across the app while it's active",
       "A few hidden interactions to find — we're not telling",
     ],
