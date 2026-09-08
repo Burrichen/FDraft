@@ -230,3 +230,40 @@ describe("SettingsView — Event Testing is gated behind Admin Mode", () => {
     );
   });
 });
+
+describe("SettingsView — removed dev/preview panels stay gone", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("never renders the retired Event art dev preview or FDraft Theme Preview panels, Admin Mode off or on", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName, "alex", "Alex");
+    const user = userEvent.setup();
+
+    render(<Harness databaseName={databaseName} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Admin Mode")).toBeInTheDocument(),
+    );
+
+    expect(
+      screen.queryByText("Event art system (dev preview)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("FDraft Theme Preview (Admin/testing only)"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Admin Mode"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Event Date Override")).toBeInTheDocument(),
+    );
+
+    expect(
+      screen.queryByText("Event art system (dev preview)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("FDraft Theme Preview (Admin/testing only)"),
+    ).not.toBeInTheDocument();
+  });
+});

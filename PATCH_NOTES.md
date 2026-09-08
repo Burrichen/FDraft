@@ -1,5 +1,11 @@
 # Patch Notes
 
+### v1.2.0-beta.17 — Spring Cleaning (Beta 17)
+
+#### Changed
+
+- Removed two Developer-only, dev/preview-only tools from Settings → Developer → Admin Mode: the "Event art system (dev preview)" panel (readiness checks, manifest/asset-pack previews, and live decoration previews for every registered Event) and the "FDraft Theme Preview" `.fdraft-theme` importer. Both were internal scaffolding used while building the shared Event Art API and Event Studio's theme format, and were never meant to ship as ongoing Settings surface. Normal Event artwork, nav icons, and decorations for Halloween, Christmas, and January are completely unaffected.
+
 ### v1.2.0-beta.16 — Seasons Greetings (Beta 16)
 
 #### Changed

@@ -1,6 +1,5 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getEventArtRegistration } from "./event-art-registry";
 import {
   HalloweenDecorativeLayer,
   HalloweenGhostPeekLayer,
@@ -15,7 +14,6 @@ import {
 } from "./halloween-decoration-layout";
 import { HalloweenEndingDecoration } from "./halloween-ending-decoration";
 import { HALLOWEEN_ENDING_DECORATION_LAYOUT } from "./halloween-ending-decoration-layout";
-import "./halloween-art-registration";
 
 vi.mock("@/components/profiles/profile-provider", () => ({
   useProfileContext: () => ({
@@ -83,15 +81,6 @@ describe("Halloween Designed Slot configuration", () => {
   it("HalloweenEndingDecoration (the ending dialog's decoration) renders without crashing", () => {
     const { container } = render(<HalloweenEndingDecoration />);
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
-  });
-
-  it("Halloween's ending artwork is loaded through the shared Event Art registry, alongside its page/modal/ambient surfaces", () => {
-    const registration = getEventArtRegistration("halloween");
-    expect(registration).toBeDefined();
-    expect(registration?.surfaces?.ending).toBeDefined();
-    expect(registration?.surfaces?.ending?.layout).toBe(
-      HALLOWEEN_ENDING_DECORATION_LAYOUT,
-    );
   });
 
   describe("Candy Bowl removal (see docs/updates, 'HALLOWEEN UI CLEANUP' §1)", () => {

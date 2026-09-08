@@ -4,9 +4,7 @@ import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { resolveAdminMode } from "@/domain/profiles/profile";
 import { AdminModeSection } from "./admin-mode-section";
-import { EventArtSystemPreviewSection } from "./event-art-system-preview-section";
 import { EventTestingSection } from "./event-testing-section";
-import { FDraftThemeImportSection } from "./fdraft-theme-import-section";
 
 /**
  * "DEVELOPER" (see docs/updates, "SETTINGS INFORMATION ARCHITECTURE
@@ -34,13 +32,7 @@ export function DeveloperSection() {
           <AdminModeSection />
         </CardContent>
       </Card>
-      {adminModeEnabled ? (
-        <>
-          <EventTestingSection />
-          <EventArtSystemPreviewSection />
-          <FDraftThemeImportSection />
-        </>
-      ) : null}
+      {adminModeEnabled ? <EventTestingSection /> : null}
     </div>
   );
 }
