@@ -1,74 +1,80 @@
-import { resolveEligibleCandidates } from "./event-eligibility";
 import type { EventDefinition } from "./event-definition";
-import { getJanuaryManifestCuratedFilmIds } from "./january-manifest-overlay";
 
 /**
  * FDraft's first real event (see docs/product-spec.md, event system Phase
- * 5). Naturally available 25–31 January inclusive every year
- * (`recurringMonthDayRange`, evaluated per-profile timezone by
- * `isEventAvailable`) — the canonical window (see docs/updates, "Prompt
- * 14"), not the whole month; `manualActivationAllowed` lets a profile opt
- * in the rest of the year too, at which point the manual-event rule
- * (enforced centrally by `awardDraftCompletionReward`, not here) downgrades
- * `pointType` to generic/Lifetime Points automatically.
+ * 5), and — deliberately — its SIMPLEST one (see docs/updates, "FDRAFT
+ * UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS"). Naturally
+ * available 25 January 00:00 through 1 February 00:00 (exclusive) every
+ * year (`recurringMonthDayRange`, evaluated per-profile timezone by
+ * `isEventAvailable`) — the canonical window, not the whole month;
+ * `manualActivationAllowed` lets a profile opt in the rest of the year
+ * too, at which point the manual-event rule (enforced centrally by
+ * `awardDraftCompletionReward`/`awardEventDraftItemReward`, not here)
+ * downgrades the reward to generic/Lifetime Points automatically.
  *
  * `recurringMonthDayRange`'s end is spelled out explicitly as `endMonth: 2,
- * endDay: 1, endHour: 0, endMinute: 0` (see docs/updates, "FDRAFT UPDATE 1
- * — JANUARY EVENT-OVER EXPERIENCE" §1: "25 January 00:00 through 1
- * February 00:00 exclusive") rather than relying on the day-only end
- * default — `isEventAvailable`'s own `isWithinMonthDayRange` resolves both
- * forms to the exact same instant (end-of-31-January), so this is a
+ * endDay: 1, endHour: 0, endMinute: 0` rather than relying on the day-only
+ * end default — `isEventAvailable`'s own `isWithinMonthDayRange` resolves
+ * both forms to the exact same instant (end-of-31-January), so this is a
  * behaviour-preserving clarification, not a change. It matters for
  * `fixedEventDeadline` below: `getCurrentOccurrenceBounds` (the function
  * that computes a `fixedEventDeadline` Draft's actual deadline instant)
  * defaults an UNSET `endHour`/`endMinute` to `0`, not end-of-day — the
  * opposite default `isWithinMonthDayRange` uses — so a day-only range
- * would have silently given a `fixedEventDeadline` January Draft a
- * deadline of "1 January 00:00" instead of the real end of the window.
- * Spelling out the exact end instant sidesteps that divergence entirely.
+ * would have silently given a January Draft a deadline of "1 January
+ * 00:00" instead of the real end of the window. Spelling out the exact
+ * end instant sidesteps that divergence entirely.
  *
- * `eligibilityRules.maxAverageRating: 3.5` (see docs/updates, "JANUARY
- * ELIGIBILITY RULES") is this event's one real film restriction: a film
- * qualifies if its community/external average rating is 3.5 or lower, OR
- * it's on the globally curated January whitelist — additive, exactly like
- * every other event's `resolveEligibleCandidates` rules. That whitelist
- * itself is NOT static data here; see `getEventDefinition` below for how
- * it's overlaid in from the remotely-configurable manifest system
- * (`january-manifest-overlay.ts`) without this literal ever changing.
+ * `singleFilmDraft: true` is now the whole of January's drafting
+ * mechanic: joining rolls exactly ONE random film from
+ * `public/events/january/films.json` and persists it immediately as the
+ * January Event Draft (see `rollSingleFilmEventDraft`,
+ * `single-film-event-draft.ts`, called from `beginEventOptIn`). There is
+ * no second "Create Draft" step, no difficulty, no sliders, no category
+ * allocation, no Challenge source, no One At A Time builder and no "Pick
+ * Your Own" picker — the joke is that you get what January gives you.
  *
- * `currency` (see docs/updates, "EVENT SYSTEM — UNIVERSAL EVENT CURRENCY
- * EARNING") makes Misery Points earn PER FILM WATCHED in a January
- * Draft, not once at the draft's own completion — `pointType: "misery"`
- * below is kept only for the unrelated legacy per-completion path
- * (`resolveDraftCompletionReward`), which `currency` being set makes
- * fall back to plain Lifetime Points instead of ever reading it, so
- * nothing double-awards Misery.
+ * `eligibilityRules: {}` — REPLACES this event's old rating/whitelist
+ * rule entirely (the former `maxAverageRating: 3.5` "plus a curated
+ * whitelist as an additive exception" logic, which drew from a profile's
+ * own active Watchlist). The static `curated` list in
+ * `public/events/january/films.json` is now the AUTHORITATIVE and only
+ * candidate pool, resolved into real local films by the generic
+ * `loadEventCategoryFilmContent` (see `app-shell.tsx`) exactly like
+ * Halloween's/Christmas's own pools — so Watchlist membership and average
+ * score are both entirely irrelevant to what January rolls. Nothing about
+ * January reads `resolveEligibleCandidates` any more; `getEventDefinition`
+ * below is correspondingly free of the January-only manifest overlay it
+ * used to splice curated ids in through (`january-manifest-overlay.ts`,
+ * deleted). Historical January Drafts are unaffected — they persist their
+ * own resolved `DraftItemRecord`s and are never re-derived from
+ * eligibility rules (see `EVENT HISTORY RETENTION`, docs/product-spec.md).
  *
- * `fixedEventDeadline: true` (see docs/updates, "FDRAFT UPDATE 1 —
- * JANUARY EVENT-OVER EXPERIENCE" §7) — new for this phase, mirroring
- * Halloween: a January Draft's own deadline is now pinned to the event's
- * real natural end instead of a profile-chosen Calendar/Timer deadline,
- * so `finalizeExpiredEventDraftIfNeeded` (already fully generic, no
- * per-event branch) safely finalises/archives an active January Draft at
- * the exact moment the January event itself expires — the same mechanism
- * Halloween's own ending already relies on, reused here rather than
- * inventing a January-specific finalisation path.
+ * `currency` makes Misery Points earn PER FILM WATCHED in a January
+ * Draft, through the fully generic `awardEventDraftItemReward` engine —
+ * so January's one film banks exactly one Misery Point when watched, and
+ * nothing at all merely for joining/rolling. `pointType: "misery"` is
+ * kept only for the unrelated legacy per-completion path
+ * (`resolveDraftCompletionReward`), which `currency` being set makes fall
+ * back to plain Lifetime Points instead of ever reading it, so nothing
+ * double-awards Misery.
  *
- * `ending` (see docs/updates, "FDRAFT UPDATE 1 — JANUARY EVENT-OVER
- * EXPERIENCE" §2) gives January its own real Event-over experience,
- * through the exact same generic framework Halloween's `ending` already
- * uses (`resolveEventEndingCandidate`, `EventEndingDialog`,
- * `acknowledgeEventEnding` — none of it touched by this change). `message`
- * is the exact required body copy, verbatim, never rephrased. No
- * `secondaryMessageTemplate`/`foundingYear` — nothing in this phase's
- * required copy calls for an ordinal "Nth annual" line the way Halloween's
- * does. `buttonLabel` is the exact required button copy; the button
- * itself needs no per-event color override at all — the app's own default
- * `--primary` token is already this exact cool blue (see
- * `--watchlist-blue`, `globals.css`), so a plain default `Button` already
- * satisfies "a tasteful cool-blue FDraft-style button" with zero new
- * styling. See `event-visual-themes.ts` for the ending's own decoration
- * (clouds parting/soft light/rain fading) and quieter modal sizing.
+ * `fixedEventDeadline: true` — mirroring Halloween/Christmas: a January
+ * Draft's deadline is pinned to the event's real natural occurrence end,
+ * never a profile-chosen Calendar/Timer deadline, so
+ * `finalizeExpiredEventDraftIfNeeded` (already fully generic, no per-event
+ * branch) finalises/archives the one-film January Draft at the exact
+ * moment the event itself expires — preserving watched/unwatched state and
+ * making post-expiry Misery farming impossible (an expired Draft's items
+ * are never returned by `listActiveDrafts`).
+ *
+ * `ending` gives January its own real Event-over experience through the
+ * same generic framework Halloween's own uses
+ * (`resolveEventEndingCandidate`, `EventEndingDialog`,
+ * `acknowledgeEventEnding`). `message`/`buttonLabel` are the exact
+ * required copy, verbatim, never rephrased. See `event-visual-themes.ts`
+ * for the ending's own decoration (clouds parting/soft light/rain fading)
+ * and its deliberately brighter icy-blue treatment.
  */
 export const F_YOU_ITS_JANUARY_EVENT_ID = "f-you-its-january";
 
@@ -89,13 +95,16 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
     },
   },
   draftRules: {},
-  eligibilityRules: { maxAverageRating: 3.5, curatedFilmIds: [] },
+  // No restriction at all — see this event's doc comment above: January's
+  // static curated list IS its pool, so there is nothing for the generic
+  // `resolveEligibleCandidates` engine to narrow here.
+  eligibilityRules: {},
   intro: {
     description:
-      "The worst week of the cinematic year has arrived. Every film you watch from a January Draft banks a permanent Misery Point instead of the usual reward.",
+      "The worst week of the cinematic year has arrived. Join, and January picks one film for you — no choices, no negotiation. Watch it and bank a permanent Misery Point.",
     bullets: [
-      "Eligible films: anything rated 3.5 or lower, plus this year's curated January picks",
-      "Every film watched in a January Draft earns a permanent Misery Point instead of a Lifetime Point",
+      "Joining rolls one random film from January's own curated list — that's your Draft",
+      "Watching it earns a permanent Misery Point instead of the usual reward",
       "You can still opt in manually outside this week from Settings, but it only ever earns Lifetime Points off-season",
     ],
   },
@@ -103,22 +112,21 @@ const F_YOU_ITS_JANUARY: EventDefinition = {
   currency: { id: "misery", label: "Misery Points", pointsPerFilm: 1 },
   // Reuses this event's own id as its visual theme id (see
   // docs/product-spec.md, event system Phase 8) — the presentation layer
-  // (`src/components/events/event-visual-themes.ts`) maps this to an
-  // already-installed lucide-react icon, gated entirely behind
-  // `EventSettings.eventVisualsEnabled`; nothing here or in
-  // `resolveEventVisualThemeId` depends on what that mapping contains.
+  // (`src/components/events/event-visual-themes.ts`) maps this to a
+  // hand-authored trash can icon plus January's own pale-icy-blue token
+  // family, gated entirely behind `EventSettings.eventVisualsEnabled`;
+  // nothing here or in `resolveEventVisualThemeId` depends on what that
+  // mapping contains.
   visualTheme: F_YOU_ITS_JANUARY_EVENT_ID,
   manualActivationAllowed: true,
-  // See docs/updates, "PROMPT 18 — EVENT PAGES + HALLOWEEN LIFECYCLE" — a
-  // dedicated temporary page proving the generic Event Page framework
-  // without touching any of the mechanics above. Nav icon is resolved
-  // separately (see `src/components/layout/use-nav-items.ts`), reusing
-  // this event's own visual theme — a hand-authored trash can (see
-  // docs/updates, "PROMPT B2.1", §3) — rather than a new icon.
   page: { route: "/events/january", navLabel: "January" },
-  // See docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12 — matches
-  // `public/events/january/films.json`'s one category key.
+  // Matches `public/events/january/films.json`'s one category key — and,
+  // unlike before, this is now genuinely READ at runtime: it is the pool
+  // `rollSingleFilmEventDraft` draws January's single film from.
   contentPools: [{ key: "curated", label: "Curated" }],
+  // The entire January drafting mechanic — see `EventDefinition.
+  // singleFilmDraft`. January is the only event that sets this.
+  singleFilmDraft: true,
   fixedEventDeadline: true,
   ending: {
     enabled: true,
@@ -482,6 +490,14 @@ const CHRISTMAS: EventDefinition = {
   draftRules: {},
   eligibilityRules: {},
   intro: {
+    // See docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES +
+    // VISUAL POLISH" §12 — the modal opens on a greeting rather than the
+    // event's own name. `description`/`bullets` below are the SAME
+    // approved strings as before, verbatim: §12 explicitly forbids
+    // rewriting them, and `renderChristmasIntroContent` renders them
+    // straight from this definition rather than re-typing them, so the
+    // visual polish cannot drift from the copy.
+    title: "Ho Ho Ho",
     description:
       "Christmas has arrived. Every film you watch from a Christmas Draft banks a permanent Festive Point, on top of the usual reward.",
     bullets: [
@@ -491,7 +507,14 @@ const CHRISTMAS: EventDefinition = {
   },
   pointType: "festive",
   currency: { id: "festive", label: "Festive Points", pointsPerFilm: 1 },
-  visualTheme: null,
+  // Christmas now has a REAL visual theme (see docs/updates, "FDRAFT
+  // UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES + VISUAL POLISH" §9-§11) — a
+  // red/green/blue/white palette with deliberately unequal colour roles,
+  // resolved to its presentation (the reserved `Snowflake` icon plus the
+  // `.theme-christmas` token family) in `event-visual-themes.ts`. This
+  // supersedes the `visualTheme: null` this entry carried while Christmas
+  // was drafting-mechanics-only.
+  visualTheme: CHRISTMAS_EVENT_ID,
   manualActivationAllowed: true,
   contentPools: [
     { key: "classic", label: "Classic" },
@@ -499,6 +522,35 @@ const CHRISTMAS: EventDefinition = {
   ],
   fixedEventDeadline: true,
   page: { route: "/events/christmas", navLabel: "Christmas" },
+  // See docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES +
+  // VISUAL POLISH" §14-§16. A TWO-STAGE ending, the first event to use
+  // one: the Christmas goodbye, then — a beat later — the January sting
+  // in the tail.
+  //
+  // `buttonLabel` is deliberately NOT festive, and the theme deliberately
+  // does not reroute `--primary` for this modal (see
+  // `event-visual-themes.ts`), so "Onto next year!" keeps standard FDraft
+  // button theming exactly as §15 requires.
+  //
+  // The `stinger` is purely presentational — copy plus its own separately
+  // persisted acknowledgement. It never activates January, or touches any
+  // participation state at all (§16); January opens on its own real
+  // window, 25 January, through the same `availability` engine as always.
+  ending: {
+    enabled: true,
+    title: "Have a lovely year!",
+    message:
+      "And with that, the holidays are over. I hope you have enjoyed FDraft, it truely is a passion project and the fact you are using and reading this means the world to me. I hope you had a good one, and if not there's always next year. Thank you for using FDraft. From, Burrichen.",
+    buttonLabel: "Onto next year!",
+    stinger: {
+      message: "Fuck you, it's January!",
+      buttonLabel: "Oh no.",
+      // A short beat after the goodbye is dismissed — long enough to read
+      // as a separate moment, short enough that nobody wonders whether
+      // the app has hung.
+      delayMs: 2200,
+    },
+  },
 };
 
 /**
@@ -515,64 +567,18 @@ export const EVENT_DEFINITIONS: readonly EventDefinition[] = [
 ];
 
 /**
- * Every call site gets a fully-formed, synchronous `EventDefinition` —
- * for January specifically, that means overlaying in whichever curated
- * film ids the manifest system has most recently resolved (see
- * `january-manifest-overlay.ts`), merged with any statically-configured
- * ones (today: none). Every other event's definition is returned exactly
- * as declared above, completely untouched by this.
+ * Every call site gets a fully-formed, synchronous `EventDefinition`,
+ * exactly as declared above.
+ *
+ * This used to splice January's remotely-resolved curated film ids into
+ * its `eligibilityRules.curatedFilmIds` on every lookup (via the now-
+ * deleted `january-manifest-overlay.ts`). January no longer has
+ * eligibility rules at all — its static curated list is its whole,
+ * authoritative pool, resolved into real local films by the generic
+ * `loadEventCategoryFilmContent`/`event-category-manifest-overlay.ts`
+ * pipeline every other content-pack event already uses — so this is a
+ * plain registry lookup again, with no per-event branch of any kind.
  */
 export function getEventDefinition(id: string): EventDefinition | null {
-  const base = EVENT_DEFINITIONS.find((event) => event.id === id) ?? null;
-  if (!base || base.id !== F_YOU_ITS_JANUARY_EVENT_ID) {
-    return base;
-  }
-  const manifestCuratedFilmIds = getJanuaryManifestCuratedFilmIds();
-  if (manifestCuratedFilmIds.length === 0) {
-    return base;
-  }
-  return {
-    ...base,
-    eligibilityRules: {
-      ...base.eligibilityRules,
-      curatedFilmIds: [
-        ...(base.eligibilityRules.curatedFilmIds ?? []),
-        ...manifestCuratedFilmIds,
-      ],
-    },
-  };
-}
-
-/**
- * The canonical January eligibility check for a single film (see
- * docs/updates, "JANUARY ELIGIBILITY RULES") — the one place this
- * comparison exists; nowhere else (UI or otherwise) re-implements "rating
- * ≤ 3.5 OR curated." Delegates to the exact same `resolveEligibleCandidates`
- * engine draft creation itself uses (evaluated against a single-candidate
- * array), so there is exactly one implementation of the OR logic, not two.
- * Reads January's CURRENT eligibility rules via `getEventDefinition` — so
- * a manifest refresh that adds/removes curated films is reflected here
- * immediately, with no separate cache to keep in sync.
- */
-export function isJanuaryEligibleFilm(film: {
-  filmId: string;
-  averageRating: number | null;
-}): boolean {
-  const event = getEventDefinition(F_YOU_ITS_JANUARY_EVENT_ID);
-  if (!event) {
-    return false;
-  }
-  return (
-    resolveEligibleCandidates(
-      [
-        {
-          watchlistEntryId: film.filmId,
-          filmId: film.filmId,
-          genres: null,
-          averageRating: film.averageRating,
-        },
-      ],
-      event.eligibilityRules,
-    ).length > 0
-  );
+  return EVENT_DEFINITIONS.find((event) => event.id === id) ?? null;
 }

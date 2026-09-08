@@ -8,10 +8,13 @@ import { CHRISTMAS_EVENT_ID, HALLOWEEN_EVENT_ID } from "./event-registry";
  * new` → One At A Time hand-off) rather than duplicated per call site.
  *
  * Deliberately NOT read from `EventDefinition.contentPools` — that field
- * predates this feature and means something else for January (its own
- * ADDITIVE-eligibility curated list, not a real drawable category). `null`
- * (January) means no category step at all; the event's whole canonical
- * eligible pool is the only "category."
+ * is declared by events that have no One At A Time drafting at all (see
+ * `EventDefinition.singleFilmDraft`: January declares one content pool and
+ * yet has no builder of any kind), so the two are genuinely different
+ * questions. An event absent from this map has no One At A Time drafting;
+ * `getEventOneAtATimeCategories` returns `null` for it, and the One At A
+ * Time route refuses to open an Event builder for it at all (see
+ * `one-at-a-time-route-view.tsx`).
  */
 export const EVENT_ONE_AT_A_TIME_CATEGORIES: Record<
   string,

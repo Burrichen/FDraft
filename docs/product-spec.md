@@ -1013,9 +1013,12 @@ system rather than a parallel implementation:
   pool so a Challenge can never hand back a duplicate.
 
 This is the NORMAL (non-Event) One At A Time builder — it keeps all
-three sources. Event One At A Time (Halloween/Christmas/January) is a
-separate builder offering only **Random** and **Choose My Own** — Events
-do not offer Challenge as a source. A historical Event Draft item with
+three sources. Event One At A Time (Halloween/Christmas) is a separate
+builder offering only **Random** and **Choose My Own** — Events do not
+offer Challenge as a source. January has no One At A Time drafting at all
+(see "F* YOU, IT'S JANUARY EVENT"): its Draft is one film rolled at join
+time, so neither this builder nor the generic `/drafts/new` form ever
+builds into January's Draft slot. A historical Event Draft item with
 `source: "challenge"` (created before this restriction) remains valid
 and still displays correctly in History; only creating a NEW one is
 removed.
@@ -2148,7 +2151,20 @@ outside its natural window (only possible for one with
 `manualActivationAllowed: true`, e.g. January) stays visible for the rest
 of that manual activation, not just during the natural window — a mid-
 year January opt-in is meant to persist the rest of the year, downgraded
-to Lifetime Points, not disappear the moment 31 January ends. Halloween
+to Lifetime Points, not disappear the moment 31 January ends.
+
+A manual activation has a real END: the end of that event's next natural
+occurrence as of the moment it was activated, recorded when the profile
+opts in. Until then the event stays active; after it, the occurrence
+expires normally and its Event-over experience shows once, exactly like a
+natural join's. This is what stops a manual activation persisting forever
+with nothing to conclude it. Two consequences worth knowing: the
+activation is pinned to the occurrence it joined, so a run that crosses a
+year boundary keeps pointing at it rather than silently becoming a new,
+unanswered occurrence; and if the event's REAL season opens partway
+through a run, the live season wins outright — the profile is offered that
+season's own introduction, and the earlier run still gets its ending once
+the season closes. Halloween
 (`manualActivationAllowed: false`) has no such exemption, so its page/nav
 correctly disappears once its window closes — this is the entire "Event
 expiry" behavior: no separate expiry flag, cleanup job, or deletion of
@@ -2199,6 +2215,121 @@ Halloween's exact boundary behavior (and any future event's) can be
 verified without waiting for the real calendar date, and is expected to
 be removed once it's no longer needed for that purpose. It must never be
 required for a normal user to experience any event correctly.
+
+---
+
+## F* YOU, IT'S JANUARY EVENT
+
+"F* You, It's January!" is deliberately the **simplest Event in FDraft** —
+the joke is that January gives you something miserable and you don't get a
+say in it.
+
+### Natural window
+
+25 January 00:00 through 1 February 00:00 (exclusive), every year,
+evaluated in the profile's own timezone. `manualActivationAllowed: true`,
+so a profile can also opt in outside that window from Settings — which, per
+the event system's CRITICAL RULE, only ever earns Lifetime Points.
+
+### The whole mechanic: one join, one roll
+
+JOIN → one random film is immediately rolled from January's own static
+curated list → that film IS the January Event Draft.
+
+There is **no second "Create Draft" step**, and January deliberately has
+none of the Draft-building machinery every other drafting surface has: no
+difficulty selection, no target-film-count UI, no linked sliders, no
+category selection or allocation, no Challenge source, no One At A Time
+builder, and no manual/"Pick Your Own" film picker. A January Event Draft
+contains exactly **one** film.
+
+There is likewise **no reroll**: you get what January gives you. Nothing
+in the app can change a rolled single-film Draft — not the editable-slot
+pen/re-roll icons (`canEditDraftSlot` refuses them outright for such an
+event, even under Admin Mode, so the underlying `replaceDraftSlot`
+mutation is covered by the same rule and not just the icons), not Admin
+Mode's "Regenerate Draft", and not the missing-metadata "Re-roll"
+affordance — for that Event the honest repair for a film whose metadata
+hasn't downloaded is to fetch the metadata, never to swap the film.
+
+(The Event page does offer a single "Ask January for my film" recovery
+action, but only for a joined profile that somehow has no rolled Draft at
+all — e.g. one who joined on a build predating this mechanic. It runs the
+exact same idempotent roll and can never replace an existing film.)
+
+The roll picks one valid film from the curated list by its canonical
+title+year identity, resolved through FDraft's normal metadata system. A
+list entry that hasn't resolved to a real local film is never selected
+while any usable candidate remains, and nothing is ever fabricated; films
+the profile has already watched are skipped while any unwatched candidate
+remains.
+
+### Idempotent, and occurrence-specific
+
+The rolled film is persisted immediately, and the roll is idempotent **per
+occurrence**, checked against persisted Draft state rather than any
+component's lifecycle. Joining, reopening the page, restarting the app, or
+leaving and rejoining all show the same film — including after it has been
+watched (the Draft archived) or after the window closed (expired). Each
+occurrence gets its own one-film Draft: January 2027 rolls Film A, January
+2028 may roll Film B, and every historical January Draft is preserved
+untouched.
+
+A January Draft's name is always canonical — "F* You, It's January!
+\<year\> Draft" — never a generated monthly name like "January Baby
+Draft", and it cannot be renamed.
+
+### The candidate pool
+
+January's complete candidate pool is `public/events/january/films.json`'s
+one `curated` category — a hand-edited static content pack (see
+docs/event-film-lists.md), title + year only, no provider/TMDb/Letterboxd
+id. It resolves through the same generic resolve-or-create pipeline
+Halloween's and Christmas's pools use, so a listed film nobody has imported
+is created locally and enriched normally, without ever touching anyone's
+Watchlist.
+
+This list is **authoritative**. January no longer builds its pool from
+active Watchlist membership, an average-rating ceiling (the former
+"rating ≤ 3.5"), or a curated whitelist acting as an exception to that
+ceiling — all of which are removed, along with the active code specific to
+January difficulty selection, sliders, category allocation and Challenge
+support. Only the compatibility needed to render historical January Drafts
+remains: a pre-simplification January Draft (numeric difficulty, a
+random/challenge split, a Calendar deadline, Challenge items) still loads
+and displays exactly as persisted, since History is never re-derived from
+current rules or content files.
+
+### Misery Points, expiry and the ending
+
+Watching the January film earns **+1 Misery Point**, through the generic
+per-film Event currency engine — never for merely joining or rolling, and
+never twice (undo/idempotency go through the same canonical point ledger
+behavior as every other currency).
+
+`fixedEventDeadline` pins the Draft's deadline to the occurrence's real
+end, so the generic finalisation transitions it to `"expired"` the moment
+January closes — preserving watched and unwatched state, and making
+post-expiry Misery farming impossible (an expired Draft's items can no
+longer be completed). The existing January ending modal then shows once
+for joined profiles.
+
+### Light-blue theming
+
+January's Event accent is a **pale, icy light blue** — "cold winter light",
+not cheerful summer blue — applied at the same intensity as Halloween's
+orange: subtle but clear, over FDraft's preserved dark base, never flooding
+the app. It comes from one coherent token family (`--january-ice`,
+`--january-ice-muted`, `--january-frost`, `--january-slate`, plus their
+foregrounds) rerouted through the app's own semantic tokens by a single
+scoped `.theme-january` class, exactly like `.theme-halloween` — no
+arbitrary light-blue values scattered across components. It covers the
+active January navigation icon/accent, the Event page heading, controls,
+borders, progress bars, badges and modal accents.
+
+The miserable January atmosphere (dark clouds, rain, rubbish, grey) stays.
+The Event-over modal is the one place it deliberately brightens, as the
+clouds part.
 
 ---
 
@@ -2284,7 +2415,8 @@ or under a different simulated Admin date). Every one of 30 Sep 19:00,
 Both lists live in one small, hand-edited, static JSON file —
 `public/events/halloween/films.json` — documented in
 docs/event-film-lists.md, alongside the equivalent files for January
-(`public/events/january/films.json`) and Christmas
+(`public/events/january/films.json` — now that event's whole authoritative
+pool, see "F* YOU, IT'S JANUARY EVENT" above) and Christmas
 (`public/events/christmas/films.json`, content-pack support only — no
 Christmas Draft mechanic exists yet). See docs/updates, "STATIC EVENT
 FILM CONTENT PACKS" — this deliberately REPLACED an earlier
@@ -2345,36 +2477,139 @@ interactive surface lives on the History page rather than the Halloween
 Event page itself, so it stays reachable via a page every profile already
 visits regularly — and one is a rare, deliberately one-time visual moment
 reachable only from Settings while Halloween is active. None of them can
-affect drafts, watched state, or any other real data. Outside Halloween's
+affect drafts, watched state, or any other real data. Every image any of
+them shows — including the one full-screen picture that Settings-reachable
+moment displays — comes from the file-based Event Art System
+(`public/events/halloween/`, documented in `public/events/README.md`),
+never from artwork drawn in application code, so any of it can be
+replaced by overwriting one file with no code change. Outside Halloween's
 window, and on every ordinary (non-Event) page while Halloween IS active,
 app-wide ambient decoration is limited to a single small approved motif —
 no stray/leftover shapes from earlier art passes.
 
 ---
 
-## CHRISTMAS EVENT — CONTENT-PACK SCAFFOLDING ONLY
+## CHRISTMAS EVENT
 
-Christmas has a real visual art pack (see the Event Art System, and
-`public/events/christmas/`) and, as of docs/updates, "STATIC EVENT FILM
-CONTENT PACKS," a real static curated film content file —
-`public/events/christmas/films.json` (see docs/event-film-lists.md) —
-with two manually-curated categories:
+Christmas is a full seasonal Event, built to the SAME shape as Halloween
+rather than as a parallel implementation (see docs/updates, "FDRAFT UPDATE
+1 — CHRISTMAS DRAFT DIFFICULTIES + VISUAL POLISH"). It supersedes an
+earlier phase in which Christmas was content-pack scaffolding only — no
+`EventDefinition`, no page, no drafting.
 
-- **`classic`** — films that are directly and recognisably Christmas
-  films.
-- **`adjacent`** — films that fit Christmas/winter/holiday-season viewing
-  but aren't necessarily straightforward traditional Christmas films.
+### Natural window
 
-Neither category is inferred from genre metadata — both are editorial,
-the same convention Halloween's Horror/Kitsch lists use.
+All of December — 1 December 00:00 through 1 January 00:00 (exclusive), in
+the profile's own timezone. `manualActivationAllowed: true`, so a profile
+may also opt in outside the season, which (per the event system's CRITICAL
+RULE) only ever earns Lifetime Points.
 
-This is deliberately content-pack support ONLY. There is no Christmas
-`EventDefinition` in `event-registry.ts` yet, no Christmas Draft pool
-generation, no Christmas eligibility rules, and no Christmas Event page —
-none of that is invented here. `getEventFilmContent("christmas")`
-resolves and validates the file exactly like Halloween's/January's own
-content does, ready for whichever future phase adds the real event
-mechanic on top of it.
+Because Christmas's window ends exactly at the year boundary, occurrence
+identity is anchored to the occurrence's own START year, not the calendar
+year of the current instant (see `getAvailabilityCycleId`). Without that,
+one second past 31 December the app would compute a brand-new, unanswered
+`christmas:<next year>` occurrence and so could never recognise that the
+occurrence the profile actually joined had just closed.
+
+### Christmas Draft — difficulties and two pools
+
+Christmas offers exactly the same supported difficulties as every other
+Event, read from the one shared `CREATABLE_DIFFICULTY_ORDER`/`DIFFICULTIES`
+config rather than any Christmas-specific count table: **Baby, Easy,
+Medium, Hard, Hardcore**, plus **One At A Time**. There is no Freeform
+(retired app-wide as a creation mode) and no Challenge-based Event source
+of any kind. A future safe adjustment to the shared difficulty sizes is
+inherited automatically.
+
+A fixed-size Christmas Draft divides its difficulty's film count across
+Christmas's **two** curated categories using linked sliders that always sum
+to exactly that count:
+
+- **Classic** — films that are directly and recognisably Christmas films.
+- **Christmas Adjacent** — films that fit Christmas/winter/holiday-season
+  viewing but aren't necessarily traditional Christmas films.
+
+Neither category is inferred from genre metadata; both are editorial, the
+same convention Halloween's Horror/Kitsch lists use. Pools are drawn
+sequentially with cross-pool exclusion, so a film curated into both
+categories can never appear twice in one Draft.
+
+**Prefer Watchlist** (the shared `events.preferWatchlist` preference, the
+same key and default the One At A Time Random step reads) is offered here
+and is a genuine preference, never a requirement: when on, each category
+fills as many of its slots as it can from the intersection of that curated
+list and the profile's active Watchlist — weighted by each entry's real
+`selectionWeight` — then tops the remainder up from the rest of the
+curated list. A profile with an empty Watchlist gets exactly the same
+Draft either way. Christmas films drafted from outside a Watchlist are
+never added to it.
+
+A Christmas Draft has ONE fixed deadline — the real end of the current
+occurrence (1 January 00:00 in the profile's own timezone) — never a
+Calendar/Timer choice, and is always named canonically:
+**Christmas \<year\> Draft**.
+
+**One At A Time** works identically to Halloween's, through the same
+generic builder: Random or Choose My Own, each acting on a chosen category
+(Classic / Christmas Adjacent), never a Challenge.
+
+### Editing the Classic and Christmas Adjacent lists
+
+`public/events/christmas/films.json`, exactly like Halloween's and
+January's (see docs/event-film-lists.md) — hand-edited, static, bundled,
+title + year only. A listed film with no local match is created locally
+the first time it's needed and enriched by the normal metadata provider,
+without ever touching anyone's Watchlist.
+
+### Christmas colour identity
+
+Christmas has a real visual theme built on a **red / green / blue / white**
+palette with deliberately UNEQUAL roles, over FDraft's preserved dark base
+— festive, cozy and clean rather than four saturated colours scattered
+around:
+
+| Role              | Token                                       | Used for                                                                                                                    |
+| ----------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Primary accent    | `--christmas-snow`                          | Headings, buttons, focus rings, progress bars, the active nav accent, snow — the important-neutral emphasis                 |
+| Warm emphasis     | `--christmas-red`                           | The join modal's greeting, the selected-difficulty border, selected festive details                                         |
+| Secondary festive | `--christmas-green`                         | The Classic category, the Prefer Watchlist control                                                                          |
+| Cool contrast     | `--christmas-winter`                        | The Christmas Adjacent category, the celebration year, secondary accents                                                    |
+| Surface / border  | `--christmas-surface`, `--christmas-border` | The cozy card ground and its faint frosted edge — a tint of FDraft's own card colour, never a replacement for the dark base |
+
+All of it is applied through ONE scoped `.theme-christmas` class that
+reroutes the app's own semantic tokens (the same mechanism
+`.theme-halloween`/`.theme-january` use), so no component carries a
+Christmas colour value of its own and there are no scattered hex literals.
+
+### Christmas modals
+
+The **join modal** opens on "Ho Ho Ho" in festive red, with a "\<year\>
+FDraft Holiday Celebration" subtitle in cool white and blue, its approved
+description and feature list rendered verbatim from the event's own
+`intro` content (never re-typed, so presentation cannot drift from copy),
+and feature markers cycling subtle red/green/blue. No rainbow text, no
+per-word recolouring, no glow, no saturated fills, no novelty fonts — it
+still plainly reads as FDraft.
+
+Christmas is the first event with a **two-stage ending**, both stages
+independently persisted so neither can resurrect the other:
+
+1. **"Have a lovely year!"** — a festive-white title on the Christmas
+   surface, near-white body, signed off "From, Burrichen". Its
+   **"Onto next year!"** button is deliberately NOT Christmas-themed: it
+   is a centred, standard FDraft button, which is why this modal styles
+   itself with explicit `christmas-*` classes instead of the
+   `.theme-christmas` token reroute that would have repainted it.
+2. **The January stinger** — a short beat later, a deliberately plain
+   FDraft dialog stepping entirely away from Christmas, delivering
+   "Fuck you, it's January!". It is purely presentational: it records its
+   own acknowledgement and touches nothing else, and in particular never
+   activates January or alters any participation state. January still
+   opens only on its own real window, 25 January.
+
+The beat between the two stages is honoured within the session that
+dismissed the first; a profile who closes the app in between sees the
+stinger immediately next launch, the delay having long since passed.
 
 ---
 
@@ -2398,7 +2633,9 @@ from within that Draft.
 Halloween-adjacent, Horror, or Kitsch film alike, with no distinction
 between pools.
 
-**JANUARY**: +1 Misery Point per January Event Draft film watched.
+**JANUARY**: +1 Misery Point per January Event Draft film watched — for
+January that is exactly one film per occurrence (see "F* YOU, IT'S JANUARY
+EVENT"), and never anything for joining/rolling.
 
 **CHRISTMAS**: +1 Festive Point per Christmas Draft film watched — Classic
 and Christmas Adjacent alike, with no distinction between pools (same
@@ -6972,3 +7209,408 @@ test.ts`, and rewritten `resolve-manifest-film-ids.test.ts`/
   Draft creation screen's pool-availability counts — with zero console
   errors. Format, lint, strict typecheck, production build, the Tauri
   static export, and `cargo check --release` all clean.
+
+### Phase 27 — "F* You, It's January!" simplified to one film (v1.2.0-beta.16)
+
+January is now, deliberately, the SIMPLEST Event in FDraft (see
+docs/product-spec.md, "F* YOU, IT'S JANUARY EVENT", written for this
+phase): **JOIN → one random film rolled from `public/events/january/
+films.json` → that film IS the January Event Draft.** No second "Create
+Draft" step, no difficulty, no sliders, no target count, no category
+selection/allocation, no Challenge source, no One At A Time builder, no
+"Pick Your Own" picker, and no reroll.
+
+- **One new declarative flag, one new engine.** `EventDefinition.
+singleFilmDraft` (January is the only event that sets it) plus
+  `rollSingleFilmEventDraft` (`single-film-event-draft.ts`) — the ONLY
+  thing in the app that ever creates such a Draft. No event id appears in
+  it: the id only selects which definition to read and which
+  `contentPools[0]`/Draft slot to scope to, so a future one-film event is
+  new data, not new code. Called from `beginEventOptIn`, which is what
+  makes JOIN alone produce a fully-persisted, film-already-chosen Draft
+  through every join path at once (the intro modal, Settings, and the
+  Event page's own button).
+- **Idempotency and occurrence scoping** are enforced against persisted
+  Draft state (`listAllForProfile`, matched on `sourceEventId` +
+  `eventOccurrenceYear`), never a component's lifecycle — so reloading,
+  restarting, leaving and rejoining, an already-watched (archived) Draft,
+  and an already-closed (expired) one all return the same Draft rather
+  than rolling again, while a NEW occurrence (2028 vs. 2027) rolls its own
+  and leaves every historical Draft untouched.
+- **The old eligibility system is gone for January.** `maxAverageRating:
+3.5`, the curated-whitelist-as-additive-exception rule, and the
+  active-Watchlist-derived pool are all removed: `eligibilityRules` is now
+  `{}`, and the static curated list is authoritative. Deleted outright:
+  `january-manifest-overlay.ts`, `january-film-content-service.ts`,
+  `resolve-manifest-film-ids.ts` (its only caller) and their tests, plus
+  `isJanuaryEligibleFilm` (test-only by then) and the January-specific
+  overlay branch inside `getEventDefinition`, which is a plain registry
+  lookup again with no per-event branch of any kind. January's list now
+  rides the SAME generic `loadEventCategoryFilmContent`/
+  `event-category-manifest-overlay.ts` resolve-or-create pipeline
+  Christmas already used (called from `app-shell.tsx`), which is also the
+  behaviour change that matters: the old pipeline only ever RESOLVED an
+  already-imported film, because the list was merely additive eligibility
+  on top of someone's Watchlist; as an authoritative pool it must create a
+  listed film nobody has imported (title/year only) and enrich it
+  normally, never touching anyone's Watchlist. The shipped list was seeded
+  with 50 real title+year entries.
+- **The Event One At A Time builder lost its January mode.** Its
+  `categoryKey: string | null`/`categories: ... | null` no-category paths
+  existed solely for January and are removed — `categoryKey` is now always
+  a real category, and `one-at-a-time-route-view.tsx` refuses to open an
+  Event builder for an event with no declared categories at all (the guard
+  for a hand-crafted `?eventId=f-you-its-january` URL). Both generic
+  draft-creation entry points (`createDraftAction`, `new-draft-form.tsx`'s
+  One At A Time hand-off) now SKIP a `singleFilmDraft` event when tagging,
+  read off the definition rather than by id — so a Draft built through
+  `/drafts/new` during January is a genuinely normal Draft instead of a
+  slider/Challenge Draft landing in January's own Event slot.
+- **A bespoke January page** (`january-page-client.tsx`) replaces the
+  generic `EventPageView` shell (now Christmas's only real caller),
+  mirroring Halloween's: Event identity, the fixed Event deadline, and the
+  rolled film rendered directly through the shared `DraftLifecycleView` —
+  no builder UI, and none of the join modal's explanatory copy repeated on
+  the page. Its one empty-state action ("Ask January for my film") is a
+  repair path for a joined profile with no rolled Draft, running the same
+  idempotent roll; it never rolls on mount.
+- **A pale icy-blue January theme.** A new token family (`--january-ice`,
+  `--january-ice-muted`, `--january-frost`, `--january-slate`, plus
+  foregrounds) and one scoped `.theme-january` class rerouting the app's
+  own semantic tokens — the exact mechanism and restraint
+  `.theme-halloween` established, with FDraft's dark base preserved
+  (`--background`/`--card` untouched). This replaced January's previous
+  deliberate no-op theme, which leaned on the app's default `--primary`
+  "already being a cool blue" — i.e. gave January no identity of its own.
+  Applied to the Event page, the join modal, and (brighter, as the clouds
+  part) the ending modal. Two per-event maps replaced inline
+  Halloween-only conditionals so January was one entry rather than a
+  second branch: `EVENT_NAV_ACCENTS` (`use-nav-items.ts`) and
+  `DRAFT_EVENT_PROGRESS_ACCENTS` (`draft-lifecycle-view.tsx`, which also
+  gained a themed TIME progress bar via a new optional
+  `DraftTimeProgress.indicatorClassName` — the shared `Progress` primitive
+  hardcodes its own fill utility rather than reading `--primary`, so an
+  accent has to be passed in).
+- **One genuinely new domain helper**, added because auto-rolling on join
+  exposed a latent problem the old "create a Draft later, by hand" flow
+  hid: `resolveUpcomingOccurrenceEnd` (`event-availability.ts`).
+  `getCurrentOccurrenceBounds` answers "where are THIS calendar year's
+  boundaries", which is right for a Draft created inside the window and
+  for finalisation, but for a manual off-season join (a June January
+  opt-in — a real, deliberate, pre-existing feature) this year's end has
+  already passed, so rolling at join would have handed the profile a Draft
+  that was expired the instant it was created. The new helper rolls
+  forward a year in exactly that case and is otherwise identical, so no
+  in-window Draft's deadline changed by a millisecond.
+- **Misery Points, expiry, the ending and History are all unchanged
+  mechanisms** — January rides the same generic engines it already did
+  (`awardEventDraftItemReward` for +1 per film watched and nothing for
+  joining, `fixedEventDeadline` +
+  `finalizeExpiredEventDraftIfNeeded` for the occurrence-end transition
+  that preserves watched/unwatched state and makes post-expiry farming
+  impossible, `resolveEventEndingCandidate` for the ending modal,
+  `getEventOccurrenceDraftDisplayName` for the canonical "F* You, It's
+  January! \<year\> Draft" name). No January-specific code exists in any
+  of them.
+- **Verification**: full unit/integration suite green (2,098 tests, up
+  from 2,071). New coverage: `single-film-event-draft.test.ts` (join rolls
+  exactly one film from the curated list; canonical name; occurrence-end
+  deadline; idempotency across repeat rolls, re-joins, and an
+  already-archived Draft; per-occurrence re-rolling with last year's Draft
+  preserved; Watchlist and average score both proven irrelevant;
+  unresolved entries never selected; honest empty-pool and
+  wrong-event-type refusals; the manual off-season future deadline) and
+  `january-simple-mechanics.integration.test.ts` (the full lifecycle
+  through the real engines: 0 Misery on join → +1 on watch → non-double-
+  counting → History → expiry preserving state → ending eligibility; an
+  unwatched film expiring as "Expired" rather than "Completed" with no
+  post-expiry earning; Admin Event Testing driving occurrence year and
+  deadline while real timestamps stay real; and a hand-built
+  PRE-simplification January Draft — numeric difficulty, random/challenge
+  split, Calendar deadline, a Challenge item, a leftover `customName`, no
+  `eventOccurrenceYear` — still loading and displaying intact).
+  `january-page-client.test.tsx` proves the UI half (identity, deadline,
+  the rolled film, canonical name, the scoped January theme and no
+  Halloween theme, a Join button rather than a builder when not joined,
+  "Returns <date>" off-season, the repair action, and an explicit sweep
+  asserting NONE of ~17 builder controls or any range input appears).
+  `event-registry.test.ts` gained Jan-24-unavailable/Jan-25-available
+  boundary coverage plus the new simple-mechanics assertions; the January
+  theme tests now assert the scoped class on both modals, token-based
+  title accents with no raw hex/oklch, and Halloween/January theme
+  isolation. `e2e/january-simple-mechanics.spec.ts` replaced
+  `e2e/january-one-at-a-time.spec.ts`, deliberately importing NO watchlist
+  at all (so "Watchlist irrelevant" is proven end to end against the real
+  shipped `films.json`) and covering join-rolls-one-film, no-builder-UI,
+  reload/navigation never rerolling, and `/drafts/new` never building into
+  January's slot. Obsolete tests removed: the January One At A Time
+  service block and the January manifest-overlay/`isJanuaryEligibleFilm`
+  suites. Format, lint, strict typecheck and the production build are all
+  clean.
+
+### Phase 28 — Replaceable Haunted-button skeleton asset (v1.2.0-beta.16)
+
+The "Haunted" Settings easter egg's picture became a normal, hand-
+replaceable image file (see docs/updates, "FDRAFT UPDATE 1 — REPLACEABLE
+HAUNTED-BUTTON SKELETON ASSET"). Behaviour is deliberately untouched:
+first click warns, second click shows a full-window black overlay with a
+centred skeleton for ~3 seconds, then fades back — same copy, same
+timing, same fade, same Escape handling, same reduced-motion override, no
+sound and no flashing.
+
+- **The artwork was code.** `HalloweenJumpscareOverlay` drew the skull as
+  a hand-authored inline `<svg>` (a `<path>` plus two `<circle>` eye
+  sockets and a nose triangle), so changing the picture meant editing a
+  component. That SVG is now deleted — there is deliberately no second
+  source for this image.
+- **Canonical asset**:
+  `public/events/halloween/interactives/haunted-button-skeleton.png`,
+  registered as the `interactives.haunted-button-skeleton` slot in
+  `public/events/halloween/manifest.json` and read through
+  `HALLOWEEN_ART.hauntedButtonSkeleton`. This follows the Event Art
+  System convention every other piece of Halloween art already uses
+  (`interactives/` is that system's documented home for easter-egg art)
+  rather than inventing a parallel `art/` folder — the task explicitly
+  allowed following the better-established convention, and a second
+  asset-resolution path would have been exactly the "competing asset
+  source" it asked to avoid. Nothing about this touches the Theme
+  Preview/`.fdraft-theme` system, which is unrelated.
+- **The existing approved artwork was migrated, not redrawn.** The PNG
+  was rasterised from the exact `d` path string and exact fill colour
+  (FDraft's own `--halloween-cream`, `oklch(0.9 0.03 80)` = `#E9DCC8`)
+  the deleted inline SVG used, so the silhouette is identical by
+  construction — including a pre-existing hairline cusp at the crown,
+  which was verified to be present in the original render too rather than
+  quietly "fixed". The eye sockets and nose are punched out as real
+  TRANSPARENCY instead of being painted black: on the effect's own black
+  overlay that looks exactly the same as before, while leaving the file
+  itself with no background of its own. The canvas is trimmed to the
+  artwork's own bounds plus a small even transparent margin, so the
+  shipped file is a sensible template for a replacement rather than
+  baking in the old square viewBox's asymmetric dead space.
+- **The overlay supplies the black background**, as before (`fixed
+inset-0 ... bg-black`) — a replacement PNG is never required to carry
+  one. The image is rendered `object-contain` with `h-auto`/`w-auto`
+  under `max-h-[60vh]`/`max-w-[70vw]` and NO fixed width/height, so a
+  future replacement of any size or aspect ratio is scaled down to fit
+  and never stretched or cropped. One deliberate visual consequence: the
+  skeleton now displays considerably larger than the old fixed
+  `size-40 sm:size-56` box (~160/224px). A box that small would have
+  capped every future replacement at that size too, defeating the point
+  of the change, so the max bounds are viewport-relative instead.
+- **Failure can never trap anyone.** The ~3-second dismissal is driven
+  entirely by the overlay's own `entering`/`visible`/`exiting` state
+  machine, completely independent of whether the image ever loaded, so a
+  missing or corrupt file just yields a plain black screen that still
+  fades away on schedule. `EventArtImage` hides the broken image rather
+  than showing a broken-image icon, and a new optional `onLoadError`
+  prop lets this one caller `console.warn` the offending path.
+  `onLoadError` is a separate prop rather than a pass-through `onError`
+  on purpose: `EventArtImage` spreads `...rest` last, so a caller-supplied
+  `onError` would have silently replaced its own handler and disabled the
+  hide-on-failure behaviour that is the component's entire purpose —
+  a latent footgun this closes.
+- **Verification**: `haunted-section.test.tsx` grew a dedicated
+  "replaceable static asset" block (2,073 → 2,079 unit tests in this
+  area's files; suite total 2,104) asserting an `<img>` with the exact
+  canonical `src`, no inline `<svg>` and no `data:` URI left in the
+  overlay, that the rendered `src` is derived from the REAL shipped
+  `manifest.json` (which is what makes "overwrite the file, no code edit"
+  true), that the file genuinely exists on disk and is non-empty, that
+  the overlay — not the image — carries `bg-black`/`fixed`/`inset-0`,
+  that the image is `object-contain` + `h-auto`/`w-auto` + max bounds
+  with no `object-cover` and no fixed `width`/`height` attributes, and
+  that firing an image `error` hides the image, logs the path, and still
+  auto-dismisses on the normal timer. Existing first-click/second-click/
+  timing/Escape/reduced-motion/abuse tests were left untouched and still
+  pass. `e2e/halloween-visual-experience.spec.ts` passes unchanged, and
+  its `test-results/halloween-jumpscare.png` screenshot was inspected to
+  confirm the real rendered result: centred cream skeleton, transparent
+  sockets reading through as black, full-window black ground, no
+  stretching. Format, lint, strict typecheck and the production build are
+  all clean.
+
+### Phase 29 — Christmas Draft difficulties and visual polish (v1.2.0-beta.16)
+
+Christmas was drafting-mechanics-only (One At A Time and nothing else, no
+visual theme). This phase brought its Draft creation and presentation up to
+Halloween's level, deliberately by SHARING Halloween's components rather
+than copying them (see docs/product-spec.md, "CHRISTMAS EVENT", written for
+this phase).
+
+- **The difficulty picker is now shared, not duplicated.**
+  `HalloweenDifficultyPicker` became `EventDifficultyPicker`, and its
+  hand-maintained `HALLOWEEN_DIFFICULTY_ORDER` literal (which happened to
+  duplicate `CREATABLE_DIFFICULTY_ORDER` exactly) was replaced by reading
+  that shared list. Both Events now render the same component over the same
+  central `DIFFICULTIES` counts, so Baby/Easy/Medium/Hard/Hardcore/One At A
+  Time cannot drift apart and a future safe adjustment is inherited
+  automatically. Freeform stays excluded centrally, not per-event.
+- **Two-pool allocation reuses the existing two-way split primitives.**
+  `christmas-split.ts` is a thin ADAPTER over `split.ts`'s already-tested
+  clamp-and-derive functions, with Christmas's own field names
+  (`classicCount`/`adjacentCount`, never `challengeCount` — Christmas has
+  no Challenge source, so surfacing that vocabulary would mislead).
+  `halloween-split.ts` is deliberately left alone: at three pools it has a
+  genuinely different problem (an ambiguous remainder to redistribute
+  proportionally), and refactoring a working, approved, tested flow onto a
+  shared abstraction would have been risk for no behavioural gain.
+- **`createChristmasLocalDraft`** mirrors `createHalloweenLocalDraft` step
+  for step — shared `getFilmCount`, availability gated on the Admin-aware
+  `effectiveNow`, one fixed occurrence-end deadline, sequential draw with
+  cross-pool exclusion, `eventCategoryKey` provenance on each item — with
+  two pools instead of three. `fetchChristmasCategoryPool` is built on the
+  ALREADY-generic `fetchEventCategoryCandidates` that Christmas's One At A
+  Time flow uses, so bulk generation and One At A Time can never disagree
+  about what is in a Christmas pool.
+- **Prefer Watchlist** is the one genuinely new selection rule: each
+  category fills from the curated∩watchlist intersection first (weighted by
+  real `selectionWeight`), then tops up from the rest of the curated list
+  flat-weighted — a preference, never a requirement, reading the same
+  `events.preferWatchlist` key the One At A Time Random step already used.
+- **A red/green/blue/white palette with unequal roles** (`--christmas-snow`
+  primary, `--christmas-red` warm emphasis, `--christmas-green` secondary
+  festive, `--christmas-winter` cool contrast, plus surface/border), applied
+  by ONE scoped `.theme-christmas` class the same way
+  `.theme-halloween`/`.theme-january` work. `visualTheme` moved from `null`
+  to the event's own id, and the long-reserved `Snowflake` icon is now
+  genuinely Christmas's theme icon rather than only its nav icon.
+  `.page-heading`'s accent bar became `--page-heading-accent`-driven so
+  every themed Event page's heading matches its own accent instead of the
+  app's generic "watched" green.
+- **The join modal** gained `EventIntroContent.title` (so it can open on
+  "Ho Ho Ho" rather than the event's name) and `renderIntroContent` now
+  receives `{ event, occurrenceYear }` — which is what lets Christmas's
+  custom body render the SAME approved `intro.description`/`intro.bullets`
+  strings the generic path would, straight from the definition, making it
+  structurally impossible for the polish to reword approved copy.
+- **The first two-stage Event ending.** `EventEndingContent.stinger` plus
+  `event-ending-stinger-store.ts` (a sibling settings key, for the same
+  reason the first stage's own doc comment gives for not widening
+  `events.participations`: the existing value is a validated bare boolean).
+  `resolveEventEndingStingerCandidate` resolves stage two off the same
+  shared snapshot. The stinger is purely presentational — it records its own
+  acknowledgement and touches nothing else, so it can never activate
+  January early. "Onto next year!" stays a standard FDraft button because
+  the ending modal deliberately does NOT apply `.theme-christmas` (which
+  would repaint `--primary`), styling itself with explicit `christmas-*`
+  classes instead.
+- **Two real bugs found and fixed along the way**, both latent until
+  Christmas gained gameplay and an ending:
+  1. `getAvailabilityCycleId` returned the calendar year of the current
+     instant, so for a window ending exactly at the year boundary
+     (Christmas) the occurrence key flipped the moment the season closed —
+     meaning its Event-over experience could never fire at all, and a
+     mid-year manual opt-in lost its `"joined"` participation on 1 January.
+     Occurrence identity is now anchored to the range's START year, guarded
+     by a "does this window cross the calendar year" check so every other
+     event is provably untouched.
+  2. Christmas's new creation form is the first consumer to read the curated
+     pools IMMEDIATELY on mount (for availability display and slider caps),
+     and it raced the app-shell's fire-and-forget content load — rendering
+     "Classic 0 available" with both sliders pinned to 0, making a Draft
+     impossible to create until a reload. Fixed with an idempotent
+     `ensureEventCategoryFilmContentLoaded`.
+- **Content**: the Classic/Adjacent lists were placeholder scaffolds of two
+  films each, which made Medium and above impossible to draft. Expanded to
+  28 and 24 real title+year entries so the full difficulty range is usable
+  — editorial seeds for review, not a fixed list.
+- **Verification**: full unit/integration suite green (2,139 tests, up from
+  2,105). New: `christmas-split.test.ts` (totals hold for every fixed
+  difficulty across every slider position, clamping, validation),
+  `christmas-draft-service.test.ts` (17 tests — each difficulty at its
+  shared count, no Challenge fields anywhere, exact slider allocation with
+  category provenance, cross-pool exclusion, Prefer Watchlist on/off,
+  canonical naming and occurrence-end deadline, one-active-Draft scoping,
+  out-of-window and not-enough-films refusals, availability counts) and
+  `christmas-presentation.test.tsx` (10 tests — the "Ho Ho Ho" title and
+  year subtitle, approved copy asserted against the registry's own strings,
+  scoped theme applied to the join modal and NOT the ending, no raw colour
+  literals in any theme class, the ending's title/body/sign-off, the
+  un-themed centred button, and the stinger's appearance, own persistence,
+  fresh-launch behaviour and never touching January's participation).
+  `e2e/christmas-difficulties-and-polish.spec.ts` adds 9 real-browser tests
+  including the intro modal and create form at 1366x768, 1920x1080 and
+  2560x1440; `e2e/christmas-one-at-a-time.spec.ts` was updated for the new
+  difficulty step. Screenshots of the intro modal, create form and both
+  ending stages were inspected directly, which is what caught two things
+  tests would not have: the join-modal decoration reading as three stray
+  dots (removed — the typography carries the identity) and the intro body
+  needing explicit vertical rhythm. Format, lint, strict typecheck and the
+  production build are clean; the full Playwright run is 80 passed with the
+  same 5 pre-existing, unrelated failures verified against the baseline.
+
+### Phase 30 — Event regression follow-ups (v1.2.0-beta.16)
+
+Four items from the regression pass, all narrow follow-ups rather than new
+features.
+
+- **The five long-standing E2E failures are fixed, and none was a product
+  bug.** Diagnosed individually rather than as a group: `watchlist-sort-
+filter` asserted copy the UI stopped saying some time ago ("No films
+  match your filters" / "Reset filters", now "No films match" / "Clear
+  search & filters"); `offline-postmortem`, `application-refresh` and
+  `historical-draft-sort` each fast-forward the browser clock 31 days,
+  which lands inside a REAL Event window for a good part of the year and
+  raises the global Event introduction modal over the page they were
+  asserting on — a date-dependent trap that would have fired every autumn
+  regardless of this update, now handled by a shared
+  `dismissEventIntroIfPresent` helper (Escape, the modal's own documented
+  dismissal, which records an occurrence-scoped decline and opts nothing
+  in); and `metadata-reconnection` counted GLOBAL `/api/metadata` requests
+  and expected exactly 5, which stopped measuring its own stated contract
+  once Static Event Film Content Packs began enriching newly-created
+  curated Event films at app start — now scoped to the fixture's own five
+  titles, so it measures "a watchlist film is enriched once, on the
+  explicit click, and never again" no matter how much curated content
+  ships.
+- **`retries: 1` for local Playwright runs, matching CI.** A cluster of
+  reload/offline/service-worker specs intermittently miss a 5s
+  expectation for content that does arrive, and WHICH ones rotate between
+  runs (including specs untouched by this update) — the signature of
+  contention against a single shared server, not a broken assertion.
+  Confirmed not to be worker contention alone: it reproduces at
+  `--workers=2`. Two flakes were nonetheless real test defects and were
+  fixed properly rather than left to the retry: `january-simple-
+mechanics` scraped a list item's raw text before it had settled (now
+  reads the card's title paragraph, waited for), and this phase's own
+  `metadata-reconnection` delta assertion raced the fire-and-forget
+  startup enrichment (removed — the scoped count is the real contract).
+- **A `singleFilmDraft` Event's film can no longer be changed by
+  anything.** Three separate paths could: `canEditDraftSlot` now refuses
+  such a draft outright, even under Admin Mode (enforced in the domain
+  function, so `replaceDraftSlot`'s own mutation guard is covered and not
+  just the pen/re-roll icons); `RegenerateDraftButton` is hidden for it;
+  and the missing-metadata "Re-roll" affordance — the only one of the
+  three that was NOT Admin-gated, and which would have appeared on day
+  one offline, when every freshly-created curated film has no metadata —
+  is unwired for it. Halloween, Christmas and normal Drafts keep all three
+  exactly as before.
+- **A manual activation now has a real end**, so it reaches its
+  Event-over experience instead of persisting indefinitely. New
+  `event-manual-activation-store.ts` records, at opt-in, both the instant
+  the activation runs until (`resolveUpcomingOccurrenceEnd`) and the
+  occurrence key it joined. `isOccurrenceActiveNow`/`isOccurrenceExpired`
+  became exact inverses again, both consulting it. The recorded key is
+  what makes a run that crosses a year boundary work at all: occurrence
+  keys derive from the calendar year of whatever instant you ask about, so
+  without pinning, a June-2027 January activation became an unanswered
+  `january:2028` occurrence the moment the year ticked over — taking the
+  Event page and any possible ending with it.
+  `resolvePinnedManualOccurrenceKey` holds that pin only while the
+  activation has something outstanding and releases it once its ending is
+  acknowledged, so a later season still gets its own; a live natural
+  window always wins outright over an older activation. A profile with no
+  recorded activation (opted in on an earlier build) is deliberately
+  treated as "still running", so existing data is never retroactively
+  expired.
+- **Verification**: format, lint, strict typecheck clean; unit/integration
+  2,152 passed / 192 files (up from 2,139) with new
+  `event-manual-activation.test.ts` (9 tests: the recorded end and pinned
+  key, staying active for the whole run, the real-season handover and the
+  ending still firing afterwards, pin release on acknowledgement, a later
+  natural join never expiring early, natural joins recording nothing, and
+  legacy data left alone), plus new `canEditDraftSlot` exception coverage
+  and a January page test that fails without the suppression. Full
+  Playwright suite 85/85 across three consecutive runs. Production build
+  and the Tauri static export clean.

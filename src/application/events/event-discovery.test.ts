@@ -50,6 +50,8 @@ function status(
     manuallyEnabled: false,
     participation: "joined",
     endingAcknowledged: false,
+    endingStingerAcknowledged: false,
+    manualActivationEnded: false,
     ...overrides,
   };
 }

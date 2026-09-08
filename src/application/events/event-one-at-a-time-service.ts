@@ -1,18 +1,14 @@
-import { fetchLocalChallengeCandidates } from "@/application/drafts/local-fetch-context";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import {
   pickEventCategoryRandomFilm,
   resolveEventCategoryPickerCandidates,
   type EventCategoryPickerCandidate,
 } from "@/application/events/resolve-event-category-candidates";
-import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
-import { resolveEligibleCandidates } from "@/domain/events/event-eligibility";
 import { getCurrentOccurrenceBounds } from "@/domain/events/event-availability";
 import { getEventDefinition } from "@/domain/events/event-registry";
 import type { OneAtATimeStagedItem } from "@/domain/drafts/one-at-a-time";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
-import { createDefaultRng, type Rng } from "@/domain/shared/rng";
-import { pickRandomFilm } from "@/domain/watchlist/random-pick";
+import type { Rng } from "@/domain/shared/rng";
 import { SystemClock, type Clock } from "@/domain/time/clock";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type { FilmRepository } from "@/repositories/film-repository";
@@ -38,8 +34,8 @@ export interface EventOneAtATimeCandidateFilm {
   posterUrl: string | null;
   runtimeMinutes: number | null;
   averageRating: number | null;
-  /** `null` for January (no categories). */
-  eventCategoryKey: string | null;
+  /** Always a real category key — every event with One At A Time drafting declares categories (see `EVENT_ONE_AT_A_TIME_CATEGORIES`). */
+  eventCategoryKey: string;
 }
 
 export type PickEventOneAtATimeRandomFilmOutcome =
@@ -49,92 +45,47 @@ export type PickEventOneAtATimeRandomFilmOutcome =
 /**
  * The generic "Random" entry point for Event One At A Time (see
  * docs/updates, "FDRAFT UPDATE 1 — EVENT ONE AT A TIME DRAFTING" §5/§7/§8)
- * — ONE function serving every category-based event (Halloween/Christmas,
- * via `categoryKey`) and January (no categories, `categoryKey: null`,
- * candidates narrowed through its own `eligibilityRules` against the real
- * watchlist — the exact same eligibility engine `createLocalDraft` already
- * uses for a January-sourced draft, so "Do not accidentally show the
- * entire normal Watchlist" is satisfied by construction).
+ * — ONE function serving every category-based event (Halloween/Christmas)
+ * through its declared `categoryKey`.
+ *
+ * The old no-category branch this used to carry existed solely for
+ * January, which drew from the profile's real watchlist narrowed through
+ * its own `eligibilityRules` (rating ≤ 3.5 plus a curated whitelist).
+ * January has no One At A Time drafting, no eligibility rules and no
+ * builder of any kind any more — its whole Draft is one curated film
+ * rolled at join time (see `rollSingleFilmEventDraft`, docs/updates
+ * "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS"
+ * §4/§16) — so `categoryKey` is now always a real category and this
+ * function has exactly one path.
  */
 export async function pickEventOneAtATimeRandomFilm(
   repos: EventOneAtATimeRepos,
   params: {
     profileId: string;
     eventId: string;
-    categoryKey: string | null;
+    categoryKey: string;
     excludeFilmIds: readonly string[];
     preferWatchlist?: boolean;
   },
   deps: { rng?: Rng } = {},
 ): Promise<PickEventOneAtATimeRandomFilmOutcome> {
-  if (params.categoryKey !== null) {
-    const outcome = await pickEventCategoryRandomFilm(
-      repos,
-      {
-        profileId: params.profileId,
-        eventId: params.eventId,
-        categoryKey: params.categoryKey,
-        excludeFilmIds: params.excludeFilmIds,
-        preferWatchlist: params.preferWatchlist ?? true,
-      },
-      deps,
-    );
-    if (!outcome.ok) {
-      return outcome;
-    }
-    return {
-      ok: true,
-      film: { ...outcome.film, eventCategoryKey: params.categoryKey },
-    };
-  }
-
-  // January: no categories — the canonical event-eligible pool, drawn from
-  // the profile's REAL watchlist (never the whole thing unfiltered).
-  const rng = deps.rng ?? createDefaultRng();
-  const event = getEventDefinition(params.eventId);
-  const excluded = new Set(params.excludeFilmIds);
-  const rawCandidates = await fetchLocalChallengeCandidates(
+  const outcome = await pickEventCategoryRandomFilm(
     repos,
-    params.profileId,
+    {
+      profileId: params.profileId,
+      eventId: params.eventId,
+      categoryKey: params.categoryKey,
+      excludeFilmIds: params.excludeFilmIds,
+      preferWatchlist: params.preferWatchlist ?? true,
+    },
+    deps,
   );
-  const eligible = event
-    ? resolveEligibleCandidates(rawCandidates, event.eligibilityRules)
-    : rawCandidates;
-  const candidates = eligible.filter(
-    (candidate) => !excluded.has(candidate.filmId),
-  );
-
-  const pickedFilmId = pickRandomFilm(
-    candidates.map((candidate) => ({
-      id: candidate.filmId,
-      weight: candidate.selectionWeight,
-    })),
-    rng,
-  );
-  if (pickedFilmId === null) {
-    return {
-      ok: false,
-      error: "nothing_available",
-      message: "No more eligible films are available to pick from.",
-    };
+  if (!outcome.ok) {
+    return outcome;
   }
-  const picked = candidates.find(
-    (candidate) => candidate.filmId === pickedFilmId,
-  )!;
-  const metadata = mergeLocalFilmMetadata(
-    await repos.films.getMetadataForFilm(picked.filmId),
-  );
   return {
     ok: true,
-    film: {
-      filmId: picked.filmId,
-      title: picked.title,
-      releaseYear: picked.releaseYear,
-      posterUrl: metadata.posterUrl,
-      runtimeMinutes: metadata.runtimeMinutes,
-      averageRating: metadata.averageRating,
-      eventCategoryKey: null,
-    },
+    film: { ...outcome.film, eventCategoryKey: params.categoryKey },
   };
 }
 
@@ -145,80 +96,44 @@ export interface EventOneAtATimePickerCandidate {
   runtimeMinutes: number | null;
   averageRating: number | null;
   posterUrl: string | null;
-  eventCategoryKey: string | null;
+  eventCategoryKey: string;
   onWatchlist: boolean;
 }
 
 /**
  * The generic "Choose My Own" candidate list (see docs/updates §6/§7/§8) —
- * dispatches exactly like `pickEventOneAtATimeRandomFilm`: a category
- * (Halloween/Christmas) delegates to `resolveEventCategoryPickerCandidates`;
- * no category (January) narrows the profile's own watchlist through its
- * `eligibilityRules`, mirroring `getDiyEligibleFilms`'s exact shape/
- * eligibility (`applyFranchiseOrderingRule: false`, since this is manual
- * selection) with the one addition every January film already satisfies:
- * `onWatchlist: true` (January's whole pool IS the watchlist).
+ * dispatches exactly like `pickEventOneAtATimeRandomFilm`, delegating to
+ * `resolveEventCategoryPickerCandidates` for the declared category. Its
+ * old no-category branch (a watchlist narrowed through January's
+ * `eligibilityRules`) is gone for the same reason that function's is —
+ * January has no builder, no picker and no eligibility rules any more.
  */
 export async function resolveEventOneAtATimePickerCandidates(
   repos: EventOneAtATimeRepos,
   params: {
     profileId: string;
     eventId: string;
-    categoryKey: string | null;
+    categoryKey: string;
     excludeFilmIds: readonly string[];
   },
 ): Promise<EventOneAtATimePickerCandidate[]> {
-  if (params.categoryKey !== null) {
-    const candidates: EventCategoryPickerCandidate[] =
-      await resolveEventCategoryPickerCandidates(repos, {
-        profileId: params.profileId,
-        eventId: params.eventId,
-        categoryKey: params.categoryKey,
-        excludeFilmIds: params.excludeFilmIds,
-      });
-    return candidates.map((candidate) => ({
-      filmId: candidate.filmId,
-      title: candidate.title,
-      releaseYear: candidate.releaseYear,
-      runtimeMinutes: candidate.runtimeMinutes,
-      averageRating: candidate.averageRating,
-      posterUrl: candidate.posterUrl,
-      eventCategoryKey: candidate.categoryKey,
-      onWatchlist: candidate.onWatchlist,
-    }));
-  }
-
-  const event = getEventDefinition(params.eventId);
-  const excluded = new Set(params.excludeFilmIds);
-  const rawCandidates = await fetchLocalChallengeCandidates(
-    repos,
-    params.profileId,
-    { applyFranchiseOrderingRule: false },
-  );
-  const eligible = event
-    ? resolveEligibleCandidates(rawCandidates, event.eligibilityRules)
-    : rawCandidates;
-  const filtered = eligible.filter(
-    (candidate) => !excluded.has(candidate.filmId),
-  );
-  const metadataByFilmId = await repos.films.getMetadataForFilms(
-    filtered.map((candidate) => candidate.filmId),
-  );
-  return filtered.map((candidate) => {
-    const metadata = mergeLocalFilmMetadata(
-      metadataByFilmId.get(candidate.filmId) ?? [],
-    );
-    return {
-      filmId: candidate.filmId,
-      title: candidate.title,
-      releaseYear: candidate.releaseYear,
-      runtimeMinutes: candidate.runtimeMinutes,
-      averageRating: candidate.averageRating,
-      posterUrl: metadata.posterUrl,
-      eventCategoryKey: null,
-      onWatchlist: true,
-    };
-  });
+  const candidates: EventCategoryPickerCandidate[] =
+    await resolveEventCategoryPickerCandidates(repos, {
+      profileId: params.profileId,
+      eventId: params.eventId,
+      categoryKey: params.categoryKey,
+      excludeFilmIds: params.excludeFilmIds,
+    });
+  return candidates.map((candidate) => ({
+    filmId: candidate.filmId,
+    title: candidate.title,
+    releaseYear: candidate.releaseYear,
+    runtimeMinutes: candidate.runtimeMinutes,
+    averageRating: candidate.averageRating,
+    posterUrl: candidate.posterUrl,
+    eventCategoryKey: candidate.categoryKey,
+    onWatchlist: candidate.onWatchlist,
+  }));
 }
 
 export type FinalizeEventOneAtATimeDraftErrorCode =
@@ -313,9 +228,9 @@ export async function finalizeEventOneAtATimeDraft(
     clock,
   });
   const now = clock.now();
-  // Non-null: this event has `fixedEventDeadline` (Halloween/Christmas/
-  // January all do), so `availability.recurringMonthDayRange` is always
-  // set — see each event's own registry entry.
+  // Non-null: every event reaching this builder has `fixedEventDeadline`
+  // (Halloween/Christmas), so `availability.recurringMonthDayRange` is
+  // always set — see each event's own registry entry.
   const deadlineAt = getCurrentOccurrenceBounds(
     event.availability,
     effectiveNow,

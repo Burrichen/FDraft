@@ -22,6 +22,35 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.0-beta.16",
+    nickname: "Seasons Greetings (Beta 16)",
+    sections: [
+      {
+        heading: "Changed",
+        items: [
+          '"F* You, It\'s January!" is now the simplest Event in FDraft. Joining immediately rolls ONE random film from January\'s own built-in list, and that film IS your January Draft \u2014 there is no second "Create Draft" step, no difficulty, no sliders, no category picker, no Challenges, no One At A Time and no film picker. You get what January gives you.',
+          "The rolled film never changes: reloading, restarting FDraft, or leaving the page and coming back always shows the same film. Each January (2027, 2028, ...) rolls its own new one, and every past January Draft stays in Draft History exactly as it was.",
+          "January no longer picks films from your Watchlist, and no longer cares about average ratings \u2014 its built-in list of ~50 films is now the whole pool. A listed film you've never imported is created locally and enriched the normal way, without ever touching your Watchlist.",
+          "January's Event page now shows its identity, the rolled film with its normal metadata and watched state, your progress, and the fixed Event deadline \u2014 nothing else. Watching the film still earns +1 Misery Point, and joining still earns nothing.",
+          'January has a new light-blue look \u2014 a pale, icy "cold winter light" accent over FDraft\'s usual dark grey, on its nav tab, page heading, buttons, borders, progress bars and modals. The miserable January atmosphere stays; the Event-over modal is the one place it brightens.',
+          'Creating a normal Draft from "Start a Draft" during January now makes a genuinely normal Draft, rather than one tagged to January\'s Event slot.',
+          'Christmas Drafts now use the same difficulties as Halloween \u2014 Baby, Easy, Medium, Hard, Hardcore, and One At A Time. Pick one, then split its film count across two linked sliders, Classic and Christmas Adjacent, with a "Prefer films already on my watchlist" option that fills what it can from your own watchlist and tops the rest up from the curated lists. No Freeform, no Challenges. Christmas Drafts are still named "Christmas <year> Draft" and still end on 1 January.',
+          "Christmas's curated Classic and Christmas Adjacent lists grew from 2 placeholder films each to 28 and 24, so the larger difficulties are actually draftable.",
+          'Christmas has a proper look now \u2014 a red/green/blue/white palette over FDraft\'s usual dark, on its nav tab, Event page, difficulty and category controls, progress bars and modals. The join modal opens on "Ho Ho Ho" with a "<year> FDraft Holiday Celebration" subtitle, and the season now ends with "Have a lovely year!" \u2014 followed a moment later by a rather less festive message. The "Onto next year!" button stays a normal FDraft button on purpose.',
+          'The Halloween "Haunted" easter egg\'s skeleton is now an ordinary image file instead of artwork drawn in code. Overwrite that one PNG (any size or shape, transparent background preferred; the effect supplies its own black screen) and rebuild to change the picture, with no code edit. It also now displays larger. The two-click warning, the black screen, the ~3 second timing, the fade, Escape and reduced-motion behaviour are all unchanged.',
+        ],
+      },
+      {
+        heading: "Fixed",
+        items: [
+          "Manually opting into an Event outside its season now has a real end \u2014 it runs until that Event's next season finishes, then shows its end-of-season message like a normal join. Previously a mid-year opt-in stayed active indefinitely with nothing to conclude it, and never showed an ending at all. If the real season opens partway through, it takes over and offers its own introduction.",
+          'Nothing can re-roll your January film any more. The film-card re-roll and replace icons, Admin Mode\'s "Regenerate Draft", and the missing-metadata "Re-roll" button are all hidden for January \u2014 you get what January gives you. (If a January film\'s poster or details haven\'t downloaded, use "Download Missing Metadata" in Settings.)',
+          "Fixed a bug where Christmas's end-of-season experience could never appear at all: because Christmas ends exactly at the year boundary, FDraft treated 1 January as an entirely new Christmas rather than the end of the one you'd just been in. A mid-year manual Christmas opt-in could also lose its Event page on 1 January for the same reason.",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0-beta.15",
     nickname: "Back to Basics (Beta 15)",
     sections: [

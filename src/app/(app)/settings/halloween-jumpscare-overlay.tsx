@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EventArtImage } from "@/components/events/event-art-image";
+import { HALLOWEEN_ART } from "@/components/events/halloween-art";
 
 const SKULL_VISIBLE_MS = 2600;
 const FADE_MS = 200;
@@ -10,8 +12,8 @@ type Phase = "entering" | "visible" | "exiting";
 /**
  * The "Haunted" button's one-time jumpscare (see docs/updates, "PROMPT 20
  * — HIGH-EFFORT HALLOWEEN UI + APPROVED EASTER EGGS" §"SECOND PRESS") — a
- * full-screen black overlay with a large original stylised skull, visible
- * for ~3 seconds total (including its own fade in/out), then gone. No
+ * full-screen black overlay with a large centred skeleton, visible for ~3
+ * seconds total (including its own fade in/out), then gone. No
  * navigation, no reload, no data mutation, no sound, no flashing/strobe —
  * a single plain opacity transition. `onDismiss` fires once the fade-out
  * transition completes OR the user presses Escape (which moves straight
@@ -19,6 +21,33 @@ type Phase = "entering" | "visible" | "exiting";
  * no hard/jarring cut). Every timer and the keydown listener are cleaned
  * up on unmount, so navigating away or switching profiles mid-animation
  * never leaves anything dangling.
+ *
+ * The skeleton is an ORDINARY BUNDLED PNG (see docs/updates, "FDRAFT
+ * UPDATE 1 — REPLACEABLE HAUNTED-BUTTON SKELETON ASSET"), resolved
+ * through Halloween's normal art pack — `HALLOWEEN_ART.
+ * hauntedButtonSkeleton`, i.e.
+ * `public/events/halloween/interactives/haunted-button-skeleton.png`.
+ * This REPLACED a hand-drawn inline `<svg>` skull that lived in this
+ * file: the artwork was code, so changing it meant editing a component.
+ * Overwriting that one file (same filename) and rebuilding is now the
+ * entire swap procedure, exactly like every other piece of Halloween art
+ * (see `public/events/README.md`). Nothing here embeds base64, draws the
+ * figure in CSS/SVG, or hard-codes any image dimension — and there is
+ * deliberately no second source for this picture.
+ *
+ * The BLACK BACKGROUND is supplied here, by this overlay (`bg-black` on
+ * a `fixed inset-0` element), never by the image — so a replacement PNG
+ * is free to be a plain transparent-background illustration. The image is
+ * rendered `object-contain` with `h-auto`/`w-auto` under viewport-relative
+ * max bounds, so an arbitrary future replacement of any aspect ratio is
+ * scaled down to fit and never stretched or cropped.
+ *
+ * If that file is missing or corrupt, `EventArtImage` hides the image
+ * (rather than showing a broken-image icon) and `onLoadError` logs it —
+ * and, critically, the ~3-second dismissal timer is driven entirely by
+ * this component's own `phase` state machine, completely independent of
+ * whether the image ever loaded, so a bad asset can never trap anyone on
+ * a black screen.
  *
  * Modeled as an explicit three-phase state machine (`entering` →
  * `visible` → `exiting`) rather than a single boolean specifically to
@@ -95,19 +124,22 @@ export function HalloweenJumpscareOverlay({
       className="fixed inset-0 z-100 flex items-center justify-center bg-black transition-opacity duration-200 motion-reduce:duration-0"
       style={{ opacity: phase === "visible" ? 1 : 0 }}
     >
-      <svg
-        viewBox="0 0 100 100"
-        aria-hidden="true"
-        className="text-halloween-cream size-40 sm:size-56"
-      >
-        <path
-          fill="currentColor"
-          d="M50 6c-20 0-34 14-34 32 0 11 5 18 10 24l-3 14a4 4 0 0 0 4 5h6l2-8h4l1 8h9l1-8h4l2 8h6a4 4 0 0 0 4-5l-3-14c5-6 10-13 10-24 0-18-14-32-34-32z"
-        />
-        <circle cx="36" cy="42" r="8" className="fill-black" />
-        <circle cx="64" cy="42" r="8" className="fill-black" />
-        <path fill="black" d="M46 58h8l-4 8z" />
-      </svg>
+      <EventArtImage
+        src={HALLOWEEN_ART.hauntedButtonSkeleton}
+        data-testid="haunted-button-skeleton"
+        // `object-contain` + `h-auto`/`w-auto` + max bounds only (never a
+        // fixed width/height, and never `object-cover`): the file's own
+        // intrinsic size and aspect ratio decide how it lays out, capped
+        // to the viewport so a large replacement can't overflow and a
+        // non-square one can't be distorted. See this component's own
+        // doc comment.
+        className="h-auto max-h-[60vh] w-auto max-w-[70vw] object-contain"
+        onLoadError={() =>
+          console.warn(
+            `Haunted jumpscare art failed to load: ${HALLOWEEN_ART.hauntedButtonSkeleton}. The overlay still dismisses itself on schedule.`,
+          )
+        }
+      />
     </div>
   );
 }

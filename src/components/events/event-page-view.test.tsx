@@ -73,6 +73,14 @@ async function seedProfile(
   await db.close();
 }
 
+/**
+ * `EventPageView` is the GENERIC event-page shell — Christmas's page is
+ * its only real caller today (Halloween and January each have a bespoke
+ * page of their own). January's registered `EventDefinition` is still used
+ * as fixture data throughout this file simply because it is a real
+ * registered event with a natural window, an intro and a currency; nothing
+ * here asserts anything about January's own page.
+ */
 describe("EventPageView (PROMPT 18)", () => {
   beforeEach(() => {
     // A date well outside every event's natural window, for deterministic
@@ -104,7 +112,9 @@ describe("EventPageView (PROMPT 18)", () => {
       screen.getByText(/worst week of the cinematic year/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/eligible films: anything rated 3.5 or lower/i),
+      screen.getByText(
+        /rolls one random film from January's own curated list/i,
+      ),
     ).toBeInTheDocument();
   });
 

@@ -20,7 +20,8 @@
     "candy-bowl-full": "interactives/candy-bowl-full.png",
     "candy-bowl-medium": "interactives/candy-bowl-medium.png",
     "candy-bowl-low": "interactives/candy-bowl-low.png",
-    "candy-bowl-empty": "interactives/candy-bowl-empty.png"
+    "candy-bowl-empty": "interactives/candy-bowl-empty.png",
+    "haunted-button-skeleton": "interactives/haunted-button-skeleton.png"
   },
   "backgrounds": {}
 }

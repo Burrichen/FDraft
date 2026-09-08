@@ -129,6 +129,56 @@ describe("createDraftAction — sourceEventId reflects genuinely current event, 
     expect(draft?.sourceEventId).toBeNull();
   });
 
+  it("a normal draft is NEVER tagged with a singleFilmDraft event, even while January is genuinely joined and active", async () => {
+    // See docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE
+    // EVENT MECHANICS" §4/§16 — January's Draft slot holds exactly one
+    // film rolled at join time, so a difficulty/slider/Challenge Draft
+    // built through this generic form must land in the NORMAL slot, never
+    // in January's.
+    const databaseName = crypto.randomUUID();
+    const repos = await seedProfileWithWatchlistFilm(databaseName);
+
+    await setEventDateOverride(repos, PROFILE_ID, {
+      enabled: true,
+      eventId: F_YOU_ITS_JANUARY_EVENT_ID,
+      simulatedDate: "2026-01-28T20:00:00.000Z",
+    });
+    await beginEventOptIn(
+      repos,
+      {
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
+      },
+      { clock: new FixedClock(new Date("2026-01-28T20:00:00.000Z")) },
+    );
+
+    const state = await createDraftAction(
+      {
+        repositories: repos,
+        profileId: PROFILE_ID,
+        timezone: "UTC",
+        franchiseChronologicalOrder: false,
+      },
+      { error: null },
+      draftFormData(),
+    );
+
+    expect(state.error).toBeNull();
+    const draft = await repos.drafts.getById(PROFILE_ID, state.draftId!);
+    expect(draft?.sourceEventId).toBeNull();
+    // And January's own (separate) Draft slot is completely untouched by
+    // this — the Dual Draft architecture keeps the two independent.
+    expect(draft?.id).not.toBe(
+      (
+        await repos.drafts.getActiveOrExpiredDraft(
+          PROFILE_ID,
+          F_YOU_ITS_JANUARY_EVENT_ID,
+        )
+      )?.id,
+    );
+  });
+
   it("a normal draft IS tagged with Halloween once Halloween is genuinely joined and its window is simulated", async () => {
     const databaseName = crypto.randomUUID();
     const repos = await seedProfileWithWatchlistFilm(databaseName);

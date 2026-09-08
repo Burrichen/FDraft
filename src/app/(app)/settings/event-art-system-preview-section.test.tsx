@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import halloweenArtManifest from "../../../../public/events/halloween/manifest.json";
 import { EventArtSystemPreviewSection } from "./event-art-system-preview-section";
 
 beforeAll(async () => {
@@ -24,6 +25,16 @@ describe("EventArtSystemPreviewSection", () => {
 
   it("shows a slot-count summary derived from the real art pack, per event", () => {
     render(<EventArtSystemPreviewSection />);
-    expect(screen.getByText(/interactives: 10/)).toBeInTheDocument();
+    // Counted from the REAL shipped manifest rather than hardcoded, so
+    // adding or removing an art slot (e.g. the Haunted button's skeleton)
+    // doesn't fail a test that is only ever about "this summary reflects
+    // the actual pack."
+    const interactiveSlotCount = Object.keys(
+      halloweenArtManifest.interactives,
+    ).length;
+    expect(interactiveSlotCount).toBeGreaterThan(0);
+    expect(
+      screen.getByText(new RegExp(`interactives: ${interactiveSlotCount}\\b`)),
+    ).toBeInTheDocument();
   });
 });

@@ -34,6 +34,8 @@ import { getDraftDisplayName } from "@/domain/drafts/draft-name";
 import { calculateDraftTimeProgress } from "@/domain/drafts/progress";
 import { getCurrentOccurrenceBounds } from "@/domain/events/event-availability";
 import {
+  CHRISTMAS_EVENT_ID,
+  F_YOU_ITS_JANUARY_EVENT_ID,
   getEventDefinition,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
@@ -60,6 +62,26 @@ import { useAsyncData } from "@/hooks/use-async-data";
  * scoped `getActiveOrExpiredDraft`/`hasActiveDraft`. Never inferred from a
  * route or page title.
  */
+/**
+ * The progress-bar fill an Event Draft's own bars use, for an Event with a
+ * palette of its own — a plain map rather than a per-event conditional, so
+ * January's icy accent (see docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S
+ * JANUARY: SIMPLE EVENT MECHANICS" §13: "progress bars") is one entry
+ * alongside Halloween's pumpkin rather than a second branch. An Event
+ * absent here (Frontier/Signal), and every normal Draft, keeps the app's
+ * own default fill exactly as before.
+ *
+ * These bars can't simply inherit their Event page's `.theme-*` token
+ * reroute: the shared `Progress` primitive hardcodes its own fill utility
+ * (`bg-watchlist-green`/`bg-watchlist-blue`) rather than reading
+ * `--primary`, so an accent has to be passed in explicitly.
+ */
+const DRAFT_EVENT_PROGRESS_ACCENTS: Record<string, string> = {
+  [HALLOWEEN_EVENT_ID]: "bg-halloween-pumpkin",
+  [F_YOU_ITS_JANUARY_EVENT_ID]: "bg-january-ice",
+  [CHRISTMAS_EVENT_ID]: "bg-christmas-snow",
+};
+
 export interface DraftLifecycleViewProps {
   sourceEventId: string | null;
   /**
@@ -331,7 +353,18 @@ export function DraftLifecycleView({
   // no fixed deadline (Frontier/Signal), keeps its existing rename
   // behaviour unchanged.
   const isCanonicallyNamedEventDraft = Boolean(event?.fixedEventDeadline);
-  const isHalloweenDraft = draft.sourceEventId === HALLOWEEN_EVENT_ID;
+  const eventProgressAccent = draft.sourceEventId
+    ? DRAFT_EVENT_PROGRESS_ACCENTS[draft.sourceEventId]
+    : undefined;
+  // Admin Mode's "Regenerate Draft" is hidden for a `singleFilmDraft`
+  // Event (January) — see docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S
+  // JANUARY: SIMPLE EVENT MECHANICS" §6, "Do NOT add a new user-facing
+  // reroll feature". That control is Admin-only and predates this
+  // mechanic, so it was never user-facing, but it was nonetheless the one
+  // path in the app that could re-roll January's film — which is exactly
+  // the thing the Event's whole joke depends on being impossible. Every
+  // other Draft (normal, Halloween, Christmas) keeps it unchanged.
+  const isSingleFilmDraft = Boolean(event?.singleFilmDraft);
   const eventWindow =
     event?.fixedEventDeadline && effectiveEventNow
       ? getCurrentOccurrenceBounds(
@@ -581,7 +614,9 @@ export function DraftLifecycleView({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {adminModeEnabled && draft.status === "active" ? (
+          {adminModeEnabled &&
+          draft.status === "active" &&
+          !isSingleFilmDraft ? (
             <RegenerateDraftButton
               draftId={draft.id}
               onRegenerated={handleRegenerated}
@@ -590,16 +625,25 @@ export function DraftLifecycleView({
         </div>
       </div>
 
-      <DraftTimeProgress progress={timeProgress} />
+      <DraftTimeProgress
+        progress={timeProgress}
+        indicatorClassName={eventProgressAccent}
+      />
 
       <ActiveDraftFilms
         films={editableFilmCards}
-        onReroll={handleReroll}
+        // A `singleFilmDraft` Event (January) offers NO way to change its
+        // film — see `isSingleFilmDraft`. That includes the
+        // missing-metadata "Re-roll" affordance, which is otherwise
+        // ungated by Admin Mode: for this Event the honest repair for a
+        // film with no metadata yet is to fetch the metadata (Settings'
+        // "Download Missing Metadata"), never to swap the film, and
+        // offline every freshly-created curated film starts with none —
+        // so leaving it wired would have offered a reroll on day one.
+        onReroll={isSingleFilmDraft ? undefined : handleReroll}
         onManualReplace={handleManualReplace}
         onSlotReroll={handleSlotReroll}
-        filmsProgressIndicatorClassName={
-          isHalloweenDraft ? "bg-halloween-pumpkin" : undefined
-        }
+        filmsProgressIndicatorClassName={eventProgressAccent}
       />
       <ManualReplaceSlotSheet
         open={replacingItemId !== null}

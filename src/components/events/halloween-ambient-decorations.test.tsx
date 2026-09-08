@@ -42,6 +42,8 @@ function halloweenStatus(
     manuallyEnabled: false,
     participation: "joined",
     endingAcknowledged: false,
+    endingStingerAcknowledged: false,
+    manualActivationEnded: false,
     ...overrides,
   };
 }
@@ -77,6 +79,8 @@ describe("useHalloweenAmbientVisible / HalloweenAmbientDecorations", () => {
         manuallyEnabled: false,
         participation: "joined",
         endingAcknowledged: false,
+        endingStingerAcknowledged: false,
+        manualActivationEnded: false,
       },
     ];
     mockEventVisualsEnabled = true;

@@ -67,6 +67,11 @@ test("January: joining, simulating the event's close, and dismissing the Event-o
     page.getByRole("heading", { name: "Draft history" }),
   ).toBeVisible();
 
+  // `exact: true` — joining January now also rolls its one-film Draft
+  // (see docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE
+  // EVENT MECHANICS"), so Stats additionally shows that occurrence's
+  // "Misery Points earned" row; the assertion here is about the permanent
+  // Misery Points CARD surviving the ending, not that row.
   await page.goto("/stats");
-  await expect(page.getByText("Misery")).toBeVisible();
+  await expect(page.getByText("Misery", { exact: true })).toBeVisible();
 });

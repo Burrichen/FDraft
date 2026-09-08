@@ -3,7 +3,10 @@ import {
   findCrossCategoryDuplicates,
   type EventFilmEntry,
 } from "@/domain/events/event-film-content-schema";
-import { setEventCategoryFilmIds } from "@/domain/events/event-category-manifest-overlay";
+import {
+  getEventCategoryFilmIds,
+  setEventCategoryFilmIds,
+} from "@/domain/events/event-category-manifest-overlay";
 import type { FilmRepository } from "@/repositories/film-repository";
 import type { UnresolvedMetadataRepository } from "@/repositories/unresolved-metadata-repository";
 import { resolveOrCreateHalloweenManifestFilms } from "./resolve-or-create-halloween-films";
@@ -74,4 +77,43 @@ export async function loadEventCategoryFilmContent(
       // itself (see `loadHalloweenFilmContent`'s identical rationale).
     }
   }
+}
+
+/**
+ * `loadEventCategoryFilmContent`, but a no-op once this event's pools have
+ * already resolved — for a screen that genuinely CANNOT render correctly
+ * before they have (see docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT
+ * DIFFICULTIES + VISUAL POLISH" §4).
+ *
+ * The app-shell load is fire-and-forget by design: it runs once at start,
+ * and every consumer so far only reads these pools in response to a user
+ * action (a Random pick, opening a picker) by which time it has long
+ * since finished. Christmas's bulk creation form is the first consumer to
+ * read them IMMEDIATELY on mount, to show each category's availability and
+ * to cap its sliders — and it raced that load, reporting "Classic 0
+ * available" and pinning both sliders to 0, which made a Draft
+ * impossible to create until a reload.
+ *
+ * Deliberately an idempotent ENSURE rather than a second load: the
+ * underlying resolve-or-create is itself idempotent (it matches on
+ * title+year and only creates a film that genuinely isn't there), so the
+ * worst case of both paths running is duplicated work, never duplicated
+ * films. The already-resolved check makes even that vanishingly rare.
+ */
+export async function ensureEventCategoryFilmContentLoaded(
+  eventId: string,
+  categories: Record<string, EventFilmEntry[]>,
+  deps: {
+    films: FilmRepository;
+    unresolvedMetadata: UnresolvedMetadataRepository;
+  },
+): Promise<void> {
+  const resolved = getEventCategoryFilmIds(eventId);
+  const alreadyLoaded = Object.keys(categories).some(
+    (categoryKey) => (resolved[categoryKey] ?? []).length > 0,
+  );
+  if (alreadyLoaded) {
+    return;
+  }
+  await loadEventCategoryFilmContent(eventId, categories, deps);
 }

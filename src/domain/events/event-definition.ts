@@ -111,6 +111,14 @@ export interface EventEligibilityRules {
  * generic `EventIntroDialog` renders whichever event is eligible.
  */
 export interface EventIntroContent {
+  /**
+   * Overrides the modal's default title (`event.name`) — for an event
+   * whose join modal opens on a greeting rather than its own name (see
+   * docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES +
+   * VISUAL POLISH" §12: Christmas opens on "Ho Ho Ho"). Absent (every
+   * other event) keeps the event's name, exactly as before.
+   */
+  title?: string;
   /** Body copy shown beneath the event's name — what opting in means. */
   description: string;
   /** Short, concrete list of what this event changes or offers — rendered as bullet points. */
@@ -198,6 +206,45 @@ export interface EventEndingContent {
   foundingYear?: number;
   /** The dismiss/acknowledge button's exact label — e.g. Halloween's "See you next year." There is no secondary/decline action on this dialog (see `EventEndingDialog`'s own doc comment for why). */
   buttonLabel: string;
+  /**
+   * An optional SECOND modal shown a beat after the first one is
+   * acknowledged (see docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT
+   * DIFFICULTIES + VISUAL POLISH" §16) — today only Christmas's
+   * January stinger. Absent (every other event) means the ending is a
+   * single modal exactly as before, with no second stage and no extra
+   * persisted state.
+   *
+   * Deliberately purely presentational: a stinger is copy plus its own
+   * acknowledgement, and NOTHING else. It never joins, activates, or
+   * touches the participation of whatever event it alludes to — a
+   * Christmas stinger mentioning January must not make January active a
+   * month early (§16), and there is no code path here that could.
+   */
+  stinger?: EventEndingStinger | null;
+}
+
+/**
+ * The second, follow-up modal of a two-stage Event ending — see
+ * `EventEndingContent.stinger`. Acknowledged through its OWN settings key
+ * (`event-ending-stinger-store.ts`), a sibling of the first stage's, so
+ * "I dismissed the goodbye" and "I dismissed the sting in the tail" are
+ * independently persisted and neither can resurrect the other.
+ */
+export interface EventEndingStinger {
+  /** Overrides the dialog's title for this stage. Absent means no title at all — a bare, deliberately abrupt message. */
+  title?: string;
+  /** The stinger's body copy — rendered verbatim, exact wording, never generated. */
+  message: string;
+  /** This stage's own dismiss button label. */
+  buttonLabel: string;
+  /**
+   * How long after the FIRST stage is acknowledged this one appears, in
+   * milliseconds — the dramatic beat, not a scheduling guarantee. Only
+   * honoured within the session that acknowledged stage one; a profile
+   * who closes the app in between sees the stinger immediately on next
+   * launch, since the beat has long since passed in real time.
+   */
+  delayMs: number;
 }
 
 export interface EventDefinition {
@@ -242,6 +289,30 @@ export interface EventDefinition {
   fixedEventDeadline?: boolean;
   /** This event's own Event-over/ending experience config, or `null`/absent for an event with no ending defined yet — see `EventEndingContent`. */
   ending?: EventEndingContent | null;
+  /**
+   * When true, this event's Draft is exactly ONE film, rolled at random
+   * from its single static content pool the moment a profile JOINS (see
+   * docs/updates, "FDRAFT UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT
+   * MECHANICS" §3-§8) — today only "F* You, It's January!". It is the one
+   * flag that makes an event deliberately the SIMPLEST kind in FDraft:
+   * there is no builder step of any sort for it, so no difficulty
+   * picker, no linked sliders, no category allocation, no Challenge
+   * source, no One At A Time wizard and no "Pick Your Own" picker ever
+   * apply — `rollSingleFilmEventDraft` (`single-film-event-draft.ts`) is
+   * the ONLY thing in the app that ever creates such a Draft.
+   *
+   * Read generically in exactly three places, none of which name an
+   * event: `beginEventOptIn` (rolls the film on join),
+   * `createDraftAction` and `new-draft-form.tsx`'s One At A Time hand-off
+   * (both SKIP tagging a generically-built Draft with such an event — its
+   * Draft slot belongs solely to its own one-film roll, so a
+   * slider/difficulty/Challenge Draft must never land in it). Requires
+   * `contentPools` to declare exactly one pool, and
+   * `availability.recurringMonthDayRange` + `fixedEventDeadline` (the
+   * roll reads the occurrence bounds for its deadline). Absent/false
+   * preserves every other event's behaviour exactly.
+   */
+  singleFilmDraft?: boolean;
   /**
    * Which static curated film categories this event has (see
    * docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12) — `key` matches

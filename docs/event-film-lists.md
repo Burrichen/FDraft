@@ -1,7 +1,7 @@
 # Event film lists
 
 FDraft's curated Event film pools (Halloween's Horror/Kitsch, January's
-extra-eligibility list, Christmas's Classic/Adjacent) are simple **static
+`curated` list, Christmas's Classic/Adjacent) are simple **static
 JSON files that ship with the app** — never fetched remotely, never synced
 from a third-party site. Editing one requires a new FDraft build; there is
 no live/automatic sync.
@@ -38,13 +38,23 @@ ever being confused with "Halloween (2007)".
 
 - **Halloween** — `horror`/`kitsch` ARE the pool a Halloween Draft draws
   from; a listed film doesn't need to be on anyone's watchlist.
-- **January** — `curated` is an ADDITIVE eligibility route on top of a
-  profile's own active watchlist (alongside "average rating ≤ 3.5") — it
-  never adds a film to anyone's watchlist.
+- **January** — `curated` IS January's entire candidate pool. Joining the
+  event rolls exactly one random film from this list and that film becomes
+  the January Event Draft (see docs/product-spec.md, "F* YOU, IT'S JANUARY
+  EVENT"). Watchlist membership and average rating are both irrelevant to
+  selection; a listed film nobody has imported is created locally the first
+  time it's needed, exactly like Halloween's pools, and never added to
+  anyone's watchlist. This REPLACED an earlier design in which `curated`
+  was merely an additive eligibility route on top of a profile's own active
+  watchlist alongside an "average rating ≤ 3.5" rule — both of which are
+  gone.
 - **Christmas** — `classic` (directly, recognisably Christmas films) and
   `adjacent` (Christmas/winter/holiday-season viewing that isn't
-  necessarily a traditional Christmas film) — content-pack support only;
-  no Christmas Draft mechanic exists yet.
+  necessarily a traditional Christmas film). Both ARE the pools a
+  Christmas Draft draws from (see docs/product-spec.md, "CHRISTMAS
+  EVENT"); a listed film doesn't need to be on anyone's watchlist. Add
+  plenty — the largest difficulty (Hardcore) needs 20 films across the
+  two categories in one Draft.
 
 Category membership is entirely editorial — which list a film is in is
 authoritative, never inferred from its genre metadata.

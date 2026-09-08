@@ -31,7 +31,7 @@ type EventBuilderStep =
   | { kind: "source-select" }
   | { kind: "category-select"; for: "random" | "manual" }
   | { kind: "random-reviewing"; film: EventOneAtATimeCandidateFilm }
-  | { kind: "manual-picking"; categoryKey: string | null }
+  | { kind: "manual-picking"; categoryKey: string }
   | { kind: "summary" };
 
 /**
@@ -54,8 +54,13 @@ type EventBuilderStep =
  * shared functions don't already provide. This file never imports from, or
  * is imported by, the normal builder's own module.
  *
- * `categories: null` (January) skips the `category-select` step entirely —
- * Random/Choose My Own act directly on the event's whole eligible pool.
+ * `categories` is always a real, non-empty list — every event with One At
+ * A Time drafting declares its categories (see
+ * `EVENT_ONE_AT_A_TIME_CATEGORIES`), and the route refuses to open this
+ * builder for one that doesn't. The old `categories: null` mode existed
+ * solely for January, which no longer has a builder at all (see
+ * `EventDefinition.singleFilmDraft`, docs/updates "FDRAFT UPDATE 1 — F*
+ * YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §4/§16).
  */
 export function EventOneAtATimeBuilderView({
   eventId,
@@ -67,7 +72,7 @@ export function EventOneAtATimeBuilderView({
 }: {
   eventId: string;
   eventName: string;
-  categories: readonly { key: string; label: string }[] | null;
+  categories: readonly { key: string; label: string }[];
   sourceEventManuallyEnabled: boolean;
   onDone: (draftId: string) => void;
   onCancel: () => void;
@@ -76,9 +81,10 @@ export function EventOneAtATimeBuilderView({
 
   const { data, isLoading, error, reload } = useAsyncData(async () => {
     if (!activeProfile) return null;
-    const preferWatchlist = categories
-      ? await getPreferWatchlistPreference(repositories, activeProfile.id)
-      : true;
+    const preferWatchlist = await getPreferWatchlistPreference(
+      repositories,
+      activeProfile.id,
+    );
     return { preferWatchlist };
   }, [activeProfile?.id, repositories, eventId, categories]);
 
@@ -104,7 +110,7 @@ export function EventOneAtATimeBuilderView({
     [staged],
   );
   const categoryLabelByKey = useMemo(
-    () => Object.fromEntries((categories ?? []).map((c) => [c.key, c.label])),
+    () => Object.fromEntries(categories.map((c) => [c.key, c.label])),
     [categories],
   );
 
@@ -150,7 +156,7 @@ export function EventOneAtATimeBuilderView({
   }
 
   async function handlePickRandom(
-    categoryKey: string | null,
+    categoryKey: string,
     excludeCurrentFilmId?: string,
   ) {
     setIsBusy(true);
@@ -168,11 +174,7 @@ export function EventOneAtATimeBuilderView({
       if (!outcome.ok) {
         if (!excludeCurrentFilmId) {
           setStepError(outcome.message);
-          setStep(
-            categories
-              ? { kind: "category-select", for: "random" }
-              : { kind: "source-select" },
-          );
+          setStep({ kind: "category-select", for: "random" });
         } else {
           setStepError(
             "No other eligible films to reroll to — this is the only one left.",
@@ -216,7 +218,7 @@ export function EventOneAtATimeBuilderView({
     })();
   }
 
-  async function openManualPicker(categoryKey: string | null) {
+  async function openManualPicker(categoryKey: string) {
     setIsBusy(true);
     try {
       const candidates = await resolveEventOneAtATimePickerCandidates(
@@ -272,20 +274,16 @@ export function EventOneAtATimeBuilderView({
       {step.kind === "source-select" ? (
         <OneAtATimeSourceSelect
           onSelectRandom={() =>
-            categories
-              ? setStep({ kind: "category-select", for: "random" })
-              : void handlePickRandom(null)
+            setStep({ kind: "category-select", for: "random" })
           }
           onSelectManual={() =>
-            categories
-              ? setStep({ kind: "category-select", for: "manual" })
-              : void openManualPicker(null)
+            setStep({ kind: "category-select", for: "manual" })
           }
           showChallenge={false}
         />
       ) : null}
 
-      {step.kind === "category-select" && categories ? (
+      {step.kind === "category-select" ? (
         <section className="mx-auto max-w-2xl space-y-4">
           <h2 className="text-foreground text-lg font-bold">
             {step.for === "random"
@@ -403,9 +401,7 @@ export function EventOneAtATimeBuilderView({
             if (!open) goToSourceSelect();
           }}
           categoryLabel={
-            step.categoryKey
-              ? (categoryLabelByKey[step.categoryKey] ?? step.categoryKey)
-              : eventName
+            categoryLabelByKey[step.categoryKey] ?? step.categoryKey
           }
           films={pickerCandidates ?? []}
           onConfirm={(filmId) => {

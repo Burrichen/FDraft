@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { dismissEventIntroIfPresent } from "./fixtures/event-intro";
 
 const FIXTURE_CSV = path.join(__dirname, "fixtures", "sample-watchlist.csv");
 
@@ -50,6 +51,9 @@ test("expiring a draft, answering its postmortem, and archiving it all work full
 
   await context.setOffline(true);
   await page.reload();
+  // The 31-day jump can land inside a real Event window, which raises the
+  // global intro modal over this page — see `dismissEventIntroIfPresent`.
+  await dismissEventIntroIfPresent(page);
 
   await expect(
     page.getByRole("heading", { name: /Baby draft — expired/i }),

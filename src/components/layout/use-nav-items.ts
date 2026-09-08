@@ -39,6 +39,42 @@ const EVENT_NAV_ICONS: Record<
 };
 
 /**
+ * The active-tab accent an event's nav tab uses, for an event whose theme
+ * has one — a plain map rather than the inline per-event conditional this
+ * used to carry, so adding January's own accent (see docs/updates, "FDRAFT
+ * UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §13: "active
+ * January navigation icon/accent") is one entry instead of a second
+ * branch. An event absent here simply keeps the nav's own default active
+ * styling, exactly as before.
+ *
+ * These are the only places outside a `.theme-*` subtree that name an
+ * event colour directly: the nav bar is app-shell chrome, not part of an
+ * event's page, so it can't inherit the scoped token reroute those classes
+ * provide — it reads the palette token itself instead.
+ */
+const EVENT_NAV_ACCENTS: Record<
+  string,
+  Pick<NavItem, "activeIconClassName" | "activeUnderlineClassName">
+> = {
+  [HALLOWEEN_EVENT_ID]: {
+    activeIconClassName: "text-halloween-pumpkin",
+    activeUnderlineClassName: "bg-halloween-pumpkin",
+  },
+  [F_YOU_ITS_JANUARY_EVENT_ID]: {
+    activeIconClassName: "text-january-ice",
+    activeUnderlineClassName: "bg-january-ice",
+  },
+  // Snow, not red or green — Christmas's PRIMARY accent role (see
+  // docs/updates, "FDRAFT UPDATE 1 — CHRISTMAS DRAFT DIFFICULTIES +
+  // VISUAL POLISH" §10/§17). A red or green nav tab beside the app's own
+  // green "watched" accent would read as a status, not an identity.
+  [CHRISTMAS_EVENT_ID]: {
+    activeIconClassName: "text-christmas-snow",
+    activeUnderlineClassName: "bg-christmas-snow",
+  },
+};
+
+/**
  * `NAV_ITEMS` plus one extra temporary tab for every currently-JOINED,
  * currently-available, page-bearing event (see docs/updates, "EVENT
  * LIFECYCLE REPAIR" §2/§3) — the canonical rule is "JOINED EVENT → nav
@@ -71,12 +107,7 @@ export function useNavItems(): NavItem[] {
         href: event.page.route,
         label: event.page.navLabel,
         icon,
-        ...(event.id === HALLOWEEN_EVENT_ID
-          ? {
-              activeIconClassName: "text-halloween-pumpkin",
-              activeUnderlineClassName: "bg-halloween-pumpkin",
-            }
-          : {}),
+        ...(EVENT_NAV_ACCENTS[event.id] ?? {}),
       };
     })
     .filter((item): item is NavItem => item !== null);

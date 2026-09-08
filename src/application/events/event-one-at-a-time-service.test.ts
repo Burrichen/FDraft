@@ -7,7 +7,6 @@ import {
 import { setEventCategoryFilmIds } from "@/domain/events/event-category-manifest-overlay";
 import {
   CHRISTMAS_EVENT_ID,
-  F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
 import type { OneAtATimeStagedItem } from "@/domain/drafts/one-at-a-time";
@@ -50,70 +49,6 @@ async function seedOffWatchlistFilm(
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   });
-}
-
-async function seedWatchlistFilm(
-  repos: Repositories,
-  params: {
-    filmId: string;
-    entryId: string;
-    averageRating?: number | null;
-  },
-) {
-  await repos.films.create({
-    id: params.filmId,
-    title: params.filmId,
-    releaseYear: 2000,
-    letterboxdSlug: params.filmId,
-    letterboxdUri: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-  await repos.watchlist.createEntry({
-    id: params.entryId,
-    profileId: PROFILE_ID,
-    filmId: params.filmId,
-    dateAdded: "2026-01-01",
-    position: 0,
-    isActive: true,
-    selectionWeight: 1,
-    importSource: null,
-    importId: null,
-    removedAt: null,
-    removedReason: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-  if (params.averageRating !== undefined) {
-    await repos.films.upsertMetadata({
-      id: `${params.filmId}-meta`,
-      filmId: params.filmId,
-      provider: "tmdb",
-      posterUrl: null,
-      runtimeMinutes: null,
-      genres: null,
-      directors: null,
-      countries: null,
-      languages: null,
-      collectionId: null,
-      collectionName: null,
-      collectionOrder: null,
-      averageRating: params.averageRating,
-      popularity: null,
-      watchCount: null,
-      fansCount: null,
-      listAppearances: null,
-      externalIds: null,
-      releaseDate: null,
-      releaseStatus: "Released",
-      providerTitle: null,
-      raw: null,
-      matchMethod: "automatic",
-      lastEnrichedAt: "2026-01-01T00:00:00.000Z",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
-  }
 }
 
 function stagedItem(
@@ -416,98 +351,6 @@ describe("event-one-at-a-time-service (FDRAFT UPDATE 1 — EVENT ONE AT A TIME D
         expect(draft?.totalFilms).toBe(2);
         // Christmas's fixed deadline — 1 January 00:00.
         expect(draft?.deadlineAt).toBe("2027-01-01T00:00:00.000Z");
-      }
-    });
-  });
-
-  describe("January — no categories, eligibility-governed, no Watchlist leakage", () => {
-    it("Random only ever picks an eligible film (rating <= 3.5 or curated), never an ineligible watchlist film", async () => {
-      db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
-      const repos = createLocalRepositories(db) as Repositories;
-      await seedProfile(repos);
-      await seedWatchlistFilm(repos, {
-        filmId: "eligible-film",
-        entryId: "entry-eligible",
-        averageRating: 2.0,
-      });
-      await seedWatchlistFilm(repos, {
-        filmId: "ineligible-film",
-        entryId: "entry-ineligible",
-        averageRating: 4.5,
-      });
-
-      for (let seed = 0; seed < 15; seed++) {
-        const outcome = await pickEventOneAtATimeRandomFilm(
-          repos,
-          {
-            profileId: PROFILE_ID,
-            eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-            categoryKey: null,
-            excludeFilmIds: [],
-          },
-          {},
-        );
-        expect(outcome.ok).toBe(true);
-        if (outcome.ok) {
-          expect(outcome.film.filmId).toBe("eligible-film");
-          expect(outcome.film.eventCategoryKey).toBeNull();
-        }
-      }
-    });
-
-    it("the manual picker lists only eligible films — never the entire normal watchlist", async () => {
-      db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
-      const repos = createLocalRepositories(db) as Repositories;
-      await seedProfile(repos);
-      await seedWatchlistFilm(repos, {
-        filmId: "eligible-film",
-        entryId: "entry-eligible",
-        averageRating: 1.0,
-      });
-      await seedWatchlistFilm(repos, {
-        filmId: "ineligible-film",
-        entryId: "entry-ineligible",
-        averageRating: 4.9,
-      });
-
-      const picker = await resolveEventOneAtATimePickerCandidates(repos, {
-        profileId: PROFILE_ID,
-        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-        categoryKey: null,
-        excludeFilmIds: [],
-      });
-      expect(picker.map((c) => c.filmId)).toEqual(["eligible-film"]);
-    });
-
-    it("finalizes with January's fixed deadline and Event identity", async () => {
-      db = new FDraftLocalDatabase(`event-oaat-${crypto.randomUUID()}`);
-      const repos = createLocalRepositories(db) as Repositories;
-      await seedProfile(repos);
-      await seedWatchlistFilm(repos, {
-        filmId: "eligible-film",
-        entryId: "entry-eligible",
-        averageRating: 1.0,
-      });
-
-      const outcome = await finalizeEventOneAtATimeDraft(repos, {
-        profileId: PROFILE_ID,
-        timezone: "UTC",
-        eventId: F_YOU_ITS_JANUARY_EVENT_ID,
-        items: [
-          stagedItem({
-            filmId: "eligible-film",
-            watchlistEntryId: "entry-eligible",
-            source: "random",
-          }),
-        ],
-        sourceEventManuallyEnabled: false,
-      });
-      expect(outcome.ok).toBe(true);
-      if (outcome.ok) {
-        const draft = await repos.drafts.getById(PROFILE_ID, outcome.draftId);
-        expect(draft?.sourceEventId).toBe(F_YOU_ITS_JANUARY_EVENT_ID);
-        expect(draft?.deadlineAt).toBe("2026-02-01T00:00:00.000Z");
-        expect(draft?.totalFilms).toBe(1);
       }
     });
   });

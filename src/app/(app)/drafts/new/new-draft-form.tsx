@@ -126,11 +126,18 @@ export function NewDraftForm({
   // January bug this avoids). When one is active, the One At A Time route
   // becomes event-aware (event-scoped candidates/finalisation) instead of
   // creating a plain draft — the same profile reaching this generic form
-  // during Halloween/Christmas/January gets the correct event experience
-  // here too, not just via each event's own dedicated page.
+  // during Halloween/Christmas gets the correct event experience here too,
+  // not just via each event's own dedicated page.
   function handleContinueToOneAtATime() {
+    // Skips a `singleFilmDraft` event for the same reason
+    // `createDraftAction` does (see its own comment) — such an event has
+    // no builder at all, so its Draft slot must never receive a One At A
+    // Time Draft built here.
     const currentEventStatus = discovery.result.eventsEnabled
-      ? discovery.result.statuses.find(isOccurrenceActiveNow)
+      ? discovery.result.statuses.find(
+          (status) =>
+            isOccurrenceActiveNow(status) && !status.event.singleFilmDraft,
+        )
       : undefined;
     const params = new URLSearchParams({
       timeMode,

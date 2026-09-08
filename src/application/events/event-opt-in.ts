@@ -5,19 +5,44 @@ import {
   getEventSettings,
   setEventSettings,
 } from "@/application/events/event-settings-store";
-import { isEventAvailable } from "@/domain/events/event-availability";
+import { setEventManualActivation } from "@/application/events/event-manual-activation-store";
+import { rollSingleFilmEventDraft } from "@/application/events/single-film-event-draft";
+import {
+  isEventAvailable,
+  resolveUpcomingOccurrenceEnd,
+} from "@/domain/events/event-availability";
 import type { EventDefinition } from "@/domain/events/event-definition";
 import {
   EVENT_DEFINITIONS,
   getEventDefinition,
 } from "@/domain/events/event-registry";
+import type { Rng } from "@/domain/shared/rng";
 import type { Clock } from "@/domain/time/clock";
+import type { DraftRepository } from "@/repositories/draft-repository";
+import type { FilmRepository } from "@/repositories/film-repository";
+import type { HistoryRepository } from "@/repositories/history-repository";
 import type { ProfileRepository } from "@/repositories/profile-repository";
 import type { SettingsRepository } from "@/repositories/settings-repository";
+import type { WatchlistRepository } from "@/repositories/watchlist-repository";
 
 type EventOptInRepos = {
   settings: SettingsRepository;
   profiles: ProfileRepository;
+};
+
+/**
+ * `EventOptInRepos` plus everything `rollSingleFilmEventDraft` needs — a
+ * SUPERSET, required only by `beginEventOptIn` (the one join path that can
+ * create an Event Draft, see `EventDefinition.singleFilmDraft`). Every
+ * other function in this file keeps its own narrower repos type, so
+ * `declineEventOccurrence`/`applyEventOptIn` are still callable with
+ * nothing but a settings repository.
+ */
+type BeginEventOptInRepos = EventOptInRepos & {
+  drafts: DraftRepository;
+  films: FilmRepository;
+  history: HistoryRepository;
+  watchlist: WatchlistRepository;
 };
 
 /**
@@ -83,6 +108,18 @@ function resolveEventToOptInto(
 
 export interface BeginEventOptInResult {
   eventId: string | null;
+  /**
+   * The Draft this join rolled (or found already rolled) for a
+   * `EventDefinition.singleFilmDraft` event — `null` for every other
+   * event, and for a single-film event whose curated pool had nothing
+   * usable (in which case `rollError` explains why). Never an error the
+   * join itself fails on: opting in is what the profile asked for, and it
+   * has genuinely succeeded either way (see `beginEventOptIn`'s own doc
+   * comment).
+   */
+  singleFilmDraftId: string | null;
+  /** Why the single-film roll produced no Draft, for a caller that wants to surface it. `null` when there was nothing to roll, or the roll succeeded. */
+  rollError: string | null;
 }
 
 /**
@@ -98,18 +135,30 @@ export interface BeginEventOptInResult {
  * "opt into whatever's currently running" call. A no-op (returns
  * `{ eventId: null }`, no settings change) whenever nothing eligible is
  * currently available.
+ *
+ * ONE exception to "this never touches drafts" (see docs/updates, "FDRAFT
+ * UPDATE 1 — F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §3): an event
+ * declaring `EventDefinition.singleFilmDraft` has no builder at all — its
+ * whole Draft IS one random curated film — so joining rolls and persists
+ * it immediately, right here, rather than leaving the profile on a page
+ * with a "Create Draft" step it deliberately doesn't have. Read
+ * generically off the definition; no event id appears here. The roll is
+ * idempotent per occurrence (`rollSingleFilmEventDraft`), so re-joining
+ * after leaving, or any repeat call, never rolls a second film. A roll
+ * that finds nothing usable is reported through `rollError` and never
+ * fails the join itself — the profile asked to opt in, and they have.
  */
 export async function beginEventOptIn(
-  repos: EventOptInRepos,
+  repos: BeginEventOptInRepos,
   params: { profileId: string; timezone: string; eventId?: string },
-  deps: { clock?: Clock } = {},
+  deps: { clock?: Clock; rng?: Rng } = {},
 ): Promise<BeginEventOptInResult> {
   const now = await getEffectiveEventDate(repos, params.profileId, {
     clock: deps.clock,
   });
   const candidate = resolveEventToOptInto(now, params.timezone, params.eventId);
   if (!candidate) {
-    return { eventId: null };
+    return { eventId: null, singleFilmDraftId: null, rollError: null };
   }
 
   await applyEventOptIn(repos, {
@@ -141,7 +190,60 @@ export async function beginEventOptIn(
     );
   }
 
-  return { eventId: candidate.event.id };
+  // A MANUAL activation records when it runs until — the end of this
+  // event's next natural occurrence as of right now (see docs/updates,
+  // "FDRAFT UPDATE 1 — JANUARY / HALLOWEEN / CHRISTMAS REGRESSION"). That
+  // is what eventually concludes it and lets its Event-over experience
+  // show, instead of the activation persisting indefinitely with nothing
+  // to end it. A NATURAL join records nothing here: its own window is
+  // already the thing that concludes it.
+  if (candidate.manuallyEnabled && occurrenceKey !== null) {
+    const endsAt = resolveUpcomingOccurrenceEnd(
+      candidate.event.availability,
+      now,
+      params.timezone,
+    );
+    if (endsAt) {
+      await setEventManualActivation(repos, {
+        profileId: params.profileId,
+        eventId: candidate.event.id,
+        endsAt,
+        // Pinned to the occurrence just recorded as joined above, so a
+        // run that crosses a year boundary keeps pointing at it.
+        occurrenceKey,
+      });
+    }
+  }
+
+  if (!candidate.event.singleFilmDraft) {
+    return {
+      eventId: candidate.event.id,
+      singleFilmDraftId: null,
+      rollError: null,
+    };
+  }
+
+  const roll = await rollSingleFilmEventDraft(
+    repos,
+    {
+      profileId: params.profileId,
+      timezone: params.timezone,
+      eventId: candidate.event.id,
+      sourceEventManuallyEnabled: candidate.manuallyEnabled,
+    },
+    // `now` is the Admin-aware effective date this whole join was decided
+    // against — reused rather than resolved a second time, so the Draft's
+    // occurrence year/deadline can never disagree with the participation
+    // record just written above by a few milliseconds (or by an Admin
+    // override changing in between).
+    { clock: deps.clock, rng: deps.rng, effectiveNow: now },
+  );
+
+  return {
+    eventId: candidate.event.id,
+    singleFilmDraftId: roll.ok ? roll.draftId : null,
+    rollError: roll.ok ? null : roll.message,
+  };
 }
 
 /**

@@ -28,11 +28,28 @@ export function OneAtATimeRouteView() {
   }
 
   const event = getEventDefinition(eventId);
-  if (!event) {
+  const categories = event ? getEventOneAtATimeCategories(eventId) : null;
+  // A hand-crafted `?eventId=` for an unregistered event, or for one with
+  // no One At A Time drafting at all, both land here. The latter is now a
+  // real case: a `singleFilmDraft` event (January — see
+  // `EventDefinition.singleFilmDraft`, docs/updates "FDRAFT UPDATE 1 — F*
+  // YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §4) has no builder, no
+  // categories and no staged-film flow of any kind, so opening this
+  // builder for it would be meaningless — and would write into a Draft
+  // slot that belongs solely to its own one-film roll. `new-draft-form.tsx`
+  // already never hands off such an event; this is the guard for a URL
+  // that arrives any other way.
+  if (!event || !categories || categories.length === 0) {
     return (
       <div className="max-w-2xl space-y-6">
         <AsyncDataError
-          error={new Error("This event is no longer registered.")}
+          error={
+            new Error(
+              event
+                ? `${event.name} doesn't use One At A Time drafting.`
+                : "This event is no longer registered.",
+            )
+          }
           onRetry={() => router.replace("/drafts/new")}
         />
       </div>
@@ -46,7 +63,7 @@ export function OneAtATimeRouteView() {
     <EventOneAtATimeBuilderView
       eventId={eventId}
       eventName={event.name}
-      categories={getEventOneAtATimeCategories(eventId)}
+      categories={categories}
       sourceEventManuallyEnabled={sourceEventManuallyEnabled}
       onDone={() => router.push("/drafts")}
       onCancel={() => router.push("/drafts/new")}

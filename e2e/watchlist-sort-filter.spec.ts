@@ -142,9 +142,13 @@ test("filtering to 'Metadata: Available' with nothing enriched yet shows a disti
   await page.getByRole("button", { name: "Sort & Filter" }).click();
   await page.getByLabel("Metadata").selectOption("available");
 
-  await expect(page.getByText("No films match your filters")).toBeVisible();
+  // The filtered-empty state's real copy — "No films match" plus its own
+  // "Clear search & filters" action (see `watchlist-grid.tsx`). This test
+  // previously asserted "No films match your filters" / "Reset filters",
+  // neither of which the UI has said for some time.
+  await expect(page.getByText("No films match")).toBeVisible();
 
-  await page.getByRole("button", { name: "Reset filters" }).click();
+  await page.getByRole("button", { name: "Clear search & filters" }).click();
   await expect(gridTitles(page)).resolves.toHaveLength(5);
 });
 

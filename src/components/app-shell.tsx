@@ -5,12 +5,15 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { loadHalloweenFilmContent } from "@/application/events/halloween-film-content-service";
 import { loadEventCategoryFilmContent } from "@/application/events/load-event-category-film-content";
-import { loadJanuaryFilmContent } from "@/application/events/january-film-content-service";
 import { setEventCategoryFilmIds } from "@/domain/events/event-category-manifest-overlay";
-import { CHRISTMAS_FILM_CONTENT } from "@/domain/events/event-film-content";
+import {
+  CHRISTMAS_FILM_CONTENT,
+  JANUARY_FILM_CONTENT,
+} from "@/domain/events/event-film-content";
 import { getHalloweenManifestFilmIds } from "@/domain/events/halloween-manifest-overlay";
 import {
   CHRISTMAS_EVENT_ID,
+  F_YOU_ITS_JANUARY_EVENT_ID,
   HALLOWEEN_EVENT_ID,
 } from "@/domain/events/event-registry";
 import { EventEndingDialog } from "@/components/events/event-ending-dialog";
@@ -71,7 +74,25 @@ function AppShellContent({ children }: { children: ReactNode }) {
   // IndexedDB round trip) and still never throws, so this can never block
   // or break app startup.
   useEffect(() => {
-    void loadJanuaryFilmContent({ films: repositories.films });
+    // January's curated list goes through the SAME generic resolve-or-
+    // create pipeline Christmas uses (see docs/updates, "FDRAFT UPDATE 1 —
+    // F* YOU, IT'S JANUARY: SIMPLE EVENT MECHANICS" §1/§2), replacing the
+    // deleted `loadJanuaryFilmContent`/`resolveManifestFilmIds` pair
+    // entirely. That old pipeline only ever RESOLVED an already-imported
+    // film, because January's list was merely additive eligibility on top
+    // of a profile's own Watchlist; the list is now January's whole
+    // authoritative pool, so — exactly like Halloween's and Christmas's
+    // pools — a listed film that nobody has imported must still be created
+    // locally (title/year only) and enriched by the normal metadata
+    // system, without ever touching anyone's Watchlist.
+    void loadEventCategoryFilmContent(
+      F_YOU_ITS_JANUARY_EVENT_ID,
+      { curated: JANUARY_FILM_CONTENT.curated },
+      {
+        films: repositories.films,
+        unresolvedMetadata: repositories.unresolvedMetadata,
+      },
+    );
     void loadHalloweenFilmContent({
       films: repositories.films,
       unresolvedMetadata: repositories.unresolvedMetadata,

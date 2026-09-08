@@ -7,7 +7,7 @@ import { computeHalloweenPoolCapacity } from "@/application/drafts/halloween-fet
 import { createHalloweenLocalDraft } from "@/application/drafts/halloween-draft-service";
 import { getEffectiveEventDate } from "@/application/events/event-clock";
 import { DraftTimeProgress } from "@/components/drafts/draft-time-progress";
-import { HalloweenDifficultyPicker } from "@/components/drafts/halloween-difficulty-picker";
+import { EventDifficultyPicker } from "@/components/drafts/event-difficulty-picker";
 import { HalloweenLinkedSliders } from "@/components/drafts/halloween-linked-sliders";
 import { useProfileContext } from "@/components/profiles/profile-provider";
 import { Button } from "@/components/ui/button";
@@ -245,7 +245,7 @@ export function HalloweenDraftCreationView({
                 <h3 className="text-foreground text-sm font-bold">
                   Choose a difficulty
                 </h3>
-                <HalloweenDifficultyPicker
+                <EventDifficultyPicker
                   selected={difficulty}
                   onSelect={handleSelectDifficulty}
                 />
