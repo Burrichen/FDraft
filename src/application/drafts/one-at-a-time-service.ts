@@ -12,6 +12,7 @@ import {
   type ChallengeResult,
 } from "@/domain/challenges/types";
 import { calculateDraftDeadline } from "@/domain/drafts/deadline";
+import { resolveStagedEntrySource } from "@/domain/drafts/living-draft";
 import type { OneAtATimeStagedItem } from "@/domain/drafts/one-at-a-time";
 import { defaultIdGenerator, type IdGenerator } from "@/domain/shared/id";
 import { createDefaultRng, type Rng } from "@/domain/shared/rng";
@@ -342,6 +343,8 @@ export async function finalizeOneAtATimeDraft(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear: null,
+    originalTargetFilms: items.length,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -362,6 +365,8 @@ export async function finalizeOneAtATimeDraft(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    entrySource: resolveStagedEntrySource(item.source, { forEvent: false }),
+    enteredAt: now.toISOString(),
     createdAt: now.toISOString(),
   }));
   await repos.drafts.createItems(draftItems);

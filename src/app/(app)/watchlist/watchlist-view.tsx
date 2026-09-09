@@ -7,6 +7,11 @@ import {
   getWatchlistSortPreference,
   setWatchlistSortPreference,
 } from "@/application/watchlist/watchlist-sort-preference";
+import { getDiyEligibleFilms } from "@/application/drafts/local-diy-candidates";
+import { resolveEventDraftFilmAddition } from "@/application/events/event-draft-additions";
+import { getEventAccent } from "@/components/events/event-accents";
+import { resolveEventDraftAdditionPolicy } from "@/domain/events/event-draft-additions";
+import { getEventDefinition } from "@/domain/events/event-registry";
 import { mergeLocalFilmMetadata } from "@/application/watchlist/merge-local-film-metadata";
 import { AsyncDataError } from "@/components/async-data-error";
 import { useProfileContext } from "@/components/profiles/profile-provider";
@@ -15,6 +20,10 @@ import { Input } from "@/components/ui/input";
 import { useWatchUndo } from "@/components/watch-undo/watch-undo-provider";
 import { SortFilterControl } from "@/components/watchlist/sort-filter-control";
 import type { WatchlistFilmCardView } from "@/components/watchlist/types";
+import {
+  resolveCurrentDraftFilmCount,
+  resolveDraftCapacity,
+} from "@/domain/drafts/living-draft";
 import { createDefaultRng } from "@/domain/shared/rng";
 import { isWatchlistStale } from "@/domain/watchlist/stale-import";
 import {
@@ -64,12 +73,11 @@ export function WatchlistView() {
     ).filter((entry): entry is WatchlistEntryRecord => entry !== null);
     const entries = [...activeEntries, ...pendingGhostEntries];
 
-    const films = await Promise.all(
-      entries.map((entry) => repositories.films.getById(entry.filmId)),
-    );
-    const metadataByFilmId = await repositories.films.getMetadataForFilms(
-      entries.map((entry) => entry.filmId),
-    );
+    const filmIds = entries.map((entry) => entry.filmId);
+    const [filmsById, metadataByFilmId] = await Promise.all([
+      repositories.films.getByIds(filmIds),
+      repositories.films.getMetadataForFilms(filmIds),
+    ]);
     const lastImport = await repositories.watchlist.getLatestCompletedImport(
       activeProfile.id,
     );
@@ -80,25 +88,104 @@ export function WatchlistView() {
 
     // The manual "Add to Draft" action (see docs/updates) only ever
     // targets a genuinely active NORMAL draft — never expired/archived,
-    // never one this page would create itself, and never an event's own
-    // draft (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE") —
-    // manually inserting a watchlist film into a Halloween Draft isn't a
-    // supported flow.
+    // and never an event's own draft, which is an entirely separate slot
+    // (see docs/updates, "PROMPT B2.1 — DUAL DRAFT ARCHITECTURE") with its
+    // own action below.
     const draftRecord = await repositories.drafts.getActiveOrExpiredDraft(
       activeProfile.id,
       null,
     );
     const activeDraft = draftRecord?.status === "active" ? draftRecord : null;
-    const entryIdsInDraft = activeDraft
-      ? new Set(
-          (await repositories.drafts.listItemsForDraft(activeDraft.id))
-            .map((item) => item.watchlistEntryId)
-            .filter((id): id is string => id !== null),
-        )
-      : new Set<string>();
+    const draftItems = activeDraft
+      ? await repositories.drafts.listItemsForDraft(activeDraft.id)
+      : [];
+    const entryIdsInDraft = new Set(
+      draftItems
+        .map((item) => item.watchlistEntryId)
+        .filter((id): id is string => id !== null),
+    );
+    // The two things the Add action needs beyond "is there a draft?" (see
+    // docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §3/§7): how full that
+    // draft already is, and which entries the action would actually
+    // accept. Both resolved HERE, once, from the same sources the
+    // mutations themselves use — `resolveCurrentDraftFilmCount` over the
+    // draft's real items, and the canonical manual-selection pool — so a
+    // card can explain itself instead of only failing on click.
+    //
+    // Loaded whether or not a draft exists: with one, it gates adding to
+    // it; without one, it gates STARTING a draft from that film (Part 2
+    // §4), which `createLocalDraft` validates against this exact pool.
+    const eligibleFilms = await getDiyEligibleFilms(
+      repositories,
+      activeProfile.id,
+    );
+    const eligibleEntryIds = new Set(eligibleFilms.map((film) => film.entryId));
 
-    const cards: WatchlistFilmCardView[] = entries.map((entry, index) => {
-      const film = films[index];
+    // The EVENT half of the action (see docs/updates, "FDRAFT v1.2.1 —
+    // LIVING DRAFTS" Part 3 §4/§8/§9/§10). An Event Draft is a separate,
+    // independently active slot, so this is a second lookup rather than a
+    // variant of the one above.
+    //
+    // Chosen by asking each active Event Draft's own Event whether it
+    // accepts manual additions at all — `resolveEventDraftAdditionPolicy`,
+    // read off the `EventDefinition` — so January's single-film mechanic
+    // excludes itself here by what it declares, with no event id in this
+    // page (§8/§9), and a future Event opts in or out purely through its
+    // own definition.
+    const activeEventDraft =
+      (await repositories.drafts.listActiveDrafts(activeProfile.id)).find(
+        (draft) =>
+          draft.sourceEventId !== null &&
+          resolveEventDraftAdditionPolicy(draft.sourceEventId).addEnabled,
+      ) ?? null;
+    const eventDraftEntryIds = new Set<string>();
+    let eventDraftFilmCount = 0;
+    if (activeEventDraft) {
+      const eventItems = await repositories.drafts.listItemsForDraft(
+        activeEventDraft.id,
+      );
+      eventDraftFilmCount = resolveCurrentDraftFilmCount(eventItems);
+      for (const item of eventItems) {
+        if (item.watchlistEntryId)
+          eventDraftEntryIds.add(item.watchlistEntryId);
+      }
+    }
+    // Which of THIS profile's eligible films the Event itself accepts —
+    // resolved through the shared `resolveEventDraftFilmAddition`, which
+    // evaluates the Event's own eligibility rules. No Event eligibility
+    // logic lives in this page or in the card (§4).
+    const eventEligibleEntryIds = new Set(
+      activeEventDraft
+        ? eligibleFilms
+            .filter(
+              (film) =>
+                resolveEventDraftFilmAddition({
+                  draft: activeEventDraft,
+                  film: {
+                    watchlistEntryId: film.entryId,
+                    filmId: film.filmId,
+                    genres: film.genres,
+                    averageRating: film.averageRating,
+                  },
+                }).allowed,
+            )
+            .map((film) => film.entryId)
+        : [],
+    );
+    const eventDraftView =
+      activeEventDraft && activeEventDraft.sourceEventId
+        ? {
+            draftId: activeEventDraft.id,
+            eventName:
+              getEventDefinition(activeEventDraft.sourceEventId)?.name ??
+              "Event",
+            accentClassName: getEventAccent(activeEventDraft.sourceEventId)
+              ?.actionClassName,
+          }
+        : null;
+
+    const cards: WatchlistFilmCardView[] = entries.map((entry) => {
+      const film = filmsById.get(entry.filmId) ?? null;
       const metadata = mergeLocalFilmMetadata(
         metadataByFilmId.get(entry.filmId) ?? [],
       );
@@ -136,6 +223,12 @@ export function WatchlistView() {
       initialSort,
       activeDraftId: activeDraft?.id ?? null,
       entryIdsInDraft,
+      eventDraftView,
+      eventDraftEntryIds,
+      eventDraftFilmCount,
+      eventEligibleEntryIds,
+      draftFilmCount: resolveCurrentDraftFilmCount(draftItems),
+      eligibleEntryIds,
     };
   }, [activeProfile?.id, repositories]);
 
@@ -204,6 +297,12 @@ export function WatchlistView() {
         repositories={repositories}
         activeDraftId={data.activeDraftId}
         initialEntryIdsInDraft={data.entryIdsInDraft}
+        initialDraftFilmCount={data.draftFilmCount}
+        eligibleEntryIds={data.eligibleEntryIds}
+        eventDraft={data.eventDraftView}
+        initialEventDraftEntryIds={data.eventDraftEntryIds}
+        initialEventDraftFilmCount={data.eventDraftFilmCount}
+        eventEligibleEntryIds={data.eventEligibleEntryIds}
       />
     </div>
   );
@@ -227,6 +326,12 @@ function WatchlistBody({
   repositories,
   activeDraftId,
   initialEntryIdsInDraft,
+  initialDraftFilmCount,
+  eligibleEntryIds,
+  eventDraft,
+  initialEventDraftEntryIds,
+  initialEventDraftFilmCount,
+  eventEligibleEntryIds,
 }: {
   films: WatchlistFilmCardView[];
   initialSort: WatchlistSortOption;
@@ -236,6 +341,19 @@ function WatchlistBody({
   /** The manual "Add to Draft" action's target (see docs/updates) — `null` when there's no usable active draft. */
   activeDraftId: string | null;
   initialEntryIdsInDraft: ReadonlySet<string>;
+  /** How many films that draft holds right now — tracked as state below, since each add grows it (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §3). */
+  initialDraftFilmCount: number;
+  eligibleEntryIds: ReadonlySet<string>;
+  /** The profile's active EVENT Draft's action target, or `null` when there is none that accepts additions (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 3 §4). */
+  eventDraft: {
+    draftId: string;
+    eventName: string;
+    accentClassName?: string;
+  } | null;
+  initialEventDraftEntryIds: ReadonlySet<string>;
+  initialEventDraftFilmCount: number;
+  /** Entries that Event's OWN eligibility rules accept — resolved by the loader through the shared Event service. */
+  eventEligibleEntryIds: ReadonlySet<string>;
 }) {
   const [sort, setSort] = useState<WatchlistSortOption>(initialSort);
   const [filters, setFilters] = useState<WatchlistFilterState>(
@@ -248,6 +366,11 @@ function WatchlistBody({
   const [entryIdsInDraft, setEntryIdsInDraft] = useState(
     initialEntryIdsInDraft,
   );
+  // Grown alongside `entryIdsInDraft` for the same reason — so the 30-film
+  // ceiling is reflected the moment the draft reaches it, rather than only
+  // after a refetch. Counted, not derived from that set's size: an entry-
+  // less item (a curated Event pool film) still occupies a slot.
+  const [draftFilmCount, setDraftFilmCount] = useState(initialDraftFilmCount);
   // Bumped every time "Shuffle" is deliberately (re-)chosen — the `rng`
   // below is only recreated when this changes, which is what makes a
   // shuffle's resulting order stable across unrelated re-renders (marking
@@ -292,9 +415,31 @@ function WatchlistBody({
   const hasActiveNarrowing =
     !isDefaultWatchlistFilterState(filters) || search.trim().length > 0;
 
+  // The Event Draft is a separate slot, so its own membership and size are
+  // tracked separately — an Event addition must never make a film read as
+  // "in draft" for the normal Draft, or count toward its capacity.
+  const [eventDraftEntryIds, setEventDraftEntryIds] = useState(
+    initialEventDraftEntryIds,
+  );
+  const [eventDraftFilmCount, setEventDraftFilmCount] = useState(
+    initialEventDraftFilmCount,
+  );
+  const eventDraftCapacity = resolveDraftCapacity(eventDraftFilmCount);
+
+  function handleAddedToEventDraft(entryId: string) {
+    setEventDraftEntryIds((prev) => new Set(prev).add(entryId));
+    setEventDraftFilmCount((count) => count + 1);
+  }
+
   function handleAddedToDraft(entryId: string) {
     setEntryIdsInDraft((prev) => new Set(prev).add(entryId));
+    setDraftFilmCount((count) => count + 1);
   }
+
+  // THE shared answer to "can another film be added?" — the same helper
+  // `addManualFilmToLocalDraft` enforces with, so the control's state and
+  // the mutation's verdict can never disagree.
+  const draftCapacity = resolveDraftCapacity(draftFilmCount);
 
   return (
     <>
@@ -333,6 +478,13 @@ function WatchlistBody({
         }}
         activeDraftId={activeDraftId}
         entryIdsInDraft={entryIdsInDraft}
+        activeDraftIsFull={!draftCapacity.canAddFilm}
+        eligibleEntryIds={eligibleEntryIds}
+        eventDraft={eventDraft}
+        eventDraftEntryIds={eventDraftEntryIds}
+        eventDraftIsFull={!eventDraftCapacity.canAddFilm}
+        eventEligibleEntryIds={eventEligibleEntryIds}
+        onAddedToEventDraft={handleAddedToEventDraft}
         onAddedToDraft={handleAddedToDraft}
       />
     </>

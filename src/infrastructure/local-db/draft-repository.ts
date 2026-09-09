@@ -1,3 +1,4 @@
+import { resolveDraftItemEntrySource } from "@/domain/drafts/living-draft";
 import type { DraftRepository } from "@/repositories/draft-repository";
 import type {
   DraftChallengeAttemptRecord,
@@ -25,6 +26,15 @@ function normalizeDraft(draft: DraftRecord): DraftRecord {
     sourceEventManuallyEnabled: draft.sourceEventManuallyEnabled ?? null,
     customName: draft.customName ?? null,
     eventOccurrenceYear: draft.eventOccurrenceYear ?? null,
+    // Living Drafts (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS").
+    // `originalTargetFilms` stays `null` here rather than being guessed:
+    // `resolveOriginalTargetFilms` already derives it from `difficulty`,
+    // which is both more accurate and the one place that inference should
+    // live. An empty mutation history is the correct reading of "no
+    // recorded mutations", and never means "undo is unavailable" for a
+    // reason a caller has to distinguish.
+    originalTargetFilms: draft.originalTargetFilms ?? null,
+    mutationHistory: draft.mutationHistory ?? [],
   };
 }
 
@@ -36,6 +46,15 @@ function normalizeDraftItem(item: DraftItemRecord): DraftItemRecord {
     substitutionReason: item.substitutionReason ?? null,
     eventRewardGrantedAt: item.eventRewardGrantedAt ?? null,
     eventCategoryKey: item.eventCategoryKey ?? null,
+    // Derived, not defaulted: an item written before Living Drafts has
+    // real provenance recoverable from its other fields (see
+    // `resolveDraftItemEntrySource`). The version 6 migration backfills
+    // these for every existing item; this is the defensive net for
+    // anything it could not reach — a record restored from an older
+    // backup, or written by a build mid-upgrade — so nothing downstream
+    // ever sees `undefined`.
+    entrySource: resolveDraftItemEntrySource(item),
+    enteredAt: item.enteredAt ?? item.createdAt,
   };
 }
 
@@ -187,6 +206,23 @@ export class LocalDraftRepository implements DraftRepository {
 
   async updateItem(item: DraftItemRecord): Promise<void> {
     await this.db.draftItems.put(item);
+  }
+
+  async deleteItem(itemId: string): Promise<void> {
+    // One transaction so an item can never be removed while its uniquely
+    // keyed postmortem response survives to orphan (or block) it — the
+    // same cascading-delete reasoning `deleteDraft` already follows.
+    await this.db.transaction(
+      "rw",
+      [this.db.draftItems, this.db.draftPostmortemResponses],
+      async () => {
+        await this.db.draftPostmortemResponses
+          .where("draftItemId")
+          .equals(itemId)
+          .delete();
+        await this.db.draftItems.delete(itemId);
+      },
+    );
   }
 
   async findItemsByWatchlistEntryId(

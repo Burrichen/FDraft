@@ -60,18 +60,17 @@ export async function fetchLocalChallengeCandidates(
   } = {},
 ): Promise<ChallengeCandidateFilm[]> {
   const entries = await repos.watchlist.listActiveEntries(profileId);
-  const films = await Promise.all(
-    entries.map((entry) => repos.films.getById(entry.filmId)),
-  );
-  const metadataByFilmId = await repos.films.getMetadataForFilms(
-    entries.map((entry) => entry.filmId),
-  );
+  const filmIds = entries.map((entry) => entry.filmId);
+  const [filmsById, metadataByFilmId] = await Promise.all([
+    repos.films.getByIds(filmIds),
+    repos.films.getMetadataForFilms(filmIds),
+  ]);
 
   const { watchedReleaseYearsByCollectionId, watchedFilmIds } =
     await buildWatchedFilmContext(repos, profileId);
 
-  const candidatesWithEligibility = entries.map((entry, index) => {
-    const film = films[index];
+  const candidatesWithEligibility = entries.map((entry) => {
+    const film = filmsById.get(entry.filmId) ?? null;
     const metadata = mergeLocalFilmMetadata(
       metadataByFilmId.get(entry.filmId) ?? [],
     );

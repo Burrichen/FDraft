@@ -1,3 +1,4 @@
+import { resolveDraftItemEntrySource } from "@/domain/drafts/living-draft";
 import { DEFAULT_PROFILE_SETTINGS } from "@/domain/profiles/profile";
 import { resolveProfileTimezone } from "@/domain/profiles/timezone";
 import type { Clock } from "@/domain/time/clock";
@@ -193,6 +194,8 @@ export async function migrateFromSupabaseExport(
       // naming entirely too — moot in practice anyway, since sourceEventId
       // above is unconditionally null for every migrated draft.
       eventOccurrenceYear: null,
+      originalTargetFilms: draft.total_films,
+      mutationHistory: [],
       createdAt: draft.created_at,
       updatedAt: draft.updated_at,
     };
@@ -200,12 +203,13 @@ export async function migrateFromSupabaseExport(
   }
 
   for (const item of exportData.draft_items) {
+    const source = item.source as DraftItemRecord["source"];
     const record: DraftItemRecord = {
       id: item.id,
       draftId: item.draft_id,
       filmId: item.film_id,
       watchlistEntryId: item.watchlist_entry_id,
-      source: item.source as DraftItemRecord["source"],
+      source,
       challengeId: item.challenge_id,
       challengeAttemptId: null,
       challengeDisplayValue: item.challenge_display_value,
@@ -218,6 +222,18 @@ export async function migrateFromSupabaseExport(
       // what it is now.
       originFilmId: null,
       substitutionReason: null,
+      // Derived through the same shared inference the v6 schema migration
+      // uses, with no owning-draft context needed: the Supabase era had no
+      // Events, so a `"random"` item there is genuinely random. The item's
+      // own creation time is when it entered — nothing could have replaced
+      // it, per the note above.
+      entrySource: resolveDraftItemEntrySource({
+        source,
+        entrySource: null,
+        substitutionReason: null,
+        eventCategoryKey: null,
+      }),
+      enteredAt: item.created_at,
       createdAt: item.created_at,
     };
     await repos.drafts.createItems([record]);

@@ -9,6 +9,14 @@ interface DifficultyPickerProps {
   selected: DraftDifficulty | null;
   onSelect: (id: DraftDifficulty) => void;
   activeWatchlistCount: number;
+  /**
+   * Difficulties this particular entry point can't offer, mapped to the
+   * reason shown in place of the usual film count — rendered exactly like
+   * the "not enough films" case below, rather than as a second visual
+   * language for "unavailable". Omitted (the default) leaves every
+   * creatable difficulty selectable, unchanged.
+   */
+  unavailableDifficulties?: Partial<Record<DraftDifficulty, string>>;
 }
 
 /**
@@ -23,13 +31,16 @@ export function DifficultyPicker({
   selected,
   onSelect,
   activeWatchlistCount,
+  unavailableDifficulties,
 }: DifficultyPickerProps) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {CREATABLE_DIFFICULTY_ORDER.map((id) => {
         const definition = DIFFICULTIES[id];
         const required = definition.filmCount ?? 1;
-        const disabled = activeWatchlistCount < required;
+        const unavailableReason = unavailableDifficulties?.[id] ?? null;
+        const notEnoughFilms = activeWatchlistCount < required;
+        const disabled = notEnoughFilms || unavailableReason !== null;
         const isSelected = selected === id;
 
         return (
@@ -55,10 +66,14 @@ export function DifficultyPicker({
                 ? `${definition.filmCount} films`
                 : "Build your Draft one film at a time."}
             </p>
-            {disabled ? (
+            {notEnoughFilms ? (
               <p className="text-destructive mt-1 text-xs">
                 Needs {required} active film{required === 1 ? "" : "s"} (
                 {activeWatchlistCount} available)
+              </p>
+            ) : unavailableReason ? (
+              <p className="text-muted-foreground mt-1 text-xs">
+                {unavailableReason}
               </p>
             ) : null}
           </button>

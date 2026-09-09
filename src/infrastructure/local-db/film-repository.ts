@@ -10,6 +10,23 @@ export class LocalFilmRepository implements FilmRepository {
     return film ?? null;
   }
 
+  async getByIds(ids: string[]): Promise<Map<string, FilmRecord>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    // `bulkGet` resolves positionally and yields `undefined` for an id
+    // with no row, so absent films are dropped rather than mapped to a
+    // hole the caller has to remember to check.
+    const rows = await this.db.films.bulkGet(ids);
+    const byId = new Map<string, FilmRecord>();
+    for (const row of rows) {
+      if (row) {
+        byId.set(row.id, row);
+      }
+    }
+    return byId;
+  }
+
   async findByLetterboxdSlug(slug: string): Promise<FilmRecord | null> {
     const film = await this.db.films
       .where("letterboxdSlug")

@@ -132,6 +132,126 @@ describe("applySchema — migration mechanism (synthetic schema, independent of 
     await latest.close();
   });
 
+  it("v5 -> v6 backfills every existing Draft's original target and every item's entry source, without touching anything else (Living Drafts §1)", async () => {
+    const name = `schema-test-${crypto.randomUUID()}`;
+    dbNames.push(name);
+
+    // A real pre-v1.2.1 install: drafts and items written by a build that
+    // had never heard of `entrySource`, `enteredAt`, `originalTargetFilms`
+    // or `mutationHistory`.
+    const v5 = new Dexie(name);
+    applySchemaVersions(v5, SCHEMA_MIGRATIONS.slice(0, 5));
+    await v5.open();
+    expect(v5.verno).toBe(5);
+    await v5.table("drafts").bulkAdd([
+      legacyDraft({ id: "normal", difficulty: "medium", totalFilms: 10 }),
+      legacyDraft({
+        id: "oaat",
+        difficulty: "one-at-a-time",
+        totalFilms: 3,
+      }),
+      legacyDraft({
+        id: "xmas",
+        difficulty: "baby",
+        totalFilms: 5,
+        sourceEventId: "christmas",
+      }),
+    ]);
+    await v5.table("draftItems").bulkAdd([
+      legacyItem({ id: "i-random", draftId: "normal", source: "random" }),
+      legacyItem({ id: "i-manual", draftId: "normal", source: "manual" }),
+      legacyItem({
+        id: "i-challenge",
+        draftId: "normal",
+        source: "challenge",
+        challengeId: "runtime-under-90",
+      }),
+      legacyItem({
+        id: "i-reroll",
+        draftId: "normal",
+        source: "random",
+        substitutionReason: "user_reroll",
+        originFilmId: "film-old",
+      }),
+      legacyItem({
+        id: "i-replaced",
+        draftId: "normal",
+        source: "random",
+        substitutionReason: "manual_replace",
+        originFilmId: "film-old",
+      }),
+      legacyItem({
+        id: "i-franchise",
+        draftId: "normal",
+        source: "random",
+        substitutionReason: "franchise_order",
+        originFilmId: "film-old",
+      }),
+      legacyItem({ id: "i-horror", draftId: "normal", source: "horror" }),
+      // The case that needs the item→draft join: Christmas writes plain
+      // `"random"` for films drawn from its own curated categories, so
+      // only the owning draft reveals that these are Event films.
+      legacyItem({ id: "i-xmas", draftId: "xmas", source: "random" }),
+      legacyItem({ id: "i-oaat", draftId: "oaat", source: "manual" }),
+    ]);
+    await v5.close();
+
+    const latest = new Dexie(name);
+    applySchema(latest);
+    await latest.open();
+    expect(latest.verno).toBe(SCHEMA_VERSION);
+
+    // Nothing was deleted: the migration is additive, never destructive.
+    expect(await latest.table("drafts").count()).toBe(3);
+    expect(await latest.table("draftItems").count()).toBe(9);
+
+    const normal = await latest.table("drafts").get("normal");
+    expect(normal).toMatchObject({
+      // From the DIFFICULTY, not from `totalFilms` — a draft that had
+      // already grown must not have its growth mistaken for its target.
+      originalTargetFilms: 10,
+      mutationHistory: [],
+      // Untouched pre-existing fields.
+      difficulty: "medium",
+      totalFilms: 10,
+      status: "active",
+      profileId: "alex",
+    });
+    // No fixed count for One At A Time, so its recorded size is the only
+    // honest answer.
+    expect((await latest.table("drafts").get("oaat")).originalTargetFilms).toBe(
+      3,
+    );
+
+    const sources = Object.fromEntries(
+      (await latest.table("draftItems").toArray()).map(
+        (item: { id: string; entrySource: string }) => [
+          item.id,
+          item.entrySource,
+        ],
+      ),
+    );
+    expect(sources).toEqual({
+      "i-random": "random",
+      "i-manual": "diy",
+      "i-challenge": "challenge",
+      "i-reroll": "reroll",
+      "i-replaced": "manual_replace",
+      // An engine-side franchise correction is not a user reroll.
+      "i-franchise": "random",
+      "i-horror": "event",
+      "i-xmas": "event",
+      "i-oaat": "diy",
+    });
+
+    // `enteredAt` falls back to the row's creation time, the only recorded
+    // moment available, and the Challenge context is left exactly as it was.
+    const challenge = await latest.table("draftItems").get("i-challenge");
+    expect(challenge.enteredAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(challenge.challengeId).toBe("runtime-under-90");
+    await latest.close();
+  });
+
   it("the real app schema opens cleanly end to end (integration smoke test of applySchema itself)", async () => {
     const name = `schema-test-${crypto.randomUUID()}`;
     dbNames.push(name);
@@ -177,4 +297,58 @@ function applySchemaVersions(
       versioned.upgrade(migration.upgrade);
     }
   }
+}
+
+function legacyDraft(overrides: {
+  id: string;
+  difficulty: string;
+  totalFilms: number;
+  sourceEventId?: string;
+}) {
+  return {
+    profileId: "alex",
+    timeMode: "timer",
+    status: "active",
+    randomFilmCount: overrides.totalFilms,
+    challengeFilmCount: 0,
+    challengeMode: null,
+    startedAt: "2026-01-01T00:00:00.000Z",
+    deadlineAt: "2026-02-01T00:00:00.000Z",
+    timezone: "UTC",
+    completedAt: null,
+    freeformAchievedRank: null,
+    sourceEventId: overrides.sourceEventId ?? null,
+    sourceEventManuallyEnabled: null,
+    rewardsGrantedAt: null,
+    customName: null,
+    eventOccurrenceYear: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function legacyItem(overrides: {
+  id: string;
+  draftId: string;
+  source: string;
+  challengeId?: string;
+  substitutionReason?: string;
+  originFilmId?: string;
+}) {
+  return {
+    filmId: `film-${overrides.id}`,
+    watchlistEntryId: `entry-${overrides.id}`,
+    challengeId: null,
+    challengeAttemptId: null,
+    challengeDisplayValue: null,
+    orderIndex: 0,
+    isCompleted: false,
+    completedAt: null,
+    watchedHistoryId: null,
+    originFilmId: null,
+    substitutionReason: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
 }

@@ -6,6 +6,7 @@ import { AsyncDataError } from "@/components/async-data-error";
 import { EmptyState } from "@/components/empty-state";
 import { AdditionsCard } from "@/components/stats/additions-card";
 import { DistributionCard } from "@/components/stats/distribution-card";
+import { DraftSourceCard } from "@/components/stats/draft-source-card";
 import { EventStatsCard } from "@/components/stats/event-stats-card";
 import {
   FestivePointsIcon,
@@ -18,6 +19,7 @@ import { useHalloweenAmbientVisible } from "@/components/events/halloween-ambien
 import { HalloweenPumpkin } from "@/components/events/halloween-pumpkin";
 import { useEventDiscovery } from "@/components/events/event-discovery-provider";
 import { useProfileContext } from "@/components/profiles/profile-provider";
+import { summariseWatchedDraftFilmsBySource } from "@/domain/drafts/draft-source-stats";
 import { computeEventOccurrenceStats } from "@/domain/events/event-occurrence-stats";
 import { formatRuntimeMinutes } from "@/domain/stats/format";
 import {
@@ -100,29 +102,40 @@ export function StatsView() {
     return repositories.points.getAllBalances(activeProfile.id);
   }, [activeProfile?.id, repositories]);
 
-  // Compact per-occurrence Event participation summary (see docs/updates,
-  // "FDRAFT UPDATE 1 — EVENT STATS/HISTORY/PERSISTENCE AUDIT" §9) — every
-  // Event-sourced Draft the profile has ever had, active or historical, so
-  // an in-progress occurrence shows up immediately, not only once it ends.
-  const { data: eventStats } = useAsyncData(async () => {
+  // Everything derived from this profile's DRAFTS — loaded once, for both
+  // the per-occurrence Event summary (see docs/updates, "FDRAFT UPDATE 1 —
+  // EVENT STATS/HISTORY/PERSISTENCE AUDIT" §9) and the watched-by-source
+  // breakdown (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 3
+  // §1). Every Draft the profile has ever had, active or historical, so an
+  // in-progress occurrence shows up immediately and the source breakdown
+  // is a genuine lifetime figure rather than a snapshot of the current
+  // Draft — draft items keep their `entrySource` untouched through
+  // archival, so no separate historical copy is needed.
+  const { data: draftStats } = useAsyncData(async () => {
     if (!activeProfile) return null;
     const [historical, active] = await Promise.all([
       repositories.drafts.listHistorical(activeProfile.id),
       repositories.drafts.listActiveDrafts(activeProfile.id),
     ]);
-    const eventDrafts = [...historical, ...active].filter(
-      (draft) => draft.sourceEventId !== null,
-    );
+    const drafts = [...historical, ...active];
     const itemsByDraftId = new Map<string, DraftItemRecord[]>();
     await Promise.all(
-      eventDrafts.map(async (draft) => {
+      drafts.map(async (draft) => {
         itemsByDraftId.set(
           draft.id,
           await repositories.drafts.listItemsForDraft(draft.id),
         );
       }),
     );
-    return computeEventOccurrenceStats(eventDrafts, itemsByDraftId);
+    return {
+      eventStats: computeEventOccurrenceStats(
+        drafts.filter((draft) => draft.sourceEventId !== null),
+        itemsByDraftId,
+      ),
+      sourceBreakdown: summariseWatchedDraftFilmsBySource(
+        [...itemsByDraftId.values()].flat(),
+      ),
+    };
   }, [activeProfile?.id, repositories]);
 
   const { result: eventDiscovery } = useEventDiscovery();
@@ -179,17 +192,32 @@ export function StatsView() {
         </section>
       ) : null}
 
-      {eventStats && eventStats.length > 0 ? (
+      {draftStats && draftStats.eventStats.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-foreground text-lg font-bold">Event Stats</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {eventStats.map((stat) => (
+            {draftStats.eventStats.map((stat) => (
               <EventStatsCard
                 key={`${stat.eventId}:${stat.occurrenceYear}`}
                 stat={stat}
                 eventVisualsEnabled={eventDiscovery.eventVisualsEnabled}
               />
             ))}
+          </div>
+        </section>
+      ) : null}
+
+      {draftStats && draftStats.sourceBreakdown.totalWatchedFilms > 0 ? (
+        // Its own section rather than a card in the watchlist-derived
+        // distributions grid below: this is a DRAFT statistic, drawn from
+        // every Draft the profile has ever had, so it must not disappear
+        // just because their current watchlist happens to be empty — the
+        // same reasoning that already puts Points and Event Stats above
+        // that gate.
+        <section className="space-y-3">
+          <h2 className="text-foreground text-lg font-bold">Drafts</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <DraftSourceCard breakdown={draftStats.sourceBreakdown} />
           </div>
         </section>
       ) : null}

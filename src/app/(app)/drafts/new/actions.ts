@@ -117,6 +117,14 @@ export async function createDraftAction(
     sourceEventId,
     sourceEventManuallyEnabled,
     franchiseChronologicalOrder: context.franchiseChronologicalOrder,
+    // The Watchlist card's "Add to Draft" action, taken when no draft
+    // existed yet (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part
+    // 2 §4) — carried through the form as a hidden field, so this stays
+    // the one, unmodified draft-creation path rather than a second wizard.
+    startWithWatchlistEntryId: readOptionalString(
+      formData,
+      "startWithWatchlistEntryId",
+    ),
   });
 
   if (!outcome.ok) {

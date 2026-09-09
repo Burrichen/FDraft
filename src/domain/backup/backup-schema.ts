@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_DRAFT_MUTATION_HISTORY } from "@/domain/drafts/living-draft";
 
 /**
  * Typed schemas for the portable FDraft backup format (see
@@ -124,6 +125,16 @@ export const draftItemSubstitutionReasonSchema = z.enum([
   "missing_metadata",
   "manual_replace",
   "user_reroll",
+]);
+/** See `DraftItemEntrySource` — Living Drafts' per-film provenance (docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §1). */
+export const draftItemEntrySourceSchema = z.enum([
+  "random",
+  "challenge",
+  "diy",
+  "manual_add",
+  "manual_replace",
+  "reroll",
+  "event",
 ]);
 export const pointCurrencySchema = z.enum([
   "lifetime",
@@ -331,6 +342,36 @@ export const backupUserRatingSchema = z.object({
 // Drafts
 // ---------------------------------------------------------------------------
 
+/**
+ * One entry of a draft's Undo history (see `DraftMutationRecord`).
+ * `previousItem` mirrors `DraftMutationItemSnapshot` exactly — the
+ * reversible half of an item, deliberately without any watched-state
+ * fields, since Undo reverses a watch outright rather than restoring a
+ * stale one.
+ */
+export const backupDraftMutationItemSnapshotSchema = z.object({
+  filmId: idSchema,
+  watchlistEntryId: nullableIdSchema,
+  source: draftItemSourceSchema,
+  entrySource: draftItemEntrySourceSchema,
+  enteredAt: isoDateTimeSchema,
+  challengeId: nullableBoundedString(200),
+  challengeAttemptId: nullableIdSchema,
+  challengeDisplayValue: jsonObjectSchema.nullable(),
+  originFilmId: nullableIdSchema,
+  substitutionReason: draftItemSubstitutionReasonSchema.nullable(),
+  eventCategoryKey: nullableBoundedString(100),
+  orderIndex: z.number().int().nonnegative(),
+});
+
+export const backupDraftMutationSchema = z.object({
+  id: idSchema,
+  kind: z.enum(["add", "replace"]),
+  at: isoDateTimeSchema,
+  draftItemId: idSchema,
+  previousItem: backupDraftMutationItemSnapshotSchema.nullable(),
+});
+
 export const backupDraftSchema = z.object({
   id: idSchema,
   profileId: idSchema,
@@ -360,6 +401,18 @@ export const backupDraftSchema = z.object({
   // `null`, the same "use the generated default name" every draft already
   // had (see `src/domain/drafts/draft-name.ts`).
   customName: nullableBoundedString(200).default(null),
+  // Living Drafts (§3/§5). `originalTargetFilms` defaults to `null`, which
+  // `resolveOriginalTargetFilms` then derives from `difficulty` — the same
+  // fallback a legacy local record gets. `mutationHistory` defaults to an
+  // empty list: a backup from before Undo existed simply has no undoable
+  // history, which is correct rather than lossy. Bounded by
+  // `MAX_DRAFT_MUTATION_HISTORY` on the way in so a hand-edited backup
+  // cannot smuggle in an unbounded array.
+  originalTargetFilms: z.number().int().nonnegative().nullable().default(null),
+  mutationHistory: z
+    .array(backupDraftMutationSchema)
+    .max(MAX_DRAFT_MUTATION_HISTORY)
+    .default([]),
   // A backup exported before this field existed defaults to `null` — the
   // same legacy fallback `getDraftDisplayName` itself uses (derives the
   // Halloween title's year from `startedAt` instead; see that field's own
@@ -397,6 +450,15 @@ export const backupDraftItemSchema = z.object({
   // backup from letting an already-rewarded item earn its event currency
   // a second time.
   eventRewardGrantedAt: nullableIsoDateTimeSchema.default(null),
+  // Living Drafts (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §1).
+  // A backup exported before these existed has neither key; both default
+  // to `null` and are then derived at the read boundary exactly as a
+  // legacy local record is (`resolveDraftItemEntrySource`), so restoring
+  // an old backup produces the same provenance the migration would have.
+  // Preserving them verbatim when present is what keeps Stats' historical
+  // per-source breakdown (§8) intact across an export/import round trip.
+  entrySource: draftItemEntrySourceSchema.nullable().default(null),
+  enteredAt: nullableIsoDateTimeSchema.default(null),
   // A backup exported before this field existed has no such key — `null`
   // (no category) is the correct, safe default (see docs/updates, "FDRAFT
   // UPDATE 1 — EVENT ONE AT A TIME DRAFTING").

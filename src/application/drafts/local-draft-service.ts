@@ -23,9 +23,16 @@ import {
 } from "@/domain/challenges/types";
 import { calculateDraftDeadline } from "@/domain/drafts/deadline";
 import { canEditDraftSlot } from "@/domain/drafts/draft-editing-permission";
+import {
+  appendDraftMutation,
+  resolveCurrentDraftFilmCount,
+  resolveDraftCapacity,
+  snapshotDraftItem,
+} from "@/domain/drafts/living-draft";
 import { getFilmCount } from "@/domain/drafts/difficulty";
 import { calculateFreeformRank } from "@/domain/drafts/freeform";
 import type { DraftConfigInput } from "@/domain/drafts/schemas";
+import { resolveEventDraftFilmAddition } from "@/application/events/event-draft-additions";
 import { resolveEligibleCandidates } from "@/domain/events/event-eligibility";
 import { getEventDefinition } from "@/domain/events/event-registry";
 import {
@@ -70,7 +77,11 @@ type LifecycleRepos = {
 };
 
 export type CreateLocalDraftErrorCode =
-  "already_active" | "empty_watchlist" | "not_enough_films" | "unknown";
+  | "already_active"
+  | "empty_watchlist"
+  | "not_enough_films"
+  | "start_film_not_eligible"
+  | "unknown";
 export type CreateLocalDraftOutcome =
   | { ok: true; draftId: string; challengeWarning: string | null }
   | { ok: false; error: CreateLocalDraftErrorCode; message: string };
@@ -183,6 +194,20 @@ export async function createLocalDraft(
     sourceEventManuallyEnabled?: boolean | null;
     /** "Franchises in chronological order" (see docs/updates) — the caller passes the active profile's current setting through explicitly, the same convention `timezone` already follows, rather than this function reaching into a profiles repository itself. Defaults to off, unchanged behaviour. */
     franchiseChronologicalOrder?: boolean;
+    /**
+     * One watchlist entry the user explicitly chose to build this draft
+     * AROUND (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 2
+     * §4) — the "Add to Draft" action on a Watchlist card when no draft
+     * exists yet.
+     *
+     * It becomes the draft's FIRST film, tagged `manual_add` exactly like
+     * a post-creation manual add, and consumes one of the draft's own
+     * slots so the result is a perfectly normal draft of its difficulty's
+     * size, not that size plus one. Validated against the canonical
+     * MANUAL pool, never the random-generation filters, so an explicit
+     * choice can't be rejected by a generation preference (§3).
+     */
+    startWithWatchlistEntryId?: string | null;
   },
   deps: { idGenerator?: IdGenerator; clock?: Clock; rng?: Rng } = {},
 ): Promise<CreateLocalDraftOutcome> {
@@ -240,14 +265,53 @@ export async function createLocalDraft(
     : rawCandidates;
 
   const totalFilms = getFilmCount(config.difficulty);
-  const randomCount = config.randomCount ?? 0;
-  const challengeCount = config.challengeCount ?? 0;
 
-  if (candidates.length < randomCount) {
+  // §4 — the explicitly chosen starting film, resolved BEFORE the counts
+  // below so it can take one of this draft's slots rather than being
+  // bolted on top of them. Validated against `getDiyEligibleFilms` (the
+  // same canonical manual pool `addManualFilmToLocalDraft` uses), so a
+  // generation preference — the franchise/sequel rule above all — can
+  // never reject a film the user asked for by name, while a genuinely
+  // unusable one (already watched, unreleased, metadata identity
+  // mismatch, not on this profile's active watchlist) still is.
+  let startFilm: { entryId: string; filmId: string } | null = null;
+  if (params.startWithWatchlistEntryId) {
+    const eligibleFilms = await getDiyEligibleFilms(repos, profileId);
+    const chosen = eligibleFilms.find(
+      (film) => film.entryId === params.startWithWatchlistEntryId,
+    );
+    if (!chosen) {
+      return {
+        ok: false,
+        error: "start_film_not_eligible",
+        message: "That film isn't available to start a draft with.",
+      };
+    }
+    startFilm = { entryId: chosen.entryId, filmId: chosen.filmId };
+  }
+
+  // The starting film occupies one slot: a RANDOM one by preference, or a
+  // challenge slot when the user asked for nothing but challenges. Either
+  // way the draft ends up exactly as big as its difficulty says, and its
+  // difficulty is never altered to accommodate the choice.
+  const requestedRandomCount = config.randomCount ?? 0;
+  const requestedChallengeCount = config.challengeCount ?? 0;
+  const startFilmTakesRandomSlot =
+    startFilm !== null && requestedRandomCount > 0;
+  const randomCount = startFilmTakesRandomSlot
+    ? requestedRandomCount - 1
+    : requestedRandomCount;
+  const challengeCount =
+    startFilm !== null && !startFilmTakesRandomSlot
+      ? Math.max(0, requestedChallengeCount - 1)
+      : requestedChallengeCount;
+
+  const rollableCount = startFilm ? candidates.length - 1 : candidates.length;
+  if (rollableCount < randomCount) {
     return {
       ok: false,
       error: "not_enough_films",
-      message: `This draft needs at least ${randomCount} active watchlist films for its random selection (you have ${candidates.length}).`,
+      message: `This draft needs at least ${randomCount} active watchlist films for its random selection (you have ${rollableCount}).`,
     };
   }
 
@@ -258,8 +322,18 @@ export async function createLocalDraft(
     timezone,
   });
 
+  // The starting film is already IN the draft, so it must not also be
+  // available to roll — by film id as well as entry id, since a watchlist
+  // can hold two entries for one film.
+  const rollableCandidates = startFilm
+    ? candidates.filter(
+        (candidate) =>
+          candidate.watchlistEntryId !== startFilm.entryId &&
+          candidate.filmId !== startFilm.filmId,
+      )
+    : candidates;
   const rolledRandomPickIds = pickRandomFilms(
-    candidates.map((candidate) => ({
+    rollableCandidates.map((candidate) => ({
       id: candidate.watchlistEntryId,
       weight: candidate.selectionWeight,
     })),
@@ -271,13 +345,13 @@ export async function createLocalDraft(
   );
   const { finalPickIds: randomPickIds, substitutionByEntryId } =
     applyFranchiseChronologicalOrder({
-      candidates,
+      candidates: rollableCandidates,
       candidateByEntryId,
       rolledPickIds: rolledRandomPickIds,
       enabled: franchiseChronologicalOrder,
     });
   const randomPickIdSet = new Set(randomPickIds);
-  const remainingCandidates = candidates.filter(
+  const remainingCandidates = rollableCandidates.filter(
     (candidate) => !randomPickIdSet.has(candidate.watchlistEntryId),
   );
 
@@ -304,12 +378,44 @@ export async function createLocalDraft(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear: null,
+    originalTargetFilms: totalFilms,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
   await repos.drafts.createDraft(draft);
 
   let orderIndex = 0;
+
+  // Written FIRST, at `orderIndex: 0`, so the film the user chose leads
+  // the draft they asked to build around it (§4). `source: "manual"`
+  // keeps it out of the random/challenge counting every other surface
+  // does; `entrySource: "manual_add"` records that a person put it there
+  // by hand, exactly as a post-creation add does.
+  if (startFilm) {
+    await repos.drafts.createItems([
+      {
+        id: idGenerator.generate(),
+        draftId,
+        filmId: startFilm.filmId,
+        watchlistEntryId: startFilm.entryId,
+        source: "manual",
+        challengeId: null,
+        challengeAttemptId: null,
+        challengeDisplayValue: null,
+        orderIndex: orderIndex++,
+        isCompleted: false,
+        completedAt: null,
+        watchedHistoryId: null,
+        originFilmId: null,
+        substitutionReason: null,
+        entrySource: "manual_add",
+        enteredAt: now.toISOString(),
+        createdAt: now.toISOString(),
+      },
+    ]);
+  }
+
   const randomItems: DraftItemRecord[] = randomPickIds.map((entryId) => {
     const candidate = candidateByEntryId.get(entryId)!;
     const substitution = substitutionByEntryId.get(entryId) ?? null;
@@ -328,6 +434,12 @@ export async function createLocalDraft(
       watchedHistoryId: null,
       originFilmId: substitution?.originFilmId ?? null,
       substitutionReason: substitution ? "franchise_order" : null,
+      // Still `"random"` even when the franchise-ordering rule swapped the
+      // pick: that is the ENGINE correcting its own roll at generation
+      // time, not a user-initiated reroll (see
+      // `ENGINE_ONLY_SUBSTITUTION_REASONS`).
+      entrySource: "random",
+      enteredAt: now.toISOString(),
       createdAt: now.toISOString(),
     };
   });
@@ -521,6 +633,8 @@ export async function createLocalDraftFromSelection(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear: null,
+    originalTargetFilms: watchlistEntryIds.length,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -543,6 +657,8 @@ export async function createLocalDraftFromSelection(
       watchedHistoryId: null,
       originFilmId: null,
       substitutionReason: null,
+      entrySource: "diy",
+      enteredAt: now.toISOString(),
       createdAt: now.toISOString(),
     };
   });
@@ -615,6 +731,12 @@ async function insertChallengeItems(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    // §2 — the Challenge that generated this film is already recorded in
+    // `challengeId` above; `entrySource` records that a Challenge is what
+    // put it here at all. Both persist for Stats/future analysis; neither
+    // adds a visible label in this update.
+    entrySource: "challenge",
+    enteredAt: now,
     createdAt: now,
   }));
   await repos.drafts.createItems(records);
@@ -1097,8 +1219,11 @@ export async function setLocalDraftCustomName(
 }
 
 export type AddManualFilmToLocalDraftErrorCode =
+  | "draft_full"
   | "draft_not_found"
   | "draft_not_active"
+  | "event_add_disabled"
+  | "film_not_eligible_for_event"
   | "entry_not_eligible"
   | "already_in_draft";
 export type AddManualFilmToLocalDraftOutcome =
@@ -1142,24 +1267,83 @@ export async function addManualFilmToLocalDraft(
     };
   }
 
-  const entry = await repos.watchlist.getEntryById(
-    params.profileId,
-    params.watchlistEntryId,
+  const existingItems = await repos.drafts.listItemsForDraft(params.draftId);
+
+  // §3 — enforced HERE, not only in the UI, so no caller can exceed it.
+  const capacity = resolveDraftCapacity(
+    resolveCurrentDraftFilmCount(existingItems),
   );
-  if (!entry || !entry.isActive) {
+  if (!capacity.canAddFilm) {
     return {
       ok: false,
-      error: "entry_not_eligible",
-      message: "This film isn't on your active watchlist.",
+      error: "draft_full",
+      message: `A Draft can hold at most ${capacity.maxFilmCount} films.`,
     };
   }
 
-  const existingItems = await repos.drafts.listItemsForDraft(params.draftId);
-  if (existingItems.some((item) => item.watchlistEntryId === entry.id)) {
+  // §7 — explicit manual selection is validated against the canonical
+  // MANUAL pool (`getDiyEligibleFilms`), never the random-generation
+  // filters. That pool deliberately drops the franchise-ordering rule, so
+  // a user can manually add a sequel the engine would never have rolled —
+  // while still rejecting what the app genuinely treats as unusable
+  // (already watched, unreleased, metadata identity mismatch, not on this
+  // profile's active watchlist). This replaces a bare `isActive` check,
+  // which let objectively unusable entries in.
+  const eligibleFilms = await getDiyEligibleFilms(repos, params.profileId);
+  const chosen = eligibleFilms.find(
+    (film) => film.entryId === params.watchlistEntryId,
+  );
+  if (!chosen) {
+    return {
+      ok: false,
+      error: "entry_not_eligible",
+      message: "This film isn't available to add to your draft.",
+    };
+  }
+
+  if (
+    existingItems.some(
+      (item) =>
+        item.watchlistEntryId === chosen.entryId ||
+        item.filmId === chosen.filmId,
+    )
+  ) {
     return {
       ok: false,
       error: "already_in_draft",
       message: "This film is already in the draft.",
+    };
+  }
+
+  // The ONE Event gate, for both questions an Event Draft raises (§9,
+  // and Part 3 §7/§8): whether that Event accepts manual additions at all
+  // — January's `singleFilmDraft` mechanic declines by construction — and
+  // whether this specific film is inside the Event's own eligibility
+  // boundary, which is the one thing an explicit manual choice may NOT
+  // override. Both answered by `resolveEventDraftFilmAddition` from the
+  // Event's own definition, evaluated through the same engine its
+  // generation uses, so this stays a generic mutation guard with no event
+  // id in it. A normal (non-Event) Draft passes trivially.
+  const eventAddition = resolveEventDraftFilmAddition({
+    draft,
+    film: {
+      watchlistEntryId: chosen.entryId,
+      filmId: chosen.filmId,
+      genres: chosen.genres,
+      averageRating: chosen.averageRating,
+    },
+  });
+  if (!eventAddition.allowed) {
+    return {
+      ok: false,
+      error:
+        eventAddition.refusal === "film_not_eligible_for_event"
+          ? "film_not_eligible_for_event"
+          : "event_add_disabled",
+      message:
+        eventAddition.refusal === "film_not_eligible_for_event"
+          ? "This film isn't eligible for this event's draft."
+          : "Films can't be added to this event's draft.",
     };
   }
 
@@ -1171,8 +1355,8 @@ export async function addManualFilmToLocalDraft(
   const item: DraftItemRecord = {
     id: idGenerator.generate(),
     draftId: params.draftId,
-    filmId: entry.filmId,
-    watchlistEntryId: entry.id,
+    filmId: chosen.filmId,
+    watchlistEntryId: chosen.entryId,
     source: "manual",
     challengeId: null,
     challengeAttemptId: null,
@@ -1183,12 +1367,30 @@ export async function addManualFilmToLocalDraft(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    // Derived from the DRAFT this film lands in, never passed in by the
+    // caller, so no route can mislabel an addition: a film hand-added to
+    // an Event's Draft is an `"event"` film for Stats purposes (Part 3
+    // §6 — deliberately NOT `manual_add`), and one added to a normal
+    // Draft is `"manual_add"`, distinct from DIY selection (`"diy"`),
+    // which the pre-Living-Drafts `source: "manual"` could not tell
+    // apart — see `DraftItemEntrySource`. The Event's identity itself
+    // comes from the owning draft's `sourceEventId`; storing it again
+    // per item would be a second source of truth for the same fact.
+    entrySource: draft.sourceEventId ? "event" : "manual_add",
+    enteredAt: now,
     createdAt: now,
   };
   await repos.drafts.createItems([item]);
   await repos.drafts.updateDraft({
     ...draft,
     totalFilms: draft.totalFilms + 1,
+    mutationHistory: appendDraftMutation(draft.mutationHistory, {
+      id: idGenerator.generate(),
+      kind: "add",
+      at: now,
+      draftItemId: item.id,
+      previousItem: null,
+    }),
     updatedAt: now,
   });
 
@@ -1221,7 +1423,7 @@ export type RerollMissingMetadataOutcome =
 export async function rerollLocalDraftItemForMissingMetadata(
   repos: DraftRepos,
   params: { profileId: string; draftId: string; draftItemId: string },
-  deps: { rng?: Rng } = {},
+  deps: { rng?: Rng; clock?: Clock; idGenerator?: IdGenerator } = {},
 ): Promise<RerollMissingMetadataOutcome> {
   const rng = deps.rng ?? createDefaultRng();
 
@@ -1288,6 +1490,8 @@ export async function rerollLocalDraftItemForMissingMetadata(
     (candidate) => candidate.watchlistEntryId === pickedEntryId,
   )!;
 
+  const now = (deps.clock ?? new SystemClock()).now().toISOString();
+  const previousItem = snapshotDraftItem(item);
   await repos.drafts.updateItem({
     ...item,
     filmId: picked.filmId,
@@ -1296,6 +1500,22 @@ export async function rerollLocalDraftItemForMissingMetadata(
     // once, on the first substitution this item ever undergoes.
     originFilmId: item.originFilmId ?? item.filmId,
     substitutionReason: "missing_metadata",
+    entrySource: "reroll",
+    enteredAt: now,
+  });
+  // Undoable like any other replacement — a missing-metadata reroll is
+  // still the user swapping this slot's film, and putting an unusable card
+  // back is a legitimate thing to want (e.g. once its metadata downloads).
+  await repos.drafts.updateDraft({
+    ...draft,
+    mutationHistory: appendDraftMutation(draft.mutationHistory, {
+      id: (deps.idGenerator ?? defaultIdGenerator).generate(),
+      kind: "replace",
+      at: now,
+      draftItemId: item.id,
+      previousItem,
+    }),
+    updatedAt: now,
   });
 
   return { ok: true, newFilmId: picked.filmId };
@@ -1355,7 +1575,7 @@ export async function replaceDraftSlot(
     /** Same "Franchises in chronological order" setting `createLocalDraft` takes — applied to a reroll's fresh pick for parity with normal random generation. Ignored for `mode.kind === "manual"` (manual selection deliberately ignores sequel/franchise restrictions). */
     franchiseChronologicalOrder?: boolean;
   },
-  deps: { rng?: Rng } = {},
+  deps: { rng?: Rng; clock?: Clock; idGenerator?: IdGenerator } = {},
 ): Promise<ReplaceDraftSlotOutcome> {
   const rng = deps.rng ?? createDefaultRng();
 
@@ -1478,6 +1698,8 @@ export async function replaceDraftSlot(
   }
 
   const previousWatchlistEntryId = item.watchlistEntryId;
+  const now = (deps.clock ?? new SystemClock()).now().toISOString();
+  const previousItem = snapshotDraftItem(item);
   await repos.drafts.updateItem({
     ...item,
     filmId: newFilmId,
@@ -1487,6 +1709,24 @@ export async function replaceDraftSlot(
     watchedHistoryId: null,
     originFilmId: item.originFilmId ?? item.filmId,
     substitutionReason,
+    // The slot's `source` deliberately stays whatever it was (a random
+    // slot is still a random slot, and must remain editable) — see
+    // `DraftItemEntrySource`. What changed is how the CURRENT film got
+    // here, which is exactly what this field records.
+    entrySource:
+      substitutionReason === "manual_replace" ? "manual_replace" : "reroll",
+    enteredAt: now,
+  });
+  await repos.drafts.updateDraft({
+    ...draft,
+    mutationHistory: appendDraftMutation(draft.mutationHistory, {
+      id: (deps.idGenerator ?? defaultIdGenerator).generate(),
+      kind: "replace",
+      at: now,
+      draftItemId: item.id,
+      previousItem,
+    }),
+    updatedAt: now,
   });
 
   return { ok: true, newFilmId, previousWatchlistEntryId };

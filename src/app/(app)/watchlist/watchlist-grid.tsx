@@ -23,6 +23,13 @@ export function WatchlistGrid({
   onResetFilters,
   activeDraftId,
   entryIdsInDraft,
+  activeDraftIsFull,
+  eligibleEntryIds,
+  eventDraft,
+  eventDraftEntryIds,
+  eventDraftIsFull,
+  eventEligibleEntryIds,
+  onAddedToEventDraft,
   onAddedToDraft,
 }: {
   films: WatchlistFilmCardView[];
@@ -34,6 +41,26 @@ export function WatchlistGrid({
   /** The manual "Add to Draft" action (see docs/updates) — `null` when there's no usable active draft to add to, in which case `FilmCard` never renders the action at all. */
   activeDraftId: string | null;
   entryIdsInDraft: ReadonlySet<string>;
+  /** Whether the target draft is already at the Living Drafts maximum (§3) — resolved once by the page, not per card. */
+  activeDraftIsFull: boolean;
+  /** Entries in the canonical manual-selection pool the add validates against; every other card's action explains itself instead of failing on click. */
+  eligibleEntryIds: ReadonlySet<string>;
+  /**
+   * The profile's active EVENT Draft's action target (see docs/updates,
+   * "FDRAFT v1.2.1 — LIVING DRAFTS" Part 3 §4), or `null` when there is
+   * none accepting additions. The three sets/flags beside it are resolved
+   * once by the page — this grid derives only which of them apply to each
+   * card, and no Event rule is evaluated here.
+   */
+  eventDraft: {
+    draftId: string;
+    eventName: string;
+    accentClassName?: string;
+  } | null;
+  eventDraftEntryIds: ReadonlySet<string>;
+  eventDraftIsFull: boolean;
+  eventEligibleEntryIds: ReadonlySet<string>;
+  onAddedToEventDraft: (entryId: string) => void;
   onAddedToDraft: (entryId: string) => void;
 }) {
   if (films.length === 0 && hasActiveFilters) {
@@ -78,16 +105,35 @@ export function WatchlistGrid({
 
   return (
     <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-      {films.map((film) => (
-        <li key={film.entryId}>
-          <FilmCard
-            film={film}
-            activeDraftId={activeDraftId}
-            isInActiveDraft={entryIdsInDraft.has(film.entryId)}
-            onAddedToDraft={onAddedToDraft}
-          />
-        </li>
-      ))}
+      {films.map((film) => {
+        const isInEventDraft = eventDraftEntryIds.has(film.entryId);
+        return (
+          <li key={film.entryId}>
+            <FilmCard
+              film={film}
+              activeDraftId={activeDraftId}
+              isInActiveDraft={entryIdsInDraft.has(film.entryId)}
+              activeDraftIsFull={activeDraftIsFull}
+              isEligibleForDraft={eligibleEntryIds.has(film.entryId)}
+              onAddedToDraft={onAddedToDraft}
+              // The Event action appears only for a film that Event
+              // actually accepts — or one already in its Draft, which
+              // shows as such rather than silently losing its badge.
+              eventDraft={
+                eventDraft &&
+                (isInEventDraft || eventEligibleEntryIds.has(film.entryId))
+                  ? {
+                      ...eventDraft,
+                      isInEventDraft,
+                      isFull: eventDraftIsFull,
+                    }
+                  : null
+              }
+              onAddedToEventDraft={onAddedToEventDraft}
+            />
+          </li>
+        );
+      })}
     </ul>
   );
 }

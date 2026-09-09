@@ -398,3 +398,140 @@ describe("StatsView — Event Stats (EVENT STATS/HISTORY/PERSISTENCE AUDIT §9)"
     expect(screen.queryByText("Event Stats")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Covers docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 3 §1/§2: how
+ * the Draft films a profile has WATCHED got into their Drafts, across
+ * their whole Draft history rather than just the current one.
+ */
+describe("StatsView — watched films by source (Living Drafts Part 3 §1)", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function normalDraft(overrides: Partial<DraftRecord> = {}): DraftRecord {
+    return baseEventDraft({
+      id: "normal-draft-1",
+      sourceEventId: null,
+      sourceEventManuallyEnabled: null,
+      eventOccurrenceYear: null,
+      difficulty: "medium",
+      ...overrides,
+    });
+  }
+
+  function item(overrides: Partial<DraftItemRecord>): DraftItemRecord {
+    return baseEventItem({
+      draftId: "normal-draft-1",
+      eventCategoryKey: null,
+      eventRewardGrantedAt: null,
+      ...overrides,
+    });
+  }
+
+  it("counts and ranks watched films by source across historical AND active Drafts", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    // An ARCHIVED draft — the history this breakdown must include — plus a
+    // still-active one, so the figure is genuinely a lifetime total.
+    await repos.drafts.createDraft(normalDraft({ status: "archived" }));
+    await repos.drafts.createDraft(
+      normalDraft({
+        id: "normal-draft-2",
+        status: "active",
+        completedAt: null,
+      }),
+    );
+    await repos.drafts.createItems([
+      item({ id: "i1", filmId: "f1", entrySource: "random" }),
+      item({ id: "i2", filmId: "f2", entrySource: "random" }),
+      item({ id: "i3", filmId: "f3", entrySource: "manual_add" }),
+      item({
+        id: "i4",
+        filmId: "f4",
+        draftId: "normal-draft-2",
+        entrySource: "manual_add",
+      }),
+      // Unwatched: contributes nothing to a "watched by source" figure.
+      item({
+        id: "i5",
+        filmId: "f5",
+        draftId: "normal-draft-2",
+        entrySource: "challenge",
+        isCompleted: false,
+        completedAt: null,
+      }),
+    ]);
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Watched films by source")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("4 watched draft films")).toBeInTheDocument();
+    // Count AND percentage per source: two random and two manually added,
+    // so both rows read the same way.
+    expect(screen.getByText("Random")).toBeInTheDocument();
+    expect(screen.getByText("Manually Added")).toBeInTheDocument();
+    expect(screen.getAllByText("2 · 50%")).toHaveLength(2);
+    // Sources nothing was watched from are omitted rather than padding the
+    // card with zero rows — and One At A Time is never a source at all.
+    expect(screen.queryByText("Challenge")).not.toBeInTheDocument();
+    expect(screen.queryByText("DIY")).not.toBeInTheDocument();
+    expect(screen.queryByText(/One At A Time/)).not.toBeInTheDocument();
+  });
+
+  it("classifies a legacy item with no stored source through the migrated fallback", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(normalDraft({ status: "archived" }));
+    // Written the way a pre-v1.2.1 build did: `source` only.
+    await repos.drafts.createItems([
+      item({ id: "i1", filmId: "f1", source: "manual", entrySource: null }),
+      item({ id: "i2", filmId: "f2", source: "random", entrySource: null }),
+    ]);
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Watched films by source")).toBeInTheDocument(),
+    );
+    // No fabrication: each falls back to the safe classification Part 1
+    // established (`"manual"` → DIY, `"random"` → Random).
+    expect(screen.getByText("2 watched draft films")).toBeInTheDocument();
+    expect(screen.getByText("DIY")).toBeInTheDocument();
+    expect(screen.getByText("Random")).toBeInTheDocument();
+  });
+
+  it("shows nothing at all for a profile that has never watched a Draft film", async () => {
+    const databaseName = crypto.randomUUID();
+    await seedProfile(databaseName);
+    const db = new FDraftLocalDatabase(databaseName);
+    const repos = createLocalRepositories(db);
+    await repos.drafts.createDraft(normalDraft({ status: "active" }));
+    await repos.drafts.createItems([
+      item({ id: "i1", filmId: "f1", isCompleted: false, completedAt: null }),
+    ]);
+    await db.close();
+    window.localStorage.setItem("fdraft:last-active-profile-id", PROFILE_ID);
+
+    render(<Harness databaseName={databaseName} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("No stats yet")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText("Watched films by source"),
+    ).not.toBeInTheDocument();
+  });
+});

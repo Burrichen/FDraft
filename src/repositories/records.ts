@@ -59,6 +59,48 @@ export type DraftItemSource =
   | "halloween-adjacent"
   | "horror"
   | "kitsch";
+
+/**
+ * HOW the film currently occupying a draft slot came to be there — the
+ * canonical per-film provenance Living Drafts introduced (see
+ * docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §1/§8).
+ *
+ * Deliberately a SEPARATE field from `DraftItemSource` rather than a
+ * widening of it, because the two answer genuinely different questions and
+ * both are load-bearing:
+ *
+ *  - `source` is the slot's BUILDER KIND / POOL. It drives whether a slot
+ *    is editable (`canEditDraftSlot` only ever permits `"random"`), which
+ *    pool badge History shows for a Halloween film
+ *    (`"halloween-adjacent"`/`"horror"`/`"kitsch"`), and how One At A Time
+ *    labels a staged pick. Rerolling or manually replacing a slot has
+ *    always left it `"random"` on purpose — the slot is still a random
+ *    slot, and must stay editable afterwards.
+ *  - `entrySource` is how THIS film got here. A rerolled film and a
+ *    first-roll film are indistinguishable in `source`; a DIY-selected
+ *    film and one added later from the Watchlist are BOTH `"manual"`.
+ *    Neither distinction can be recovered from existing fields, which is
+ *    precisely what Stats needs (§8: "raw number of films watched from
+ *    each generation/source type").
+ *
+ * `"one_at_a_time"` is deliberately NOT a value here: One At A Time is a
+ * drafting METHOD, and each film staged through it still arrived by a real
+ * source (`"random"`, `"diy"`, or `"event"`).
+ *
+ * Optional for backward compatibility — an item written before this field
+ * existed has no such property. Never read it raw: a one-time schema
+ * migration backfills every existing item (see `schema.ts` version 6), and
+ * `LocalDraftRepository`'s own normalization derives a defensive fallback
+ * for anything that migration could not reach.
+ */
+export type DraftItemEntrySource =
+  | "random"
+  | "challenge"
+  | "diy"
+  | "manual_add"
+  | "manual_replace"
+  | "reroll"
+  | "event";
 /**
  * Why a draft item's `filmId` differs from `originFilmId` (see
  * `DraftItemRecord.originFilmId`) — `null` whenever it doesn't. FDraft
@@ -294,8 +336,101 @@ export interface DraftRecord {
    * draft that was never created under a simulated Admin date.
    */
   eventOccurrenceYear: number | null;
+  /**
+   * The film count this draft was TARGETING when it was created, kept
+   * separate from `totalFilms` (which is the draft's CURRENT size and may
+   * grow — see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §3).
+   *
+   * A Living Draft's identity never changes: a Medium draft that later
+   * holds 14 films is still a Medium draft, and `difficulty` alone already
+   * says so for every fixed difficulty. This field exists for the two
+   * cases `difficulty` cannot answer — One At A Time and legacy Freeform
+   * have no fixed count, so "what was this aiming at" is only knowable
+   * from what was actually staged at creation — and so no caller has to
+   * re-derive a target by calling `getFilmCount` and special-casing those
+   * two. Read it through `resolveOriginalTargetFilms` rather than directly.
+   *
+   * `null` for a draft created before this field existed; the migration
+   * backfills it from `difficulty` where that is authoritative and from
+   * the draft's own size otherwise (see `schema.ts` version 6).
+   */
+  originalTargetFilms?: number | null;
+  /**
+   * The most recent reversible membership changes to this draft, newest
+   * LAST, capped at `MAX_DRAFT_MUTATION_HISTORY` (see docs/updates,
+   * "FDRAFT v1.2.1 — LIVING DRAFTS" §5).
+   *
+   * Stored ON the draft rather than in its own table on purpose: it is
+   * bounded (five entries), it is only ever read and written together with
+   * the draft it belongs to, pruning it is part of the same write that
+   * appends to it, and it inherits the draft's own lifecycle for free —
+   * backup/restore, profile erasure and `deleteDraft`'s cascade all
+   * already cover it with no extra plumbing.
+   *
+   * `undefined`/`null` normalizes to an empty history, which is exactly
+   * what every pre-existing draft should have: no recorded mutation is not
+   * the same as a mutation that cannot be undone.
+   */
+  mutationHistory?: DraftMutationRecord[] | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A snapshot of every field of a draft item that a reversible mutation can
+ * change — enough to put the slot back exactly as it was, and nothing
+ * more (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §5: "enough
+ * information to safely reverse the last supported change").
+ *
+ * Deliberately NOT a full `DraftItemRecord`: the watched-state fields
+ * (`isCompleted`/`completedAt`/`watchedHistoryId`/`eventRewardGrantedAt`)
+ * are excluded because undo does not restore a stale watched state — it
+ * REVERSES the watch outright, through the real watch-reversal path, so
+ * points and completion can't be left corrupted (§6).
+ */
+export interface DraftMutationItemSnapshot {
+  filmId: string;
+  watchlistEntryId: string | null;
+  source: DraftItemSource;
+  entrySource: DraftItemEntrySource;
+  enteredAt: string;
+  challengeId: string | null;
+  challengeAttemptId: string | null;
+  challengeDisplayValue: Record<string, unknown> | null;
+  originFilmId: string | null;
+  substitutionReason: DraftItemSubstitutionReason | null;
+  eventCategoryKey: string | null;
+  orderIndex: number;
+}
+
+/** Which kind of membership change a `DraftMutationRecord` describes — see that type. */
+export type DraftMutationKind = "add" | "replace";
+
+/**
+ * One reversible change to a draft's membership (see docs/updates, "FDRAFT
+ * v1.2.1 — LIVING DRAFTS" §5). Two kinds, covering every membership change
+ * the app can currently make:
+ *
+ *  - `"add"` — a film was appended (manual Add to Draft today; Event Add
+ *    later). `previousItem` is `null`: there was nothing in that slot
+ *    before, so undo deletes the item outright.
+ *  - `"replace"` — a slot's occupant changed (reroll, manual replace,
+ *    missing-metadata reroll). `previousItem` is the occupant to restore.
+ *
+ * Deliberately NOT a lineage chain (§1: "Do not implement full replacement
+ * lineage"). Each entry describes exactly one step, and the history holds
+ * at most five, so Alien → The Thing → Possession is three independent
+ * undoable steps rather than a tracked ancestry.
+ */
+export interface DraftMutationRecord {
+  id: string;
+  kind: DraftMutationKind;
+  /** ISO 8601 — when the mutation happened. */
+  at: string;
+  /** The draft item this mutation created or changed. */
+  draftItemId: string;
+  /** The slot's previous occupant for `"replace"`; `null` for `"add"`. */
+  previousItem: DraftMutationItemSnapshot | null;
 }
 
 export interface DraftItemRecord {
@@ -365,6 +500,26 @@ export interface DraftItemRecord {
    * backward-compatibility reason as `eventRewardGrantedAt`.
    */
   eventCategoryKey?: string | null;
+  /**
+   * How the film currently in this slot arrived — see
+   * `DraftItemEntrySource`. Optional for the same backward-compatibility
+   * reason as the fields above; always read through
+   * `LocalDraftRepository`'s normalization, never trusted raw.
+   */
+  entrySource?: DraftItemEntrySource | null;
+  /**
+   * ISO 8601 timestamp of when the CURRENT film entered this slot (see
+   * docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §1: "when it entered the
+   * Draft").
+   *
+   * Distinct from `createdAt`, which is when this ROW was created and
+   * never changes. They are equal for a slot whose film has never been
+   * substituted (the overwhelmingly common case) and diverge the moment
+   * one is rerolled or manually replaced — a replacement reuses the same
+   * row and the same `orderIndex`, so without this the "when did this film
+   * join the Draft" question has no answer for a replaced slot.
+   */
+  enteredAt?: string | null;
   createdAt: string;
 }
 

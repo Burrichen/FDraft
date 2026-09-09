@@ -216,6 +216,8 @@ export async function createChristmasLocalDraft(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear,
+    originalTargetFilms: totalFilms,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -236,6 +238,8 @@ export async function createChristmasLocalDraft(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    entrySource: "event",
+    enteredAt: now.toISOString(),
     eventRewardGrantedAt: null,
     eventCategoryKey: entry.categoryKey,
     createdAt: now.toISOString(),

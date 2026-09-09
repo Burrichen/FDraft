@@ -180,3 +180,56 @@ describe("DiySelectionView", () => {
     expect(screen.getByText("1 / 5 selected")).toBeInTheDocument();
   });
 });
+
+/**
+ * The DIY hand-off from a Watchlist card's "Add to Draft" with no draft in
+ * progress (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 2 §4) —
+ * the chosen film must survive this route too, not just the generated one.
+ */
+describe("DiySelectionView — a preselected starting film (Part 2 §4)", () => {
+  it("arrives with the chosen film already selected, and counts it", async () => {
+    searchParamValues = {
+      difficulty: "baby",
+      timeMode: "calendar",
+      preselectEntryId: "entry-3",
+    };
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS);
+    render(<DiySelectionView />);
+
+    await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
+    expect(screen.getByText("1 / 5 selected")).toBeInTheDocument();
+    const grid = screen.getByRole("list", { name: "Eligible films" });
+    expect(within(grid).getByRole("button", { name: /Gamma/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(grid).getByRole("button", { name: /Alpha/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("leaves the preselection ordinary — the user can untick it like any other film", async () => {
+    searchParamValues = {
+      difficulty: "baby",
+      timeMode: "calendar",
+      preselectEntryId: "entry-3",
+    };
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS);
+    const user = userEvent.setup();
+    render(<DiySelectionView />);
+
+    await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
+    const grid = screen.getByRole("list", { name: "Eligible films" });
+    await user.click(within(grid).getByRole("button", { name: /Gamma/ }));
+    expect(screen.getByText("0 / 5 selected")).toBeInTheDocument();
+  });
+
+  it("selects nothing when no starting film was carried through", async () => {
+    vi.mocked(getDiyEligibleFilms).mockResolvedValue(FIVE_FILMS);
+    render(<DiySelectionView />);
+
+    await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
+    expect(screen.getByText("0 / 5 selected")).toBeInTheDocument();
+  });
+});

@@ -75,6 +75,18 @@ export interface DraftRepository {
   getItemById(itemId: string): Promise<DraftItemRecord | null>;
   createItems(items: DraftItemRecord[]): Promise<void>;
   updateItem(item: DraftItemRecord): Promise<void>;
+  /**
+   * Removes ONE draft item — the reversal of a single `createItems` call
+   * (see `undoLastDraftMutation`, docs/updates "FDRAFT v1.2.1 — LIVING
+   * DRAFTS" §5). Deliberately narrow: this exists to undo an addition the
+   * draft has a recorded mutation for, NOT as general "remove a film from
+   * my draft" support, which §5 explicitly excludes from this update.
+   *
+   * Also clears the item's own postmortem response if it somehow has one,
+   * since that row is keyed uniquely to the item and would otherwise be
+   * orphaned by (and block a later re-add of) the same item id.
+   */
+  deleteItem(itemId: string): Promise<void>;
   /** All draft items across every draft that reference this watchlist entry — used to complete the matching item when a film is marked watched. */
   findItemsByWatchlistEntryId(
     watchlistEntryId: string,

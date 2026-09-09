@@ -54,8 +54,16 @@ export function DiySelectionView() {
     return { eligibleFilms, now: new Date() };
   }, [activeProfile?.id, repositories]);
 
+  // Seeded with the film the user chose on their Watchlist card before
+  // there was any draft (see docs/updates, "FDRAFT v1.2.1 — LIVING
+  // DRAFTS" Part 2 §4) — it arrives already ticked, so the choice
+  // survives this hand-off instead of being silently dropped. Ordinary
+  // selection state from there on; the user can untick it like any other.
   const [selectedEntryIds, setSelectedEntryIds] = useState<ReadonlySet<string>>(
-    new Set(),
+    () => {
+      const preselected = searchParams.get("preselectEntryId");
+      return preselected ? new Set([preselected]) : new Set();
+    },
   );
   const [isCreating, setIsCreating] = useState(false);
 

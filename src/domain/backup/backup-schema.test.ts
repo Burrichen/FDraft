@@ -175,6 +175,8 @@ describe("backupV1Schema", () => {
       sourceEventManuallyEnabled: null,
       rewardsGrantedAt: null,
       eventOccurrenceYear: null,
+      originalTargetFilms: null,
+      mutationHistory: [],
       customName: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",

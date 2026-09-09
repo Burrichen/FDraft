@@ -1,5 +1,6 @@
 "use client";
 
+import { ListPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
@@ -33,12 +34,21 @@ interface NewDraftFormProps {
   activeWatchlistCount: number;
   challenges: ChallengeAvailability[];
   availableGenres: string[];
+  /**
+   * A film the user already chose to build this draft around, arriving
+   * from the Watchlist card's "Add to Draft" action when no draft existed
+   * yet (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 2 §4).
+   * `null` for the ordinary "Start a draft" entry point, which is
+   * otherwise the exact same form.
+   */
+  startWithFilm?: { entryId: string; title: string } | null;
 }
 
 export function NewDraftForm({
   activeWatchlistCount,
   challenges,
   availableGenres,
+  startWithFilm = null,
 }: NewDraftFormProps) {
   const router = useRouter();
   const { activeProfile, repositories } = useProfileContext();
@@ -106,9 +116,15 @@ export function NewDraftForm({
 
   function handleContinueToDiy() {
     if (!difficulty) return;
-    router.push(
-      `/drafts/new/diy?difficulty=${encodeURIComponent(difficulty)}&timeMode=${encodeURIComponent(timeMode)}`,
-    );
+    const params = new URLSearchParams({ difficulty, timeMode });
+    // Carried through so the chosen film survives this hand-off too — it
+    // arrives already ticked in the selection grid. Its source stays
+    // `diy` there rather than `manual_add`, which is the honest answer for
+    // a draft where the user hand-picks every film.
+    if (startWithFilm) {
+      params.set("preselectEntryId", startWithFilm.entryId);
+    }
+    router.push(`/drafts/new/diy?${params.toString()}`);
   }
 
   // One At A Time (see docs/updates, "ONE AT A TIME DRAFTING — CORE
@@ -154,6 +170,19 @@ export function NewDraftForm({
 
   return (
     <form action={formAction} className="space-y-8">
+      {startWithFilm ? (
+        <div className="border-watchlist-blue/40 bg-watchlist-blue/10 text-foreground flex items-start gap-2 rounded-lg border px-4 py-3 text-sm">
+          <ListPlus
+            aria-hidden="true"
+            className="text-watchlist-blue mt-0.5 size-4 shrink-0"
+          />
+          <span>
+            Starting with <strong>{startWithFilm.title}</strong> — it&apos;ll be
+            one of this draft&apos;s films. Choose how you want the rest of it
+            built.
+          </span>
+        </div>
+      ) : null}
       <section className="space-y-3">
         <h2 className="text-foreground text-lg font-bold">
           Choose a difficulty
@@ -162,6 +191,18 @@ export function NewDraftForm({
           selected={difficulty}
           onSelect={handleSelectDifficulty}
           activeWatchlistCount={activeWatchlistCount}
+          // One At A Time stages every film by hand, one at a time, so
+          // there is no generated remainder for a chosen starting film to
+          // lead — rather than silently dropping that film on the way into
+          // the builder, the option says why it isn't available.
+          unavailableDifficulties={
+            startWithFilm
+              ? {
+                  "one-at-a-time":
+                    "Not available when starting from a chosen film.",
+                }
+              : undefined
+          }
         />
       </section>
 
@@ -236,6 +277,13 @@ export function NewDraftForm({
         <>
           <input type="hidden" name="difficulty" value={difficulty} />
           <input type="hidden" name="timeMode" value={timeMode} />
+          {startWithFilm ? (
+            <input
+              type="hidden"
+              name="startWithWatchlistEntryId"
+              value={startWithFilm.entryId}
+            />
+          ) : null}
           {split ? (
             <>
               <input

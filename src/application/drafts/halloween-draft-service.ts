@@ -234,6 +234,8 @@ export async function createHalloweenLocalDraft(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear,
+    originalTargetFilms: totalFilms,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -254,6 +256,10 @@ export async function createHalloweenLocalDraft(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    // Every film in an Event's own Draft is an Event film, whichever pool
+    // it was drawn from (see `DraftItemEntrySource`).
+    entrySource: "event",
+    enteredAt: now.toISOString(),
     createdAt: now.toISOString(),
   }));
   await repos.drafts.createItems(items);

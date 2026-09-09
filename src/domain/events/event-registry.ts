@@ -540,7 +540,7 @@ const CHRISTMAS: EventDefinition = {
     enabled: true,
     title: "Have a lovely year!",
     message:
-      "And with that, the holidays are over. I hope you have enjoyed FDraft, it truely is a passion project and the fact you are using and reading this means the world to me. I hope you had a good one, and if not there's always next year. Thank you for using FDraft. From, Burrichen.",
+      "And with that, the holidays are over. I hope you have enjoyed FDraft, it truly is a passion project and the fact you are using and reading this means the world to me. I hope you had a good one, and if not there's always next year. Thank you for using FDraft. From, Burrichen.",
     buttonLabel: "Onto next year!",
     stinger: {
       message: "Fuck you, it's January!",

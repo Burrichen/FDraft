@@ -314,6 +314,20 @@ export interface EventDefinition {
    */
   singleFilmDraft?: boolean;
   /**
+   * Whether this Event's own Draft accepts films added after creation
+   * (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" §9), read through
+   * `resolveEventDraftAdditionPolicy` rather than directly.
+   *
+   * Absent/`true` means additions are allowed, subject to the normal
+   * capacity and eligibility checks every add already runs. `false`
+   * disables them for this Event explicitly.
+   *
+   * A `singleFilmDraft` Event is disabled regardless of this field — its
+   * one-join-one-roll mechanic makes a second film a contradiction — so
+   * January needs no entry here to be correctly refused.
+   */
+  allowsDraftAdditions?: boolean;
+  /**
    * Which static curated film categories this event has (see
    * docs/updates, "STATIC EVENT FILM CONTENT PACKS" §12) — `key` matches
    * the category's field name in that event's `public/events/<id>/

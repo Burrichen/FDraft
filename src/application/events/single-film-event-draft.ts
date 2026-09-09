@@ -223,6 +223,8 @@ export async function rollSingleFilmEventDraft(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear,
+    originalTargetFilms: 1,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -254,6 +256,8 @@ export async function rollSingleFilmEventDraft(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    entrySource: "event",
+    enteredAt: now.toISOString(),
     eventRewardGrantedAt: null,
     eventCategoryKey: null,
     createdAt: now.toISOString(),

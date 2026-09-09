@@ -22,6 +22,32 @@ export interface PatchNoteEntry {
 
 export const PATCH_NOTES: PatchNoteEntry[] = [
   {
+    version: "1.2.1-beta.1",
+    nickname: "Room for One More (Beta 1)",
+    sections: [
+      {
+        heading: "Added",
+        items: [
+          'Drafts are alive now: you can add a film from your Watchlist straight into your current Draft. Every Watchlist card has an "Add to Draft" icon, and it always asks first, naming the film, so a mis-clicked poster can never change your Draft.',
+          "No Draft on the go? The same icon offers to start one built around that film instead — you pick the difficulty and deadline as usual, and the film you chose is guaranteed to be in the Draft that comes out.",
+          "Adding a film by hand ignores the restrictions that only ever applied to FDraft's own picking. If \"Franchises in chronological order\" would have stopped a sequel being rolled, you can still add that sequel deliberately. Films FDraft genuinely can't draft — already watched, not released yet, or with mismatched details — are still refused, with the reason on the icon.",
+          "An \"Undo last change\" button on the Draft page reverses the most recent change to your Draft: a film you added, a re-roll, or a manual replacement. Press it again to step back through up to five recent changes. It costs nothing, and if you'd already marked the film watched, that's undone too — points, progress, completion and your Watchlist all go back with it.",
+          'During an Event, eligible Watchlist films get a second Add icon in that Event\'s own colour, for adding them to your Event Draft rather than your normal one. It confirms with the Event named ("Add to Halloween Draft?"), so the two can never be confused.',
+          "The Stats page has a new \"Watched films by source\" breakdown, showing how the Draft films you've watched got into your Drafts — Random, Challenge, DIY, Manually Added, Manual Replacement, Rerolled or Event — with a count and percentage for each. It covers every Draft you've ever had, not just the current one.",
+        ],
+      },
+      {
+        heading: "Changed",
+        items: [
+          "A Draft's film count is no longer fixed. Your Draft page shows how many films are in it right now, and progress counts every film currently in it — add a film to a 10-film Draft and it becomes 11/11 to finish, not 10. Its difficulty never changes: a Medium Draft stays a Medium Draft.",
+          "A Draft can hold up to 30 films. Once it's full, the Add icon says so rather than quietly refusing.",
+          "Drafts you already had keep working exactly as they are, and FDraft now records how each of their films arrived so the new Stats breakdown has something to say about them. Where that genuinely can't be known for an older film, it's classified conservatively rather than guessed at.",
+          '"F* You, It\'s January!" is untouched by all of this — there is no way to add films to your January Draft. You get what January gives you.',
+        ],
+      },
+    ],
+  },
+  {
     version: "1.2.0",
     nickname: "The Event Season",
     sections: [

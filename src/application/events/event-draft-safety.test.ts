@@ -143,8 +143,15 @@ describe("History preserves Halloween-sourced drafts after opting out (PROMPT 18
 
     const stillArchived = await repos.drafts.listArchived(PROFILE_ID);
     expect(stillArchived.map((d) => d.id)).toContain("halloween-draft-1");
-    expect(stillArchived.find((d) => d.id === "halloween-draft-1")).toEqual(
-      archivedDraft,
-    );
+    // Every persisted field survives verbatim. The two Living Drafts
+    // fields are added by the repository's own read normalization (see
+    // `normalizeDraft`) — this draft was written without them, exactly
+    // like a real pre-v1.2.1 record, and reads back with their documented
+    // defaults rather than `undefined`.
+    expect(stillArchived.find((d) => d.id === "halloween-draft-1")).toEqual({
+      ...archivedDraft,
+      originalTargetFilms: null,
+      mutationHistory: [],
+    });
   });
 });

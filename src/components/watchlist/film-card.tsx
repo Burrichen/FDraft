@@ -1,6 +1,7 @@
 import { Check, Film } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AddToDraftButton } from "./add-to-draft-button";
+import { AddToEventDraftButton } from "./add-to-event-draft-button";
 import { FilmMetadataLine } from "@/components/film-metadata-line";
 import { cn } from "@/lib/utils";
 import { useIsWatchedThisSession, WatchToggle } from "./watch-toggle";
@@ -14,13 +15,35 @@ interface FilmCardProps {
   size?: "default" | "large";
   /**
    * The Watchlist page's manual "Add to Draft" action (see docs/updates)
-   * — all three omitted entirely (rather than `null`) by any caller that
-   * doesn't offer it at all, e.g. the Random Film picker, which never
-   * renders `AddToDraftButton` in that case.
+   * — `activeDraftId`/`onAddedToDraft` omitted entirely (rather than
+   * `null`) by any caller that doesn't offer it at all, e.g. the Random
+   * Film picker, which never renders `AddToDraftButton` in that case. The
+   * rest default to the permissive values, so such a caller needs no
+   * knowledge of Living Drafts capacity or eligibility.
    */
   activeDraftId?: string | null;
   isInActiveDraft?: boolean;
+  /** Forwarded to `AddToDraftButton` — see its own props for why the page resolves these rather than the card. */
+  activeDraftIsFull?: boolean;
+  isEligibleForDraft?: boolean;
   onAddedToDraft?: (entryId: string) => void;
+  /**
+   * The profile's active EVENT Draft, when this film may be added to it
+   * (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS" Part 3 §4). The
+   * page resolves BOTH the Event's own eligibility and its accent, so this
+   * card — like the button it renders — knows nothing about any particular
+   * Event. Omitted whenever there is no such Draft, the Event declines
+   * additions (January), or this film is outside the Event's boundary.
+   */
+  eventDraft?: {
+    draftId: string;
+    eventName: string;
+    accentClassName?: string;
+    isInEventDraft: boolean;
+    isFull: boolean;
+  } | null;
+  /** Fires after a film is added to the EVENT Draft — separate from `onAddedToDraft` so an Event addition never marks the film as being in the normal Draft. */
+  onAddedToEventDraft?: (entryId: string) => void;
 }
 
 /**
@@ -45,7 +68,11 @@ export function FilmCard({
   size = "default",
   activeDraftId,
   isInActiveDraft = false,
+  activeDraftIsFull = false,
+  isEligibleForDraft = true,
   onAddedToDraft,
+  eventDraft = null,
+  onAddedToEventDraft,
 }: FilmCardProps) {
   const isWatchedThisSession = useIsWatchedThisSession(film.entryId);
   const genresToShow = size === "large" ? 4 : 2;
@@ -58,13 +85,32 @@ export function FilmCard({
         onMarkedWatched={() => onWatched?.(film.entryId)}
       />
       {activeDraftId !== undefined && onAddedToDraft ? (
-        <AddToDraftButton
-          entryId={film.entryId}
-          title={film.title}
-          activeDraftId={activeDraftId}
-          isInDraft={isInActiveDraft}
-          onAdded={onAddedToDraft}
-        />
+        // One cluster, so the normal and Event actions sit side by side
+        // rather than fighting for the same corner — the same pattern the
+        // Draft page's own slot controls use.
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+          <AddToDraftButton
+            entryId={film.entryId}
+            title={film.title}
+            activeDraftId={activeDraftId}
+            isInDraft={isInActiveDraft}
+            draftIsFull={activeDraftIsFull}
+            isEligible={isEligibleForDraft}
+            onAdded={onAddedToDraft}
+          />
+          {eventDraft && onAddedToEventDraft ? (
+            <AddToEventDraftButton
+              entryId={film.entryId}
+              title={film.title}
+              eventDraftId={eventDraft.draftId}
+              eventName={eventDraft.eventName}
+              accentClassName={eventDraft.accentClassName}
+              isInEventDraft={eventDraft.isInEventDraft}
+              eventDraftIsFull={eventDraft.isFull}
+              onAdded={onAddedToEventDraft}
+            />
+          ) : null}
+        </div>
       ) : null}
       <a
         href={film.letterboxdUri ?? undefined}

@@ -11,6 +11,16 @@ import type { FilmMetadataRecord, FilmRecord } from "./records";
  */
 export interface FilmRepository {
   getById(id: string): Promise<FilmRecord | null>;
+  /**
+   * Bulk sibling of `getById`, keyed by film id — the same shape (and the
+   * same "absent ids are simply missing from the Map") as
+   * `getMetadataForFilms`.
+   *
+   * Exists because every draft-shaped surface needs a film row for each of
+   * a profile's watchlist entries at once, and doing that as one `getById`
+   * per entry is a request per film on a list that can run to thousands.
+   */
+  getByIds(ids: string[]): Promise<Map<string, FilmRecord>>;
   findByLetterboxdSlug(slug: string): Promise<FilmRecord | null>;
   /** Heuristic fallback lookup for identities with no Letterboxd URI (see `src/domain/import/film-key.ts`). */
   findByTitleAndYear(

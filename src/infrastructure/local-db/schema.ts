@@ -1,5 +1,7 @@
 import type Dexie from "dexie";
 import type { Transaction } from "dexie";
+import { resolveDraftItemEntrySource } from "@/domain/drafts/living-draft";
+import type { DraftItemRecord, DraftRecord } from "@/repositories/records";
 
 /**
  * Local database schema, versioned (see docs/product-spec.md, "STORAGE
@@ -197,7 +199,123 @@ export const SCHEMA_MIGRATIONS: SchemaVersion[] = [
       pointBalances: "[profileId+currency], profileId",
     },
   },
+  {
+    // Living Drafts (see docs/updates, "FDRAFT v1.2.1 — LIVING DRAFTS"
+    // §1/§3) — backfills the new per-item `entrySource`/`enteredAt` and
+    // per-draft `originalTargetFilms` onto every existing record. No
+    // `stores` change at all: all three are plain, non-indexed fields, so
+    // this version exists PURELY to run the one-time upgrade below (the
+    // same reason `matchMethod` needed no version at all — the difference
+    // is that this one genuinely has existing data to transform, which
+    // Dexie can only do inside a versioned upgrade).
+    //
+    // Deliberately additive and defensive: nothing is deleted, nothing is
+    // overwritten if already present, and an item whose provenance simply
+    // cannot be recovered gets the documented safe default rather than
+    // being dropped (§1, §10: "do not silently delete invalid old data").
+    version: 6,
+    stores: {
+      profiles: "id",
+      films: "id, letterboxdSlug, [title+releaseYear]",
+      filmMetadata: "id, filmId, [filmId+provider]",
+      watchlistEntries: "id, profileId, filmId, [profileId+filmId]",
+      watchlistImports: "id, profileId, status",
+      watchedHistory: "id, profileId, watchlistEntryId, filmId",
+      userRatings: "id, [profileId+filmId], profileId",
+      drafts: "id, profileId, [profileId+status]",
+      draftItems: "id, draftId, watchlistEntryId",
+      draftChallengeAttempts: "id, draftId",
+      draftChallengeInteractions: "id, draftId, [draftId+challengeId], status",
+      draftPostmortemResponses: "id, &draftItemId, draftId",
+      selectionWeightAdjustments: "id, watchlistEntryId",
+      settings: "[profileId+key], profileId",
+      unresolvedMetadata: "id, &filmId, status",
+      pointBalances: "[profileId+currency], profileId",
+    },
+    upgrade: async (tx) => {
+      await backfillLivingDraftFields(tx);
+    },
+  },
 ];
+
+/**
+ * The version 6 upgrade, extracted so it stays readable and directly
+ * testable (see `schema.test.ts`).
+ *
+ * Joins each item to its owning draft before deriving, because the owning
+ * draft is what makes an Event draft's own curated picks recognisable as
+ * `"event"` rather than plain `"random"` — Christmas and January both
+ * write `source: "random"` for films drawn from their curated categories.
+ * `resolveDraftItemEntrySource` is the single shared implementation of
+ * that inference, also used at read time for anything this never reached.
+ */
+async function backfillLivingDraftFields(tx: Transaction): Promise<void> {
+  const drafts = await tx.table("drafts").toArray();
+  const draftsById = new Map<string, DraftRecord>(
+    drafts.map((draft: DraftRecord) => [draft.id, draft]),
+  );
+
+  await tx
+    .table("drafts")
+    .toCollection()
+    .modify((draft: DraftRecord) => {
+      // Each field is backfilled independently: a record can arrive with
+      // one already present and the other missing (a backup restored by an
+      // in-between build), and neither may be overwritten if it is.
+      if (typeof draft.originalTargetFilms !== "number") {
+        // `difficulty` is authoritative for every fixed difficulty. One At
+        // A Time and legacy Freeform have no fixed count, so the draft's
+        // own recorded size is the best available answer — imprecise only
+        // for a draft that had already been manually added to before this
+        // migration ran, which is both rare and harmless: the field is
+        // identity/history metadata, never a completion input.
+        draft.originalTargetFilms =
+          DIFFICULTY_FILM_COUNTS[draft.difficulty] ?? draft.totalFilms ?? 0;
+      }
+      if (!draft.mutationHistory) {
+        draft.mutationHistory = [];
+      }
+    });
+
+  await tx
+    .table("draftItems")
+    .toCollection()
+    .modify((item: DraftItemRecord) => {
+      if (!item.entrySource) {
+        item.entrySource = resolveDraftItemEntrySource(
+          item,
+          draftsById.get(item.draftId) ?? null,
+        );
+      }
+      if (!item.enteredAt) {
+        // A substituted slot's current film arrived later than the row
+        // itself, but exactly when was never recorded — `createdAt` is the
+        // only honest answer available, and is exact for every slot that
+        // was never substituted.
+        item.enteredAt = item.createdAt ?? null;
+      }
+    });
+}
+
+/**
+ * A local copy of each difficulty's fixed film count, deliberately NOT an
+ * import of `DIFFICULTIES` from the domain layer.
+ *
+ * A schema migration must keep behaving the way it did on the day it
+ * shipped, forever — it runs against data written by older builds. Reading
+ * live domain config would silently change what an old install migrates to
+ * if those numbers are ever retuned, which is exactly the class of bug
+ * "never edit an already-shipped version's entry" exists to prevent.
+ */
+const DIFFICULTY_FILM_COUNTS: Record<string, number | undefined> = {
+  baby: 5,
+  easy: 8,
+  medium: 10,
+  hard: 12,
+  hardcore: 20,
+  freeform: undefined,
+  "one-at-a-time": undefined,
+};
 
 export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.at(-1)!.version;
 

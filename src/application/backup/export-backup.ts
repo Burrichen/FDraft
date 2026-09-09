@@ -2,6 +2,7 @@ import {
   BACKUP_FORMAT_MARKER,
   type JsonValue,
 } from "@/domain/backup/backup-schema";
+import { resolveDraftItemEntrySource } from "@/domain/drafts/living-draft";
 import type { BackupV1 } from "@/domain/backup/backup-schema";
 import { SystemClock, type Clock } from "@/domain/time/clock";
 import type { LocalProfile } from "@/domain/profiles/profile";
@@ -180,7 +181,27 @@ export async function buildProfileBackup(
     watchlistImports,
     watchedHistory,
     userRatings,
-    drafts,
+    // Living Drafts' optional fields are coerced to their real values
+    // here rather than exported as `undefined` (see docs/updates, "FDRAFT
+    // v1.2.1 — LIVING DRAFTS"): the repository already normalizes them on
+    // read, but the record TYPE keeps them optional for backward
+    // compatibility, and the backup format is strict about them so a
+    // restored draft's provenance is never silently absent.
+    drafts: drafts.map((draft) => ({
+      ...draft,
+      originalTargetFilms: draft.originalTargetFilms ?? null,
+      mutationHistory: (draft.mutationHistory ?? []).map((mutation) => ({
+        ...mutation,
+        previousItem: mutation.previousItem
+          ? {
+              ...mutation.previousItem,
+              challengeDisplayValue: toJsonValue(
+                mutation.previousItem.challengeDisplayValue,
+              ) as Record<string, JsonValue> | null,
+            }
+          : null,
+      })),
+    })),
     draftItems: draftItems.map((item) => ({
       ...item,
       challengeDisplayValue: toJsonValue(item.challengeDisplayValue) as Record<
@@ -189,6 +210,8 @@ export async function buildProfileBackup(
       > | null,
       eventRewardGrantedAt: item.eventRewardGrantedAt ?? null,
       eventCategoryKey: item.eventCategoryKey ?? null,
+      entrySource: resolveDraftItemEntrySource(item),
+      enteredAt: item.enteredAt ?? item.createdAt,
     })),
     draftChallengeAttempts,
     draftChallengeInteractions,

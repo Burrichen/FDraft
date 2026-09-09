@@ -4,6 +4,7 @@ import {
   resolveEventCategoryPickerCandidates,
   type EventCategoryPickerCandidate,
 } from "@/application/events/resolve-event-category-candidates";
+import { resolveStagedEntrySource } from "@/domain/drafts/living-draft";
 import { getCurrentOccurrenceBounds } from "@/domain/events/event-availability";
 import { getEventDefinition } from "@/domain/events/event-registry";
 import type { OneAtATimeStagedItem } from "@/domain/drafts/one-at-a-time";
@@ -264,6 +265,8 @@ export async function finalizeEventOneAtATimeDraft(
     rewardsGrantedAt: null,
     customName: null,
     eventOccurrenceYear,
+    originalTargetFilms: items.length,
+    mutationHistory: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -284,6 +287,8 @@ export async function finalizeEventOneAtATimeDraft(
     watchedHistoryId: null,
     originFilmId: null,
     substitutionReason: null,
+    entrySource: resolveStagedEntrySource(item.source, { forEvent: true }),
+    enteredAt: now.toISOString(),
     eventRewardGrantedAt: null,
     eventCategoryKey: item.eventCategoryKey ?? null,
     createdAt: now.toISOString(),
